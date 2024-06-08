@@ -1,0 +1,92 @@
+# Work Plan
+
+## Rough Outline
+- Research
+    - Prior Art
+        - Language Design
+        - Compiler Design
+    - Literature
+        - Type Systems
+        - Effect Systems
+- Planning & Design
+    - Language Design
+        - Language Family
+        - Core Syntax
+            - Comments
+            - Literals
+            - Expressions
+            - Statements
+            - Function Definitions
+            - Type Definitions
+            - Other Top-Level Declarations
+        - Function Color
+        - Type System
+        - Generic System(s)
+        - Module System
+        - Package System
+        - Novel Features
+    - Compiler Design
+        - Paradigm: IRs vs Core Languages
+        - Broad Architecture
+        - Backend Target
+        - Linking & Runtime
+        - ABI & Interop Story
+        - Compilation Artifacts
+        - Package Directory Structure
+        - Configuration (e.g. a `.toml` file)
+- Implementation
+    - Compiler
+        - Lexer
+        - Parser
+        - Intermediate Stages
+        - Error Reporting
+        - Backend Codegen
+        - Parallel Compilation Story
+    - Language
+        - Standard Library
+        - Formal Grammar
+        - Evaluation Model
+
+## Relevant Languages
+- Rust
+    - Type System
+    - Safety Guarantees
+    - Syntax
+- Scala
+    - Type System (with HKTs)
+    - Syncretic Features
+- Haskell
+    - Pure Functions
+    - Type System (with HKTs)
+    - Polymorphism Model
+- Idris/Idris2
+    - Syntax
+    - Polymorphism Model
+    - Scheme Backend
+    - Typed Holes
+    - Totality Checking
+    - Strict Evaluation Model
+    - Limited Lazy Evaluation for Codata Types
+- OCaml
+    - Functors
+    - Purity (with escape hatches)
+    - Syntax (particularly the `let`/`let*` distinction)
+    - Strict Evaluation Model
+    - Native Codegen
+- Elm
+    - Minimal Haskell-ish Syntax
+    - Focused Design Intent
+- Hazel
+    - Typed Holes (in an ordinary Hindley-Milner type system)
+    - ML-ish Syntax
+    - Tooling Support (beyond LSP)
+- Julia
+    - Native Codegen
+    - Functions as Interfaces
+    - Parametric Polymorphism Model
+    - Type System
+    - Limited Set of Unicode Operators
+- Gleam
+    - Simple Rust-ish Syntax
+    - Simplified FP Concepts
+    - Excellent Error Messages
