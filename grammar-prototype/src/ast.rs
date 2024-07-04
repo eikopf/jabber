@@ -1,19 +1,18 @@
 //! Rough AST structures for parsing (without source locations).
 
-/// The type corresponding to the `START`
-/// symbol in the formal grammar.
-pub type Start = Box<[Item]>;
-
 /// An individual _item_ (AKA entity or symbol).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     access_spec: Option<AccessSpec>,
     decl: Decl,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessSpec {
     Pub,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Decl {
     Mod(ModDecl),
     Import(ImportDecl),
@@ -24,34 +23,40 @@ pub enum Decl {
     Const(ConstDecl),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModDecl {
     ident: Ident,
     contents: Option<Box<[Item]>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportDecl {
     item: Name,
     alias: Option<Ident>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDecl {
     name: Name,
     generic_params: Option<GenericParams>,
     variants: Box<[(Ident, Box<[Ty]>)]>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordDecl {
     name: Name,
     generic_params: Option<GenericParams>,
     fields: Box<[(Ident, Ty)]>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SigDecl {
     ident: Ident,
     generic_params: Option<GenericParams>,
     ty: (Ty, Ty),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnDecl {
     name: Name,
     generic_params: Option<GenericParams>,
@@ -61,6 +66,7 @@ pub struct FnDecl {
     body: Expr,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstDecl {
     ident: Ident,
     ty: Ty,
@@ -68,6 +74,7 @@ pub struct ConstDecl {
 }
 
 /// An expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Block(Box<BlockExpr>),
     Match(Box<MatchExpr>),
@@ -77,24 +84,28 @@ pub enum Expr {
     Literal(Box<Literal>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockExpr {
     statements: Box<[Stmt]>,
     result: Option<Expr>,
 }
 
 /// A statement.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stmt {
     Let(Pattern, Expr),
     Expr(Expr),
 }
 
 /// A structural pattern matching expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchExpr {
     scrutinee: Expr,
     arms: Box<[MatchArm]>,
 }
 
 /// An individual arm in a `match` expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchArm {
     pattern: Pattern,
     body: Expr,
@@ -103,6 +114,7 @@ pub struct MatchArm {
 
 /// A pattern, used in destructuring assignment
 /// and structural pattern matching expressions.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pattern {
     /// The `_` (wildcard) pattern, which
     /// matches everything.
@@ -111,12 +123,10 @@ pub enum Pattern {
     /// "fill empty space" in variable length
     /// patterns.
     Rest,
-    /// An identifier which may bind anything.
-    Ident(Ident),
     /// A literal value, matched by structural equality.
     ///
     /// [See also this related Rust RFC.](https://github.com/rust-lang/rfcs/blob/master/text/1445-restrict-constants-in-patterns.md)
-    Literal(Literal),
+    Literal(AtomicLiteral),
     /// A list of patterns matching against tuple values.
     ///
     /// This is a more permissive structure than necessary,
@@ -137,18 +147,21 @@ pub enum Pattern {
     Record(Name, Box<[(Ident, Self)]>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IfThenElseExpr {
     cond: Expr,
     true_expr: Expr,
     false_expr: Expr,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpr {
     receiver: Expr,
     args: Option<Box<[Expr]>>,
 }
 
 /// An operator expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpExpr {
     Prefix(PrefixOp, Box<Expr>),
     Infix(Box<Expr>, InfixOp, Box<Expr>),
@@ -156,6 +169,7 @@ pub enum OpExpr {
 }
 
 /// A prefix operator.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrefixOp {
     Bang,
     Dash,
@@ -163,6 +177,7 @@ pub enum PrefixOp {
 }
 
 /// An infix operator.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InfixOp {
     /// `+`
     Plus,
@@ -215,80 +230,106 @@ pub enum InfixOp {
 }
 
 /// A postfix operator.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PostfixOp {
     Bang,
     Hook,
-    Dot(Ident),
     Index(Expr),
 }
 
 /// A literal value.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Literal {
+    Atom(AtomicLiteral),
+    List(Box<[Expr]>),
+    Record(RecordLiteral),
+    Func(FuncLiteral),
+}
+
+/// A terminal literal, in the sense that it
+/// cannot contain further literal values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AtomicLiteral {
     True,
     False,
     Unit,
     Name(Name),
     Char(char),
     String(Box<str>),
-    Int(IntLiteral),
-    Float(FloatLiteral),
-    List(Box<[Expr]>),
-    Record(RecordLiteral),
-    Func(FuncLiteral),
+    Num(NumLiteral),
 }
 
-/// A literal integer value.
-pub struct IntLiteral {
-    digits: usize,
-    suffix: Option<PrimInt>,
+/// A numeric literal value.
+///
+/// Notice that this type admits some obviously
+/// malformed numeric literals -- e.g. `3.14i32`.
+/// However, parsing these literals as valid allows
+/// us to later produce nicer error messages that
+/// explain *why* such a literal value is malformed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NumLiteral {
+    pub digits: NumLiteralDigits,
+    pub suffix: Option<PrimNum>,
 }
 
-/// A literal floating-point value.
-pub struct FloatLiteral {
-    int_digits: usize,
-    frac_digits: usize,
-    suffix: Option<PrimFloat>,
+/// The digits in a [`NumLiteral`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NumLiteralDigits {
+    /// A purely integral digit sequence, i.e. without a decimal point.
+    Int(u64),
+    /// A purely integral digit sequence with a trailing decimal point.
+    IntDot(u64),
+    /// A purely fractional digit sequence, i.e. with a leading decimal point.
+    Frac(u64),
+    /// A digit sequence with both integral and fractional components.
+    Real { int: u64, frac: u64 },
 }
 
 /// A literal record value.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordLiteral {
     /// The name of the record type.
-    name: Name,
+    pub name: Name,
     /// The field assignments.
-    fields: Box<[(Ident, Expr)]>,
+    pub fields: Box<[(Ident, Expr)]>,
     /// The optional default source for otherwise-omitted
     /// field assignments.
-    source: Option<Expr>,
+    pub source: Option<Expr>,
 }
 
 /// A function literal (i.e. an anonymous function, or lambda expression).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FuncLiteral {
-    params: Box<[Param]>,
-    body: Expr,
+    pub params: Box<[Param]>,
+    pub body: Expr,
 }
 
 /// A function parameter.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Param {
-    Plain(Ident),
-    Typed(Ident, Ty),
+    Plain(Pattern),
+    Typed(Pattern, Ty),
 }
 
 /// A type.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ty {
-    Prim(Prim),
+    Prim(PrimTy),
     Name(Name, Option<GenericParams>),
     Func(Box<Ty>, Box<Ty>),
-    Pair(Box<Ty>, Box<Ty>),
+    Tuple(Box<[Ty]>),
 }
 
 /// A list of generic parameters and assignments.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericParams {
-    params: Box<[Ty]>,
-    fundeps: Option<Box<[Ty]>>,
+    pub params: Box<[Ty]>,
+    pub fundeps: Option<Box<[Ty]>>,
 }
 
 /// A primitive concrete type.
-pub enum Prim {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrimTy {
     Bottom,
     Unit,
     Bool,
@@ -298,7 +339,15 @@ pub enum Prim {
     Float(PrimFloat),
 }
 
+/// A primitive numeric type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrimNum {
+    Int(PrimInt),
+    Float(PrimFloat),
+}
+
 /// A primitive integer type.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrimInt {
     U8,
     U16,
@@ -311,6 +360,7 @@ pub enum PrimInt {
 }
 
 /// A primitive floating-point type.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrimFloat {
     F32,
     F64,

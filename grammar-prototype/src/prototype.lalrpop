@@ -1,0 +1,134 @@
+use crate::ast;
+use lalrpop_util::ParseError;
+use std::str::FromStr;
+
+grammar;
+
+pub Pattern: ast::Pattern = {
+    PatElem,
+    <head:PatElem> "::" <tail:Pattern> 
+        => ast::Pattern::Cons(
+              Box::new(head), 
+              Box::new(tail)
+           ),
+};
+
+PatElem: ast::Pattern = {
+    "_"     => ast::Pattern::Wildcard,
+    ".."    => ast::Pattern::Rest,
+    AtomicLiteral             => ast::Pattern::Literal(<>),
+    "(" <Comma2<Pattern>> ")" => ast::Pattern::Tuple(<>),
+    "[" <Comma1<Pattern>> "]" => ast::Pattern::List(<>),
+    "(" <Pattern> ")",
+};
+
+pub Literal: ast::Literal = {
+    AtomicLiteral => ast::Literal::Atom(<>),
+};
+
+AtomicLiteral: ast::AtomicLiteral = {
+    "true"           => ast::AtomicLiteral::True,
+    "false"          => ast::AtomicLiteral::False,
+    "()"             => ast::AtomicLiteral::Unit,
+    Name             => ast::AtomicLiteral::Name(<>),
+    r"\'(.)\'"       => ast::AtomicLiteral::Char(<>.chars().nth(1).unwrap()),
+    <s:r#""[^"]*""#> => ast::AtomicLiteral::String(s[1..(s.len() - 1)].into()),
+    NumLiteral       => ast::AtomicLiteral::Num(<>),
+};
+
+pub Ty: ast::Ty = {
+    <TyElem>,
+    <l:TyElem> "->" <r:Ty> => ast::Ty::Func(Box::new(l), Box::new(r)),
+};
+
+TyElem: ast::Ty = {
+    PrimTy => ast::Ty::Prim(<>),
+    Name GenericParams? => ast::Ty::Name(<>),
+    "(" <Comma2<Ty>> ")" => ast::Ty::Tuple(<>),
+    "(" <Ty> ")",
+}
+
+pub GenericParams: ast::GenericParams = {
+    "[" <params:Comma1<Ty>> 
+        <fundeps:("|" <Comma1<Ty>>)?> 
+    "]" => ast::GenericParams { <> }
+};
+
+pub PrimTy: ast::PrimTy = {
+    "!"         => ast::PrimTy::Bottom,
+    "()"        => ast::PrimTy::Unit,
+    "bool"      => ast::PrimTy::Bool,
+    "char"      => ast::PrimTy::Char,
+    "string"    => ast::PrimTy::String,
+    <PrimInt>   => ast::PrimTy::Int(<>),
+    <PrimFloat> => ast::PrimTy::Float(<>),
+};
+
+pub NumLiteral: ast::NumLiteral = <digits:NumLiteralDigits> <suffix:PrimNum?> => ast::NumLiteral { <> };
+
+pub NumLiteralDigits: ast::NumLiteralDigits = {
+         Digits                    => ast::NumLiteralDigits::Int(<>),
+        <Digits> "."               => ast::NumLiteralDigits::IntDot(<>),
+                 "."      <Digits> => ast::NumLiteralDigits::Frac(<>),
+    <int:Digits> "." <frac:Digits> => ast::NumLiteralDigits::Real { <> },
+};
+
+Digits: u64 = <r"[0-9]+"> =>? u64::from_str(<>)
+    .map_err(|_| ParseError::User {
+        error: "Tried to parse an integer literal that was too large."
+    });
+
+pub PrimNum: ast::PrimNum = {
+    PrimInt   => ast::PrimNum::Int(<>),
+    PrimFloat => ast::PrimNum::Float(<>),
+};
+
+pub PrimInt: ast::PrimInt = {
+    "u8"  => ast::PrimInt::U8,
+    "u16" => ast::PrimInt::U16,
+    "u32" => ast::PrimInt::U32,
+    "u64" => ast::PrimInt::U64,
+    "i8"  => ast::PrimInt::I8,
+    "i16" => ast::PrimInt::I16,
+    "i32" => ast::PrimInt::I32,
+    "i64" => ast::PrimInt::I64,
+};
+
+pub PrimFloat: ast::PrimFloat = {
+    "f32" => ast::PrimFloat::F32,
+    "f64" => ast::PrimFloat::F64,
+};
+
+pub Ident: ast::Ident = <r"(_+[a-zA-Z0-9]|[a-zA-Z])[_a-zA-Z0-9]*"> => Box::from(<>);
+pub Name:  ast::Name = <head:Ident> <mut tail:( "." <Ident>)*> => {
+    tail.insert(0, head);
+    tail.into_boxed_slice()
+};
+
+// a comma-delimited list with an optional trailing comma
+CommaOpt<T>: Box<[T]> = {
+    <mut vec:(<T> ",")*> <end:T?> => match end {
+        None => vec,
+        Some(item) => {
+            vec.push(item);
+            vec
+        }
+    }.into_boxed_slice()
+};
+
+// a comma-delimited list with at least one element
+Comma1<T>: Box<[T]> = {
+    <head:T> <mut vec:("," <T>)*> => {
+        vec.insert(0, head);
+        vec.into_boxed_slice()
+    }
+};
+
+// a comma-delimited list with at least two elements,
+Comma2<T>: Box<[T]> = {
+    <head:(<T> "," <T>)> <mut vec:("," <T>)*> => {
+        vec.insert(0, head.0);
+        vec.insert(1, head.1);
+        vec.into_boxed_slice()
+    }
+};
