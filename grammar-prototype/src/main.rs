@@ -2,7 +2,6 @@ use lalrpop_util::lalrpop_mod;
 
 mod ast;
 
-lalrpop_mod!(pub calculator);
 lalrpop_mod!(pub prototype);
 
 fn main() {
