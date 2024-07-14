@@ -54,6 +54,18 @@ enum TypedExprExtension {
     TypeApplication(Box<Expr<Typed>>, Ty),
 }
 
+fn smth_for_typed_expr(expr: Expr<Typed>) -> String {
+    match expr {
+        Expr::Var(_, _) => todo!(),
+        Expr::App(_, _, _) => todo!(),
+        Expr::Lambda(_, _, _) => todo!(),
+        Expr::ExprX(inner) => match inner {
+            TypedExprExtension::TypeAbstraction(_, _) => todo!(),
+            TypedExprExtension::TypeApplication(_, _) => todo!(),
+        },
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 }
