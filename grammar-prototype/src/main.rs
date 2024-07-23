@@ -1,6 +1,7 @@
 use lalrpop_util::lalrpop_mod;
 
 mod ast;
+mod cst;
 
 lalrpop_mod!(pub prototype);
 
@@ -27,9 +28,7 @@ mod tests {
     #[test]
     fn name() {
         assert!(prototype::NameParser::new().parse("Item").is_ok());
-        assert!(prototype::NameParser::new()
-            .parse("qualified.Item")
-            .is_ok());
+        assert!(prototype::NameParser::new().parse("qualified.Item").is_ok());
         assert!(prototype::NameParser::new()
             .parse("mangled.Symbol.")
             .is_err());
@@ -121,15 +120,15 @@ mod tests {
         // condition checks if -> is right-associative
         assert!(prototype::TyParser::new()
             .parse("A -> B -> C")
-            .is_ok_and(|ty| matches!(ty, 
-                ast::Ty::Func(_, right) if matches!(*right, 
+            .is_ok_and(|ty| matches!(ty,
+                ast::Ty::Func(_, right) if matches!(*right,
                     ast::Ty::Func(_, _)))));
 
         // condition checks if -> is right-associative
         assert!(prototype::TyParser::new()
             .parse("(A -> B) -> C")
-            .is_ok_and(|ty| matches!(ty, 
-                ast::Ty::Func(left, _) if matches!(*left, 
+            .is_ok_and(|ty| matches!(ty,
+                ast::Ty::Func(left, _) if matches!(*left,
                     ast::Ty::Func(_, _)))));
 
         assert!(prototype::TyParser::new()
@@ -137,51 +136,66 @@ mod tests {
             .is_ok_and(|ty| matches!(ty, ast::Ty::Tuple(_))));
     }
 
-
     #[test]
     fn num_literal_digits() {
-       assert!(prototype::NumLiteralDigitsParser::new()
-           .parse("123")
-           .is_ok_and(|digits| matches!(digits, ast::NumLiteralDigits::Int(123u64)))); 
+        assert!(prototype::NumLiteralDigitsParser::new()
+            .parse("123")
+            .is_ok_and(|digits| matches!(digits, ast::NumLiteralDigits::Int(123u64))));
 
-       assert!(prototype::NumLiteralDigitsParser::new()
-           .parse("123.")
-           .is_ok_and(|digits| matches!(digits, ast::NumLiteralDigits::IntDot(123u64)))); 
+        assert!(prototype::NumLiteralDigitsParser::new()
+            .parse("123.")
+            .is_ok_and(|digits| matches!(digits, ast::NumLiteralDigits::IntDot(123u64))));
 
-       assert!(prototype::NumLiteralDigitsParser::new()
-           .parse(".123")
-           .is_ok_and(|digits| matches!(digits, ast::NumLiteralDigits::Frac(123u64)))); 
+        assert!(prototype::NumLiteralDigitsParser::new()
+            .parse(".123")
+            .is_ok_and(|digits| matches!(digits, ast::NumLiteralDigits::Frac(123u64))));
 
-       assert!(prototype::NumLiteralDigitsParser::new()
-           .parse("123.456")
-           .is_ok_and(|digits| matches!(digits, ast::NumLiteralDigits::Real { int: 123u64, frac: 456u64 }))); 
+        assert!(prototype::NumLiteralDigitsParser::new()
+            .parse("123.456")
+            .is_ok_and(|digits| matches!(
+                digits,
+                ast::NumLiteralDigits::Real {
+                    int: 123u64,
+                    frac: 456u64
+                }
+            )));
     }
 
     #[test]
     fn num_literals() {
         // passing examples
         let examples = vec![
-           (".0f32", ast::NumLiteral { 
-               digits: ast::NumLiteralDigits::Frac(0u64), 
-               suffix: Some(ast::PrimNum::Float(ast::PrimFloat::F32)),
-           }),
+            (
+                ".0f32",
+                ast::NumLiteral {
+                    digits: ast::NumLiteralDigits::Frac(0u64),
+                    suffix: Some(ast::PrimNum::Float(ast::PrimFloat::F32)),
+                },
+            ),
+            (
+                ".367u8",
+                ast::NumLiteral {
+                    digits: ast::NumLiteralDigits::Frac(367u64),
+                    suffix: Some(ast::PrimNum::Int(ast::PrimInt::U8)),
+                },
+            ),
+            (
+                "123.367i64",
+                ast::NumLiteral {
+                    digits: ast::NumLiteralDigits::Real {
+                        int: 123u64,
+                        frac: 367u64,
+                    },
+                    suffix: Some(ast::PrimNum::Int(ast::PrimInt::I64)),
+                },
+            ),
+        ];
 
-           (".367u8", ast::NumLiteral { 
-               digits: ast::NumLiteralDigits::Frac(367u64), 
-               suffix: Some(ast::PrimNum::Int(ast::PrimInt::U8)),
-           }),
+        let parser = prototype::NumLiteralParser::new();
 
-           ("123.367i64", ast::NumLiteral { 
-               digits: ast::NumLiteralDigits::Real { int: 123u64, frac: 367u64 }, 
-               suffix: Some(ast::PrimNum::Int(ast::PrimInt::I64)),
-           }),
-       ]; 
-
-       let parser = prototype::NumLiteralParser::new();
-
-       for (src, lit) in examples {
-           assert_eq!(parser.parse(src), Ok(lit));
-       };
+        for (src, lit) in examples {
+            assert_eq!(parser.parse(src), Ok(lit));
+        }
     }
 
     #[test]
@@ -196,7 +210,7 @@ mod tests {
                     // with four elements
                     if elems.len() == 4
                     // the first element is a cons pattern whose rhs is also a cons pattern
-                    && matches!(&elems[0], ast::Pattern::Cons(_, rhs) if matches!(**rhs, ast::Pattern::Cons(_, _))) 
+                    && matches!(&elems[0], ast::Pattern::Cons(_, rhs) if matches!(**rhs, ast::Pattern::Cons(_, _)))
                     // the second element is a wildcard pattern
                     && matches!(elems[1], ast::Pattern::Wildcard)
                     // the third element is a literal unit
