@@ -5,4 +5,9 @@ edition = "2021"
 
 [dependencies]
 byteyarn = "0.5.1"
+lalrpop-util = "0.20.2"
 logos = "0.14.0"
+
+[build-dependencies]
+# default lexer is disabled
+lalrpop = { version = "0.20.2", default-features = false }
