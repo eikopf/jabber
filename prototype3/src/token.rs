@@ -1,11 +1,24 @@
 //! The [`Token`] type and its [`Logos`] lexer implementation.
 
 use byteyarn::YarnBox;
-use logos::{Lexer, Logos, Source};
+use logos::{Lexer, Logos};
 
+/// An atomic token lexed from source code.
+///
+/// Use [`Token::lexer`] to access the lexer
+/// implementation, and [`logos::Lexer::spanned`]
+/// to track source locations.
 #[derive(Debug, Clone, Logos)]
-#[logos(skip r"[ \t\r\f\n]+")]
+#[logos(skip r"[ \t\r\f]+")]
 pub enum Token<'src> {
+    // WHITESPACE
+    #[token("\n")]
+    Newline,
+    #[regex(r#"//[^\n]*"#, line_comment)]
+    LineComment(Frag<'src>),
+    #[regex(r#"//![^\n]*"#, doc_comment)]
+    DocComment(Frag<'src>),
+
     // BRACKETS
     #[token("(")]
     LeftParen,
@@ -103,6 +116,8 @@ pub enum Token<'src> {
     Enum,
     #[token("struct")]
     Struct,
+    #[token("sig")]
+    Sig,
     #[token("def")]
     Def,
     #[token("let")]
@@ -119,8 +134,7 @@ pub enum Token<'src> {
     False,
 
     // PRIMITIVE TYPES
-    #[token("()")]
-    Unit,
+    // (excluding () and !)
     #[token("bool")]
     Bool,
     #[token("char")]
@@ -174,6 +188,104 @@ pub enum Token<'src> {
     Name(Name<'src>),
 }
 
+impl<'a> Token<'a> {
+    /// Extends the lifetime of `self`, potentially
+    /// allocating as necessary.
+    pub fn immortalize<'b>(self) -> Token<'b> {
+        match self {
+            // WHITESPACE
+            Token::Newline => Token::Newline,
+            Token::LineComment(c) => Token::LineComment(c.immortalize()),
+            Token::DocComment(d) => Token::DocComment(d.immortalize()),
+
+            // BRACKETS
+            Token::LeftParen => Token::LeftParen,
+            Token::RightParen => Token::RightParen,
+            Token::LeftBracket => Token::LeftBracket,
+            Token::RightBracket => Token::RightBracket,
+            Token::LeftBrace => Token::LeftBrace,
+            Token::RightBrace => Token::RightBrace,
+
+            // OPERATORS
+            Token::Plus => Token::Plus,
+            Token::Minus => Token::Minus,
+            Token::Star => Token::Star,
+            Token::Slash => Token::Slash,
+            Token::Percent => Token::Percent,
+            Token::And => Token::And,
+            Token::Or => Token::Or,
+            Token::EqEq => Token::EqEq,
+            Token::Neq => Token::Neq,
+            Token::Cmp => Token::Cmp,
+            Token::Lt => Token::Lt,
+            Token::Lte => Token::Lte,
+            Token::Gt => Token::Gt,
+            Token::Gte => Token::Gte,
+            Token::Cons => Token::Cons,
+            Token::Concat => Token::Concat,
+            Token::Pipe => Token::Pipe,
+            Token::Dollar => Token::Dollar,
+            Token::Bind => Token::Bind,
+
+            // PUNCTUATION
+            Token::Eq => Token::Eq,
+            Token::Dot => Token::Dot,
+            Token::Comma => Token::Comma,
+            Token::Colon => Token::Colon,
+            Token::Semicolon => Token::Semicolon,
+            Token::Underscore => Token::Underscore,
+            Token::Bang => Token::Bang,
+            Token::Hook => Token::Hook,
+            Token::RightArrow => Token::RightArrow,
+            Token::FatRightArrow => Token::FatRightArrow,
+
+            // KEYWORDS
+            Token::Mod => Token::Mod,
+            Token::Pub => Token::Pub,
+            Token::Use => Token::Use,
+            Token::Const => Token::Const,
+            Token::Enum => Token::Enum,
+            Token::Struct => Token::Struct,
+            Token::Sig => Token::Sig,
+            Token::Def => Token::Def,
+            Token::Let => Token::Let,
+            Token::Match => Token::Match,
+            Token::If => Token::If,
+            Token::Else => Token::Else,
+            Token::True => Token::True,
+            Token::False => Token::False,
+
+            // TYPES
+            Token::Bool => Token::Bool,
+            Token::Char => Token::Char,
+            Token::String => Token::String,
+            Token::U8 => Token::U8,
+            Token::U16 => Token::U16,
+            Token::U32 => Token::U32,
+            Token::U64 => Token::U64,
+            Token::I8 => Token::I8,
+            Token::I16 => Token::I16,
+            Token::I32 => Token::I32,
+            Token::I64 => Token::I64,
+            Token::F32 => Token::F32,
+            Token::F64 => Token::F64,
+
+            // LITERAL VALUES
+            Token::StringLiteral(s) => Token::StringLiteral(s.immortalize()),
+            Token::FloatLiteral(f) => Token::FloatLiteral(f.immortalize()),
+            Token::BinLiteral(b) => Token::BinLiteral(b.immortalize()),
+            Token::OctLiteral(o) => Token::OctLiteral(o.immortalize()),
+            Token::DecLiteral(d) => Token::DecLiteral(d.immortalize()),
+            Token::HexLiteral(h) => Token::HexLiteral(h.immortalize()),
+
+            // IDENTIFIERS
+            Token::Projection(p) => Token::Projection(p.immortalize()),
+            Token::Ident(i) => Token::Ident(i.immortalize()),
+            Token::Name(n) => Token::Name(n.immortalize()),
+        }
+    }
+}
+
 /// A literal fragment of the source.
 type Frag<'src> = YarnBox<'src, str>;
 type LexInput<'src> = Lexer<'src, Token<'src>>;
@@ -183,6 +295,15 @@ pub struct FloatLiteral<'src> {
     value: Frag<'src>,
     point_offset: u32,
     suffix: Option<FloatSuffix>,
+}
+
+impl<'a> FloatLiteral<'a> {
+    pub fn immortalize<'b>(self) -> FloatLiteral<'b> {
+        FloatLiteral {
+            value: self.value.immortalize(),
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -196,6 +317,15 @@ pub struct NumLiteral<'src, R: Radix> {
     value: Frag<'src>,
     suffix: Option<R::Suffix>,
     radix: std::marker::PhantomData<R>,
+}
+
+impl<'a, R: Radix> NumLiteral<'a, R> {
+    pub fn immortalize<'b>(self) -> NumLiteral<'b, R> {
+        NumLiteral {
+            value: self.value.immortalize(),
+            ..self
+        }
+    }
 }
 
 pub trait Radix {
@@ -338,8 +468,31 @@ pub enum DecSuffix {
     F64,
 }
 
+/// A list of identifiers, guaranteed to have
+/// at least two elements.
 #[derive(Debug, Clone)]
 pub struct Name<'src>(Box<[Frag<'src>]>);
+
+impl<'a> Name<'a> {
+    pub fn immortalize<'b>(self) -> Name<'b> {
+        Name(
+            self.0
+                .iter()
+                .map(|elem| Frag::immortalize(elem.into()))
+                .collect::<Box<[_]>>(),
+        )
+    }
+}
+
+// POSTPROCESSING CALLBACKS
+
+fn line_comment<'src>(lexer: &mut LexInput<'src>) -> Option<Frag<'src>> {
+    lexer.slice().strip_prefix("//").map(Frag::new)
+}
+
+fn doc_comment<'src>(lexer: &mut LexInput<'src>) -> Option<Frag<'src>> {
+    lexer.slice().strip_prefix("//!").map(Frag::new)
+}
 
 fn string_literal<'src>(lexer: &mut LexInput<'src>) -> Option<Frag<'src>> {
     let slice = lexer.slice();
@@ -372,7 +525,6 @@ where
     R: Radix,
 {
     let (value, suffix) = R::strip_suffix(lexer.slice());
-
     let value: Frag<'_> = R::strip_prefix(value)?.into();
 
     Some(NumLiteral {
@@ -399,11 +551,20 @@ fn fragment<'src>(lexer: &mut LexInput<'src>) -> Frag<'src> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
     fn lexer_testing() {
         let source = r#"
+            use std::functor::map;
+
+            //! dgshjkdsa
+            //! dsaghjdksaghjkda
+            // dsaghjdsahgjk
+
+            sig map : (A -> B) -> F(A) -> F(B)
+
             def map(f: u8 -> T, list: List[u8]) = match list {
                 []        => [],
                 (x :: xs) => f(x) :: map(f, xs),
@@ -428,9 +589,11 @@ mod tests {
             const f2 = 0.1024f64;
             const f3 = 1000.32;
         "#;
-        let lexer = Token::lexer(source);
-        let tokens = lexer.into_iter().map(Result::unwrap).collect::<Vec<_>>();
+        let lexer = Token::lexer(source).spanned();
+        let tokens = lexer
+            .into_iter()
+            .map(|(token, span)| (token.unwrap(), span))
+            .collect::<Vec<_>>();
         dbg!(tokens);
-        panic!();
     }
 }

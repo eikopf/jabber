@@ -1,4 +1,3 @@
-mod span;
 mod token;
 
 fn main() {
