@@ -3,7 +3,7 @@
 use byteyarn::YarnBox;
 use logos::{Lexer, Logos};
 
-/// An atomic token lexed from source code.
+/// An atomic token, lexed from source code.
 ///
 /// Use [`Token::lexer`] to access the lexer
 /// implementation, and [`logos::Lexer::spanned`]
