@@ -1,0 +1,51 @@
+#! a shebang line
+
+pub fn callcall(f: A -> B -> C) = f(0, 1, 2)
+
+fn blah(x: u32, y: u32) = x + y
+fn blah_inferred(x, y)  = x + y
+
+fn const(x: A) -> B -> A = (_: B) -> x
+
+pub fn foo() -> () {
+  a();
+  b();
+  let _: bool = c();
+  let (x, y, z, w): (u8, u8, u8, u8) = (0xFF, 0x00, 0xAA, 0x33);
+  let a = b.c.d();
+  let t = ((!!!false));
+  let _ = 1 + 2 * 3;
+  let _ = x
+          |> f
+          |> g;
+
+  let _ = (x -> x * 2) $ 0d3u8;
+  let foo = 1 :: 2 :: 3 :: [];
+  ()
+}
+
+enum Result[T, E] {
+  Ok(T),
+  Err(E),
+}
+
+sig map : (F[A], A -> B) -> F[B]
+
+fn id(x: A) -> A = x
+
+fn nybl(value: u8) -> std.option.Option[Nibble] {
+    if value <= 0xFF {
+        Some(Nibble(value))
+    } else {
+        None
+    }
+}
+
+pub type Always[T] = Result[T, !]
+pub extern type Ref[T]
+pub extern fn ref(value: T) -> Ref[T]
+
+const ZERO_U8: u8 = 0u8
+const ONE_U8:  u8 = 1u8
+pub const U64_MAX: u64 = 0xFFFF_FFFF_FFFF_FFFFu64
+pub const I8_MIN:   i8 = -128i8

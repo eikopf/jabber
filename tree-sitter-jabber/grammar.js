@@ -1,0 +1,510 @@
+/// <reference types="tree-sitter-cli/dsl" />
+// @ts-check
+
+/** A comma-delimited list of items matching `rule`, with at least one element
+ *  and an optional trailing comma.
+ *
+ *  @param {RuleOrLiteral} rule - The rule for elements to be matched against.
+ */
+const comma_list1 = (rule) => seq(rule, repeat(seq(",", rule)), optional(","));
+
+/** A comma-delimited list of items matching `rule`, with an optional trailing comma.
+ *
+ *  @param {RuleOrLiteral} rule - The rule for elements to be matched against.
+ */
+const comma_list0 = (rule) => optional(comma_list1(rule));
+
+const PREC = {
+  call: 16,
+  field: 15,
+  postfix: 14,
+  prefix: 13,
+  pow: 12,
+  mul: 11,
+  add: 10,
+  concat: 10,
+  cons: 10,
+  cmp: 9,
+  pipe_left: 8,
+  pipe_right: 7,
+  lazy_and: 6,
+  lazy_or: 5,
+  bind: 2,
+  apply: 1,
+  lambda: 0,
+};
+
+// TODO: add support for doc comments as ordinary tokens
+// TODO: add an attribute/pragma system for compiler metadata
+
+module.exports = grammar({
+  name: "jabber",
+
+  extras: ($) => [/\s/, $.comment],
+
+  // https://tree-sitter.github.io/tree-sitter/creating-parsers#keyword-extraction
+  word: ($) => $.ident,
+
+  // these are LR(1) conflicts --- places where the parser needs more than one
+  // token of lookahead to parse the language correctly
+  // NOTE: i think the pattern grammar could be rewritten to
+  // remove most of these conflicts
+  conflicts: ($) => [
+    [$._expr, $._pattern],
+    [$.enum_pattern, $._expr],
+    [$.struct_expr, $._expr],
+    [$.parameter, $.tuple_pattern],
+    [$.unit_literal, $.unit_pattern],
+    [$.list_expr, $.list_pattern],
+    [$.struct_expr, $.struct_pattern],
+    [$.struct_expr_field, $.struct_pattern_field],
+  ],
+
+  rules: {
+    // start_symbol
+    source_file: ($) => seq(optional($.shebang), repeat($._decl)),
+
+    shebang: (_) => /#![^\n]*/,
+
+    /// DECLARATIONS
+
+    access_spec: (_) => "pub",
+
+    _decl: ($) =>
+      choice(
+        $.mod_decl,
+        $.use_decl,
+        $.type_decl,
+        $.extern_type_decl,
+        $.struct_decl,
+        $.enum_decl,
+        $.sig_decl,
+        $.fn_decl,
+        $.extern_fn_decl,
+        $.const_decl,
+      ),
+
+    mod_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "mod",
+        field("name", $.ident),
+      ),
+
+    use_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "use",
+        field("item", $._name),
+        optional(seq("as", field("alias", $.ident))),
+      ),
+
+    type_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "type",
+        field("alias", choice($.ident, $.generic_type)),
+        "=",
+        field("type", $._type_expr),
+      ),
+
+    extern_type_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "extern",
+        "type",
+        field("type", choice($.ident, $.generic_type)),
+      ),
+
+    struct_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "struct",
+        field("name", $.ident),
+        field("params", optional($.generic_params)),
+        "{",
+        field("field", comma_list0($.struct_field)),
+        "}",
+      ),
+
+    struct_field: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        field("name", $.ident),
+        ":",
+        field("type", $._type_expr),
+      ),
+
+    enum_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "enum",
+        field("name", $.ident),
+        field("params", optional($.generic_params)),
+        "{",
+        field("variant", optional(comma_list1($.enum_variant))),
+        "}",
+      ),
+
+    enum_variant: ($) =>
+      seq(field("name", $.ident), field("payload", optional($.enum_payload))),
+    enum_payload: ($) => seq("(", comma_list1($._type_expr), ")"),
+
+    generic_params: ($) => seq("[", comma_list1($.ident), "]"),
+
+    sig_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "sig",
+        field("name", $.ident),
+        ":",
+        field("type", $.fn_type),
+      ),
+
+    fn_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "fn",
+        field("name", $._name),
+        field("parameters", $.parameters),
+        field("return_type", optional(seq("->", $._type_expr))),
+        field("body", choice(seq("=", $._expr), $.block)),
+      ),
+
+    extern_fn_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "extern",
+        "fn",
+        field("name", $._name),
+        field("parameters", $.parameters),
+        field("return_type", optional(seq("->", $._type_expr))),
+      ),
+
+    parameters: ($) => seq("(", comma_list0($.parameter), ")"),
+    parameter: ($) =>
+      seq(
+        field("pattern", $._pattern),
+        optional(field("type", seq(":", $._type_expr))),
+      ),
+
+    const_decl: ($) =>
+      seq(
+        optional(field("visibility", $.access_spec)),
+        "const",
+        field("name", $.ident),
+        ":",
+        field("type", $._type_expr),
+        "=",
+        field("value", $._expr),
+      ),
+
+    /// EXPRESSIONS
+
+    _expr: ($) =>
+      choice(
+        $._name,
+        $._literal_expr,
+        $.list_expr,
+        $.tuple_expr,
+        $.struct_expr,
+        $.field_expr,
+        $.lambda_expr,
+        $.call_expr,
+        $.prefix_op,
+        $.postfix_op,
+        $.binary_op,
+        $.match_expr,
+        $.if_else_expr,
+        $.block,
+        $.parenthesized_expr,
+      ),
+
+    parenthesized_expr: ($) => prec(1, seq("(", field("inner", $._expr), ")")),
+
+    _literal_expr: ($) =>
+      choice(
+        $.unit_literal,
+        $.bool_literal_true,
+        $.bool_literal_false,
+        $.char_literal,
+        $.string_literal,
+        $.bin_literal,
+        $.oct_literal,
+        $.dec_literal,
+        $.hex_literal,
+      ),
+
+    list_expr: ($) => seq("[", comma_list0($._expr), "]"),
+    tuple_expr: ($) => seq("(", comma_list1($._expr), ")"),
+
+    struct_expr: ($) =>
+      seq($._name, "{", comma_list0($.struct_expr_field), "}"),
+    struct_expr_field: ($) => seq($.ident, optional(seq(":", $._expr))),
+
+    field_expr: ($) => seq($._expr, ".", $.ident),
+
+    lambda_expr: ($) =>
+      prec.right(
+        PREC.lambda,
+        seq(
+          field("parameters", $._lambda_params),
+          "->",
+          field("body", $._expr),
+        ),
+      ),
+    _lambda_params: ($) => choice($.ident, $.parameters),
+
+    call_expr: ($) =>
+      prec(
+        PREC.call,
+        seq(field("callee", $._expr), field("arguments", $.arguments)),
+      ),
+
+    arguments: ($) => seq("(", comma_list0($._expr), ")"),
+
+    prefix_op: ($) =>
+      prec.right(
+        PREC.prefix,
+        seq(
+          field("operator", alias(choice("!", "+", "-"), $.operator)),
+          field("operand", $._expr),
+        ),
+      ),
+
+    postfix_op: ($) =>
+      prec.left(
+        PREC.postfix,
+        seq(
+          field("operand", $._expr),
+          field("operator", alias(choice("?", "!"), $.operator)),
+        ),
+      ),
+
+    binary_op: ($) => {
+      const table = [
+        [prec.right, PREC.pow, "^"],
+        [prec.right, PREC.pipe_left, "|>"],
+        [prec.right, PREC.pipe_right, "<|"],
+        [prec.left, PREC.cmp, choice("<=>", "==", "!=", ">", "<", ">=", "<=")],
+        [prec.left, PREC.add, choice("+", "-", "++", "::", "|", "~")],
+        [prec.left, PREC.mul, choice("*", "/", "%", "&")],
+        [prec.right, PREC.lazy_and, "&&"],
+        [prec.right, PREC.lazy_or, "||"],
+        [prec.left, PREC.bind, ">>="],
+        [prec.right, PREC.apply, "$"],
+      ];
+
+      return choice(
+        ...table.map(([fn, prec, op]) =>
+          //@ts-ignore
+          fn(
+            prec,
+            seq(
+              field("lhs", $._expr),
+              //@ts-ignore
+              field("operator", alias(op, $.operator)),
+              field("rhs", $._expr),
+            ),
+          ),
+        ),
+      );
+    },
+
+    operator: (_) =>
+      choice(
+        "!", // prefix NOT / postfix unwrap
+        "?", // postfix try
+        "+", // prefix pos / infix add
+        "-", // prefix neg / infix sub
+        "*", // infix mul
+        "/", // infix div
+        "^", // infix pow
+        "%", // infix rem
+        "&", // infix bitwise AND
+        "|", // infix bitwise OR
+        "~", // infix bitwise XOR
+        "<=>", // infix cmp
+        "==", // infix eq
+        "!=", // infix neq
+        ">", // infix gt
+        "<", // infix lt
+        ">=", // infix ge
+        "<=", // infix le
+        "|>", // infix pipe right
+        "<|", // infix pipe left
+        ">>=", // infix monadic bind
+        "$", // infix apply
+        "::", // infix cons
+        "++", // infix concat
+        "||", // infix lazy or
+        "&&", // infix lazy and
+      ),
+
+    match_expr: ($) =>
+      seq(
+        "match",
+        field("scrutinee", $._expr),
+        "{",
+        comma_list0($.match_arm),
+        "}",
+      ),
+    match_arm: ($) => seq($._pattern, optional($.guard_expr), "=>", $._expr),
+    guard_expr: ($) => seq("if", $._expr),
+
+    if_else_expr: ($) =>
+      seq(
+        "if",
+        field("condition", $._expr),
+        field("consequence", $.block),
+        field("alternative", optional($.else_clause)),
+      ),
+
+    else_clause: ($) => seq("else", field("body", $.block)),
+
+    block: ($) =>
+      seq("{", repeat($._stmt), optional(field("return_expr", $._expr)), "}"),
+
+    _stmt: ($) => choice($.empty_stmt, $.expr_stmt, $.let_stmt),
+
+    empty_stmt: (_) => ";",
+    expr_stmt: ($) => seq($._expr, ";"),
+    let_stmt: ($) =>
+      seq(
+        "let",
+        field("pattern", $._pattern),
+        optional(seq(":", field("type", $._type_expr))),
+        "=",
+        field("value", $._expr),
+        ";",
+      ),
+
+    /// PATTERNS
+
+    _pattern: ($) =>
+      choice(
+        $.ident,
+        $.path_pattern,
+        $._literal_expr,
+        $.wildcard_pattern,
+        $.unit_pattern,
+        $.tuple_pattern,
+        $.list_pattern,
+        $.cons_pattern,
+        $.enum_pattern,
+        $.struct_pattern,
+      ),
+
+    path_pattern: ($) => $.path,
+
+    wildcard_pattern: (_) => "_",
+    unit_pattern: (_) => seq("(", ")"),
+
+    tuple_pattern: ($) => seq("(", comma_list1($._pattern), ")"),
+
+    list_pattern: ($) =>
+      seq("[", comma_list0(choice($._pattern, $.rest_pattern)), "]"),
+
+    cons_pattern: ($) =>
+      prec.right(
+        seq(field("head", $._pattern), "::", field("tail", $._pattern)),
+      ),
+
+    enum_pattern: ($) => seq($._name, $.enum_pattern_payload),
+    enum_pattern_payload: ($) => seq("(", comma_list1($._pattern), ")"),
+
+    struct_pattern: ($) =>
+      seq($._name, "{", optional($.struct_pattern_body), "}"),
+
+    struct_pattern_body: ($) =>
+      seq(
+        $.struct_pattern_field,
+        repeat(seq(",", $.struct_pattern_field)),
+        optional(seq(",", $.rest_pattern)),
+        optional(","),
+      ),
+
+    struct_pattern_field: ($) => seq($.ident, optional(seq(":", $._pattern))),
+
+    rest_pattern: (_) => "..",
+
+    /// TYPES
+
+    _type_expr: ($) =>
+      choice(
+        $._name,
+        $.primitive_type,
+        $.unit_type,
+        $.tuple_type,
+        $.parenthesized_type,
+        $.generic_type,
+        $.fn_type,
+        $.inferred_type,
+      ),
+
+    primitive_type: (_) =>
+      choice(
+        "!",
+        "bool",
+        "char",
+        "string",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "usize",
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "isize",
+        "f32",
+        "f64",
+      ),
+
+    unit_type: (_) => seq("(", ")"),
+
+    tuple_type: ($) => seq("(", comma_list1($._type_expr), ")"),
+    parenthesized_type: ($) =>
+      prec(9, seq("(", field("inner", $._type_expr), ")")),
+
+    generic_type: ($) =>
+      seq(field("name", $._name), field("arguments", $.generic_type_args)),
+    generic_type_args: ($) => seq("[", comma_list1($._type_expr), "]"),
+
+    fn_type: ($) =>
+      prec.right(
+        seq(
+          field("domain", $._type_expr),
+          "->",
+          field("codomain", $._type_expr),
+        ),
+      ),
+
+    inferred_type: (_) => "_",
+
+    /// LITERALS
+
+    unit_literal: (_) => seq("(", ")"),
+    bool_literal_true: (_) => "true",
+    bool_literal_false: (_) => "false",
+    char_literal: (_) => /'(\\'|.|\\u\{[0-9a-fA-F]+\}|\\x\d+|\\.)'/,
+    string_literal: (_) => /"(\\"|[^"\r])*"/,
+    bin_literal: (_) => /0b[01_]+([ui](8|16|32|64))?/,
+    oct_literal: (_) => /0o[0-7_]+([ui](8|16|32|64))?/,
+    dec_literal: (_) => /(0d)?[0-9][0-9_]*(\.[0-9_]+)?([uif](8|16|32|64))?/,
+    hex_literal: (_) => /0[xX][0-9a-fA-F_]+([ui](8|16|32|64))?/,
+
+    /// IDENTIFIERS
+
+    _name: ($) => prec(2, choice($.path, $.ident)),
+
+    // corresponds to the Name rule in the ungrammar
+    path: ($) => prec.left(seq($.ident, repeat1(seq(".", $.ident)))),
+    ident: (_) => /(_+[a-zA-Z0-9]|[a-zA-Z])[_a-zA-Z0-9]*/,
+
+    /// COMMENTS
+
+    comment: (_) => /\/\/[^\n]*/,
+  },
+});
