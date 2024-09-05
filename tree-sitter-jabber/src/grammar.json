@@ -918,42 +918,46 @@
       ]
     },
     "parameter": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "FIELD",
-          "name": "pattern",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_pattern"
-          }
-        },
-        {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "FIELD",
-              "name": "type",
-              "content": {
-                "type": "SEQ",
-                "members": [
-                  {
-                    "type": "STRING",
-                    "value": ":"
-                  },
-                  {
-                    "type": "SYMBOL",
-                    "name": "_type_expr"
-                  }
-                ]
-              }
-            },
-            {
-              "type": "BLANK"
+      "type": "PREC_LEFT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "pattern",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_pattern"
             }
-          ]
-        }
-      ]
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "FIELD",
+                "name": "type",
+                "content": {
+                  "type": "SEQ",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": ":"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "_type_expr"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          }
+        ]
+      }
     },
     "const_decl": {
       "type": "SEQ",
@@ -2434,8 +2438,12 @@
       "type": "CHOICE",
       "members": [
         {
-          "type": "SYMBOL",
-          "name": "ident"
+          "type": "PREC",
+          "value": 10,
+          "content": {
+            "type": "SYMBOL",
+            "name": "ident"
+          }
         },
         {
           "type": "SYMBOL",
@@ -3322,10 +3330,6 @@
     [
       "struct_expr",
       "_expr"
-    ],
-    [
-      "parameter",
-      "tuple_pattern"
     ],
     [
       "unit_literal",

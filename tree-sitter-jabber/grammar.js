@@ -52,7 +52,6 @@ module.exports = grammar({
     [$._expr, $._pattern],
     [$.enum_pattern, $._expr],
     [$.struct_expr, $._expr],
-    [$.parameter, $.tuple_pattern],
     [$.unit_literal, $.unit_pattern],
     [$.list_expr, $.list_pattern],
     [$.struct_expr, $.struct_pattern],
@@ -182,9 +181,11 @@ module.exports = grammar({
 
     parameters: ($) => seq("(", comma_list0($.parameter), ")"),
     parameter: ($) =>
-      seq(
-        field("pattern", $._pattern),
-        optional(field("type", seq(":", $._type_expr))),
+      prec.left(
+        seq(
+          field("pattern", $._pattern),
+          optional(field("type", seq(":", $._type_expr))),
+        ),
       ),
 
     const_decl: ($) =>
@@ -382,7 +383,7 @@ module.exports = grammar({
 
     _pattern: ($) =>
       choice(
-        $.ident,
+        prec(10, $.ident),
         $.path_pattern,
         $._literal_expr,
         $.wildcard_pattern,
