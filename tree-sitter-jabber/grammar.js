@@ -34,7 +34,6 @@ const PREC = {
   lambda: 0,
 };
 
-// TODO: add support for doc comments as ordinary tokens
 // TODO: add an attribute/pragma system for compiler metadata
 
 module.exports = grammar({
@@ -505,6 +504,26 @@ module.exports = grammar({
 
     /// COMMENTS
 
-    comment: (_) => /\/\/[^\n]*/,
+    // notes:
+    // - syntax drawn from Zig's comments
+    // - block comments explicitly not included
+    //    - refer to https://futhark-lang.org/blog/2017-10-10-block-comments-are-a-bad-idea.html
+    // - grammar doesn't enforce where the distinct comment types can appear -- deferred to static analysis
+
+    comment: ($) =>
+      seq(
+        "//",
+        optional(
+          field(
+            "marker",
+            choice($.module_doc_comment_marker, $.decl_doc_comment_marker),
+          ),
+        ),
+        field("content", $.comment_body),
+      ),
+
+    module_doc_comment_marker: (_) => token.immediate(prec(2, "!")),
+    decl_doc_comment_marker: (_) => token.immediate(prec(2, "/")),
+    comment_body: (_) => token.immediate(/[^\n]*/),
   },
 });

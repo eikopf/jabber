@@ -571,6 +571,36 @@
     }
   },
   {
+    "type": "comment",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "comment_body",
+            "named": true
+          }
+        ]
+      },
+      "marker": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "decl_doc_comment_marker",
+            "named": true
+          },
+          {
+            "type": "module_doc_comment_marker",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "cons_pattern",
     "named": true,
     "fields": {
@@ -4397,6 +4427,10 @@
     "named": false
   },
   {
+    "type": "//",
+    "named": false
+  },
+  {
     "type": ":",
     "named": false
   },
@@ -4501,7 +4535,7 @@
     "named": true
   },
   {
-    "type": "comment",
+    "type": "comment_body",
     "named": true
   },
   {
@@ -4510,6 +4544,10 @@
   },
   {
     "type": "dec_literal",
+    "named": true
+  },
+  {
+    "type": "decl_doc_comment_marker",
     "named": true
   },
   {
@@ -4579,6 +4617,10 @@
   {
     "type": "mod",
     "named": false
+  },
+  {
+    "type": "module_doc_comment_marker",
+    "named": true
   },
   {
     "type": "oct_literal",
