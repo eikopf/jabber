@@ -35,6 +35,7 @@ const PREC = {
 };
 
 // TODO: add an attribute/pragma system for compiler metadata
+// TODO: add composite import decls
 
 module.exports = grammar({
   name: "jabber",
