@@ -35,12 +35,13 @@ const PREC = {
 };
 
 // TODO: add an attribute/pragma system for compiler metadata
-// TODO: add composite import decls
 
 module.exports = grammar({
   name: "jabber",
 
   extras: ($) => [/\s/, $.comment],
+
+  supertypes: ($) => [$._decl, $._expr, $._name],
 
   // https://tree-sitter.github.io/tree-sitter/creating-parsers#keyword-extraction
   word: ($) => $.ident,
@@ -51,8 +52,7 @@ module.exports = grammar({
   // remove most of these conflicts
   conflicts: ($) => [
     [$._expr, $._pattern],
-    [$.enum_pattern, $._expr],
-    [$.struct_expr, $._expr],
+    [$._expr, $._name],
     [$.unit_literal, $.unit_pattern],
     [$.list_expr, $.list_pattern],
     [$.struct_expr, $.struct_pattern],
@@ -91,11 +91,21 @@ module.exports = grammar({
       ),
 
     use_decl: ($) =>
+      seq(optional(field("visibility", $.access_spec)), "use", $._use_item),
+
+    _use_item: ($) => choice($._name, $.glob_item, $.alias_item, $.tree_item),
+
+    glob_item: ($) => seq(optional(seq(field("root", $._name), ".")), "*"),
+
+    alias_item: ($) =>
+      seq(field("item", $._name), "as", field("alias", $.ident)),
+
+    tree_item: ($) =>
       seq(
-        optional(field("visibility", $.access_spec)),
-        "use",
-        field("item", $._name),
-        optional(seq("as", field("alias", $.ident))),
+        optional(seq(field("root", $._name), ".")),
+        "{",
+        comma_list0($._use_item),
+        "}",
       ),
 
     type_decl: ($) =>
@@ -204,7 +214,8 @@ module.exports = grammar({
 
     _expr: ($) =>
       choice(
-        $._name,
+        $.ident,
+        $.path,
         $._literal_expr,
         $.list_expr,
         $.tuple_expr,
@@ -384,8 +395,7 @@ module.exports = grammar({
 
     _pattern: ($) =>
       choice(
-        prec(10, $.ident),
-        $.path_pattern,
+        $._name,
         $._literal_expr,
         $.wildcard_pattern,
         $.unit_pattern,
@@ -396,7 +406,7 @@ module.exports = grammar({
         $.struct_pattern,
       ),
 
-    path_pattern: ($) => $.path,
+    //path_pattern: ($) => $.path,
 
     wildcard_pattern: (_) => "_",
     unit_pattern: (_) => seq("(", ")"),
@@ -498,10 +508,10 @@ module.exports = grammar({
 
     /// IDENTIFIERS
 
-    _name: ($) => prec(2, choice($.path, $.ident)),
+    _name: ($) => choice($.path, $.ident),
 
-    // corresponds to the Name rule in the ungrammar
-    path: ($) => prec.left(seq($.ident, repeat1(seq(".", $.ident)))),
+    path: ($) => seq(field("root", $._name), ".", field("name", $.ident)),
+
     ident: (_) => /(_+[a-zA-Z0-9]|[a-zA-Z])[_a-zA-Z0-9]*/,
 
     /// COMMENTS
