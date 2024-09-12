@@ -1,0 +1,32 @@
+=============
+unit literal
+=============
+
+const unit: () = ()
+
+-------------------
+
+(source_file
+  (const_decl
+    name:  (ident)
+    type:  (unit_type)
+    value: (unit_literal)))
+
+=================
+boolean literals
+=================
+
+const TRUE:  bool = true
+const FALSE: bool = false
+
+------------------------
+
+(source_file
+  (const_decl
+    name:  (ident)
+    type:  (primitive_type)
+    value: (bool_literal_true))
+  (const_decl
+    name:  (ident)
+    type:  (primitive_type)
+    value: (bool_literal_false)))

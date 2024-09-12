@@ -30,6 +30,18 @@ use std.baz as _alias
         name: (ident))
       alias: (ident))))
 
+===========
+plain glob
+===========
+
+use *
+
+--------------------------
+
+(source_file
+  (use_decl
+    (glob_item)))
+
 =====================
 path-to-glob items
 =====================
@@ -71,3 +83,18 @@ use std.tree.{
         alias: (ident))
       (glob_item
         root: (ident)))))
+
+=====================
+pub use declarations
+=====================
+
+pub use foo.Foo
+
+---------------------------------
+
+(source_file
+  (use_decl
+    visibility: (access_spec)
+    (path
+      root: (ident)
+      name: (ident))))

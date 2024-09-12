@@ -1,0 +1,31 @@
+===========================
+private module declaration
+===========================
+
+mod local
+mod __dunder
+
+-------------------------------
+
+(source_file
+  (mod_decl
+    name: (ident))
+  (mod_decl
+    name: (ident)))
+
+==========================
+public module declaration
+==========================
+
+pub mod public
+pub mod __dunder
+
+------------------------------
+
+(source_file
+  (mod_decl
+    visibility: (access_spec)
+    name: (ident))
+  (mod_decl
+    visibility: (access_spec)
+    name: (ident)))
