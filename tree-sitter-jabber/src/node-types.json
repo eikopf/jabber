@@ -601,16 +601,12 @@
           }
         ]
       },
-      "variant": {
-        "multiple": true,
-        "required": false,
+      "variants": {
+        "multiple": false,
+        "required": true,
         "types": [
           {
-            "type": ",",
-            "named": false
-          },
-          {
-            "type": "enum_variant",
+            "type": "enum_variants",
             "named": true
           }
         ]
@@ -792,6 +788,21 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "enum_variants",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "enum_variant",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -1960,16 +1971,12 @@
     "type": "struct_decl",
     "named": true,
     "fields": {
-      "field": {
-        "multiple": true,
-        "required": false,
+      "fields": {
+        "multiple": false,
+        "required": true,
         "types": [
           {
-            "type": ",",
-            "named": false
-          },
-          {
-            "type": "struct_field",
+            "type": "struct_fields",
             "named": true
           }
         ]
@@ -2102,6 +2109,21 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "struct_fields",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "struct_field",
+          "named": true
+        }
+      ]
     }
   },
   {

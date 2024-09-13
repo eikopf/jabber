@@ -131,10 +131,10 @@ module.exports = grammar({
         "struct",
         field("name", $.ident),
         field("params", optional($.generic_params)),
-        "{",
-        field("field", comma_list0($.struct_field)),
-        "}",
+        field("fields", $.struct_fields),
       ),
+
+    struct_fields: ($) => seq("{", comma_list0($.struct_field), "}"),
 
     struct_field: ($) =>
       seq(
@@ -150,13 +150,14 @@ module.exports = grammar({
         "enum",
         field("name", $.ident),
         field("params", optional($.generic_params)),
-        "{",
-        field("variant", optional(comma_list1($.enum_variant))),
-        "}",
+        field("variants", $.enum_variants),
       ),
+
+    enum_variants: ($) => seq("{", comma_list0($.enum_variant), "}"),
 
     enum_variant: ($) =>
       seq(field("name", $.ident), field("payload", optional($.enum_payload))),
+
     enum_payload: ($) => seq("(", comma_list1($._type_expr), ")"),
 
     generic_params: ($) => seq("[", comma_list1($.ident), "]"),

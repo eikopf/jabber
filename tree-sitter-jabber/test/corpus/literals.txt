@@ -30,3 +30,123 @@ const FALSE: bool = false
     name:  (ident)
     type:  (primitive_type)
     value: (bool_literal_false)))
+
+==============
+char literals
+==============
+
+const a: char = 'a'
+const quote: char = '\''
+const nil: char = '\x00'
+const utf8: char = '\u{7FFF}'
+
+----------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (char_literal))
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (char_literal))
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (char_literal))
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (char_literal)))
+
+================
+string literals
+================
+
+const hello: string = "hello, world!"
+const escaped_quote: string = "\""
+
+------------------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (string_literal))
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (string_literal)))
+
+==========================
+prefixed integer literals
+==========================
+
+const bin_zero: _ = 0b00u8
+const oct_zero: _ = 0o00
+const dec_zero: _ = 0d00i32
+const hex_zero: _ = 0x00
+
+-----------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (bin_literal))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (oct_literal))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (dec_literal))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (hex_literal)))
+
+==================================
+implicit decimal integer literals
+==================================
+
+const zero: _ = 0
+const  one: _ = 1i32
+
+---------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (dec_literal))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (dec_literal)))
+
+===============
+float literals
+===============
+
+const  tenth: f32 = 0.1f32
+const   half: f64 = 0.5f64
+const eighth: f64 = 0.8
+
+------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (dec_literal))
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (dec_literal))
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (dec_literal)))

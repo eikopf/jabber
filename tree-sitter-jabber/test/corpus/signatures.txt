@@ -1,0 +1,37 @@
+============================
+well-formed `map` signature
+============================
+
+sig map : (A -> B, F[A]) -> F[B]
+
+--------------------------------------
+
+(source_file
+  (sig_decl
+    name: (ident)
+    type: (fn_type
+      domain: (tuple_type
+        (fn_type
+          domain: (ident)
+          codomain: (ident))
+        (generic_type
+          name: (ident)
+          arguments: (generic_type_args
+            (ident))))
+      codomain: (generic_type
+        name: (ident)
+        arguments: (generic_type_args
+          (ident))))))
+
+=====================
+malformed signatures
+:error
+=====================
+
+// invalid: u8 is not a function type
+sig zero: u8
+
+// invalid: the function type is incomplete
+sig bad_function: () ->
+
+-----------------------
