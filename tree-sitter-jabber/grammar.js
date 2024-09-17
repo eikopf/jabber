@@ -297,8 +297,8 @@ module.exports = grammar({
     binary_op: ($) => {
       const table = [
         [prec.right, PREC.pow, "^"],
-        [prec.right, PREC.pipe_left, "|>"],
-        [prec.right, PREC.pipe_right, "<|"],
+        [prec.right, PREC.pipe_left, "<|"],
+        [prec.right, PREC.pipe_right, "|>"],
         [prec.left, PREC.cmp, choice("<=>", "==", "!=", ">", "<", ">=", "<=")],
         [prec.left, PREC.add, choice("+", "-")],
         [prec.left, PREC.mul, choice("*", "/", "%")],
