@@ -1940,14 +1940,6 @@
                       {
                         "type": "STRING",
                         "value": "-"
-                      },
-                      {
-                        "type": "STRING",
-                        "value": "|"
-                      },
-                      {
-                        "type": "STRING",
-                        "value": "~"
                       }
                     ]
                   },
@@ -1999,10 +1991,6 @@
                       {
                         "type": "STRING",
                         "value": "%"
-                      },
-                      {
-                        "type": "STRING",
-                        "value": "&"
                       }
                     ]
                   },
@@ -2041,17 +2029,46 @@
                 "content": {
                   "type": "ALIAS",
                   "content": {
-                    "type": "CHOICE",
-                    "members": [
-                      {
-                        "type": "STRING",
-                        "value": "++"
-                      },
-                      {
-                        "type": "STRING",
-                        "value": "::"
-                      }
-                    ]
+                    "type": "STRING",
+                    "value": "::"
+                  },
+                  "named": true,
+                  "value": "operator"
+                }
+              },
+              {
+                "type": "FIELD",
+                "name": "rhs",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_expr"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "PREC_RIGHT",
+          "value": 10,
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "FIELD",
+                "name": "lhs",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_expr"
+                }
+              },
+              {
+                "type": "FIELD",
+                "name": "operator",
+                "content": {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "STRING",
+                    "value": "++"
                   },
                   "named": true,
                   "value": "operator"
