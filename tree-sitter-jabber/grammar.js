@@ -52,7 +52,6 @@ module.exports = grammar({
   conflicts: ($) => [
     [$._expr, $._pattern],
     [$._expr, $._name],
-    [$.unit_literal, $.unit_pattern],
     [$.list_expr, $.list_pattern],
     [$.struct_expr, $.struct_pattern],
     [$.struct_expr_field, $.struct_pattern_field],
@@ -395,7 +394,6 @@ module.exports = grammar({
         $._name,
         $._literal_expr,
         $.wildcard_pattern,
-        $.unit_pattern,
         $.tuple_pattern,
         $.list_pattern,
         $.cons_pattern,
@@ -403,10 +401,7 @@ module.exports = grammar({
         $.struct_pattern,
       ),
 
-    //path_pattern: ($) => $.path,
-
     wildcard_pattern: (_) => "_",
-    unit_pattern: (_) => seq("(", ")"),
 
     tuple_pattern: ($) => seq("(", comma_list1($._pattern), ")"),
 

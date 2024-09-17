@@ -2609,10 +2609,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "unit_pattern"
-        },
-        {
-          "type": "SYMBOL",
           "name": "tuple_pattern"
         },
         {
@@ -2636,19 +2632,6 @@
     "wildcard_pattern": {
       "type": "STRING",
       "value": "_"
-    },
-    "unit_pattern": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "("
-        },
-        {
-          "type": "STRING",
-          "value": ")"
-        }
-      ]
     },
     "tuple_pattern": {
       "type": "SEQ",
@@ -3464,10 +3447,6 @@
     [
       "_expr",
       "_name"
-    ],
-    [
-      "unit_literal",
-      "unit_pattern"
     ],
     [
       "list_expr",

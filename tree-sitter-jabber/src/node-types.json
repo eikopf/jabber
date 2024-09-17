@@ -397,10 +397,6 @@
             "named": true
           },
           {
-            "type": "unit_pattern",
-            "named": true
-          },
-          {
             "type": "wildcard_pattern",
             "named": true
           }
@@ -468,10 +464,6 @@
           },
           {
             "type": "unit_literal",
-            "named": true
-          },
-          {
-            "type": "unit_pattern",
             "named": true
           },
           {
@@ -708,10 +700,6 @@
         },
         {
           "type": "unit_literal",
-          "named": true
-        },
-        {
-          "type": "unit_pattern",
           "named": true
         },
         {
@@ -1372,10 +1360,6 @@
             "named": true
           },
           {
-            "type": "unit_pattern",
-            "named": true
-          },
-          {
             "type": "wildcard_pattern",
             "named": true
           }
@@ -1519,10 +1503,6 @@
           "named": true
         },
         {
-          "type": "unit_pattern",
-          "named": true
-        },
-        {
           "type": "wildcard_pattern",
           "named": true
         }
@@ -1567,10 +1547,6 @@
         },
         {
           "type": "tuple_pattern",
-          "named": true
-        },
-        {
-          "type": "unit_pattern",
           "named": true
         },
         {
@@ -1698,10 +1674,6 @@
           },
           {
             "type": "unit_literal",
-            "named": true
-          },
-          {
-            "type": "unit_pattern",
             "named": true
           },
           {
@@ -2233,10 +2205,6 @@
           "named": true
         },
         {
-          "type": "unit_pattern",
-          "named": true
-        },
-        {
           "type": "wildcard_pattern",
           "named": true
         }
@@ -2365,10 +2333,6 @@
           "named": true
         },
         {
-          "type": "unit_pattern",
-          "named": true
-        },
-        {
           "type": "wildcard_pattern",
           "named": true
         }
@@ -2488,11 +2452,6 @@
   },
   {
     "type": "unit_literal",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "unit_pattern",
     "named": true,
     "fields": {}
   },
