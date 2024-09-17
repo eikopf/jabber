@@ -1807,7 +1807,7 @@
           }
         },
         {
-          "type": "PREC_RIGHT",
+          "type": "PREC_LEFT",
           "value": 7,
           "content": {
             "type": "SEQ",

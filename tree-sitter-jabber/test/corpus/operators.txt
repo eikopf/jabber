@@ -152,3 +152,45 @@ const undef: _ = 0 ^ 0 ^ 0
         lhs: (dec_literal)
         operator: (operator)
         rhs: (dec_literal)))))
+
+=====================
+pipes (right & left)
+=====================
+
+const right: _ = x |> f |> g
+const  left: _ = g <| f <| x
+const  both: _ = f <| x |> g
+
+------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident))
+      operator: (operator)
+      rhs: (ident)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (ident)
+      operator: (operator)
+      rhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident))))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident))
+      operator: (operator)
+      rhs: (ident))))

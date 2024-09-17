@@ -298,7 +298,7 @@ module.exports = grammar({
       const table = [
         [prec.right, PREC.pow, "^"],
         [prec.right, PREC.pipe_left, "<|"],
-        [prec.right, PREC.pipe_right, "|>"],
+        [prec.left, PREC.pipe_right, "|>"],
         [prec.left, PREC.cmp, choice("<=>", "==", "!=", ">", "<", ">=", "<=")],
         [prec.left, PREC.add, choice("+", "-")],
         [prec.left, PREC.mul, choice("*", "/", "%")],
