@@ -194,3 +194,135 @@ const  both: _ = f <| x |> g
         rhs: (ident))
       operator: (operator)
       rhs: (ident))))
+
+=====================
+comparison operators
+=====================
+
+const cmp: _ = x <=> y
+
+-----------------------
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (ident)
+      operator: (operator)
+      rhs: (ident))))
+
+=====
+cons
+=====
+
+const zeros: _ = 0 :: 0 :: 0 :: []
+
+------------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (dec_literal)
+      operator: (operator)
+      rhs: (binary_op
+        lhs: (dec_literal)
+        operator: (operator)
+        rhs: (binary_op
+          lhs: (dec_literal)
+          operator: (operator)
+          rhs: (list_expr))))))
+
+=======
+concat
+=======
+
+const _123: _ = [1] ++ [2] ++ [3]
+
+----------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (list_expr (dec_literal))
+      operator: (operator)
+      rhs: (binary_op
+        lhs: (list_expr (dec_literal))
+        operator: (operator)
+        rhs: (list_expr (dec_literal))))))
+
+=======================
+lazy boolean operators
+=======================
+
+const _and: _ = x && y && z
+const  _or: _ = x || y || z
+const both: _ = x && y || z
+
+----------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (ident)
+      operator: (operator)
+      rhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident))))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (ident)
+      operator: (operator)
+      rhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident))))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident))
+      operator: (operator)
+      rhs: (ident))))
+
+=============
+monadic bind
+=============
+
+const none: _ =
+  Option.None
+    >>= f
+    >>= (x -> x + 1)
+
+----------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (binary_op
+        lhs: (path
+          root: (ident)
+          name: (ident))
+        operator: (operator)
+        rhs: (ident))
+      operator: (operator)
+      rhs: (parenthesized_expr
+        inner: (lambda_expr
+          parameters: (ident)
+          body: (binary_op
+            lhs: (ident)
+            operator: (operator)
+            rhs: (dec_literal)))))))
