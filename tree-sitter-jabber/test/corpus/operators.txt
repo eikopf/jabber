@@ -100,6 +100,37 @@ const eight: _ = 6 - -2
         operator: (operator)
         operand: (dec_literal)))))
 
+================================
+arithmetic operator precedences
+================================
+
+const  left: _ = x * y + z
+const right: _ = x * y ^ z
+
+-------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident))
+      operator: (operator)
+      rhs: (ident)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (ident)
+      operator: (operator)
+      rhs: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident)))))
+
 ===================
 hook (postfix try)
 ===================
