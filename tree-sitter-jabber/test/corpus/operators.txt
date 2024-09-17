@@ -1,0 +1,154 @@
+===================================
+bang (prefix NOT / postfix unwrap)
+===================================
+
+const    not: _ = !x
+const unwrap: _ =  x!
+const  juxta: _ = !x!
+
+----------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (prefix_op
+      operator: (operator)
+      operand: (ident)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (postfix_op
+      operand: (ident)
+      operator: (operator)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (prefix_op
+      operator: (operator)
+      operand: (postfix_op
+        operand: (ident)
+        operator: (operator)))))
+
+==============================
+plus (prefix pos / infix add)
+==============================
+
+const  zero: _ = +0.0
+const three: _ = 1 + 2
+const seven: _ = +4 + +3
+
+--------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (prefix_op
+      operator: (operator)
+      operand: (dec_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (dec_literal)
+      operator: (operator)
+      rhs: (dec_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (prefix_op
+        operator: (operator)
+        operand: (dec_literal))
+      operator: (operator)
+      rhs: (prefix_op
+        operator: (operator)
+        operand: (dec_literal)))))
+
+===============================
+minus (prefix neg / infix sub)
+===============================
+
+const  zero: _ = -0.0
+const three: _ = 5 - 2
+const eight: _ = 6 - -2
+
+--------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (prefix_op
+      operator: (operator)
+      operand: (dec_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (dec_literal)
+      operator: (operator)
+      rhs: (dec_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (dec_literal)
+      operator: (operator)
+      rhs: (prefix_op
+        operator: (operator)
+        operand: (dec_literal)))))
+
+===================
+hook (postfix try)
+===================
+
+const  once: _ = x?
+const twice: _ = x??
+
+---------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (postfix_op
+      operand: (ident)
+      operator: (operator)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (postfix_op
+      operand: (postfix_op
+        operand: (ident)
+        operator: (operator))
+      operator: (operator))))
+
+==================
+carat (infix pow)
+==================
+
+const   one: _ = 2 ^ 0
+const undef: _ = 0 ^ 0 ^ 0
+
+----------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (dec_literal)
+      operator: (operator)
+      rhs: (dec_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (dec_literal)
+      operator: (operator)
+      rhs: (binary_op
+        lhs: (dec_literal)
+        operator: (operator)
+        rhs: (dec_literal)))))
