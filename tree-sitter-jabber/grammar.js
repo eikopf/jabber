@@ -30,7 +30,6 @@ const PREC = {
   lazy_and: 6,
   lazy_or: 5,
   bind: 2,
-  apply: 1,
   lambda: 0,
 };
 
@@ -307,7 +306,6 @@ module.exports = grammar({
         [prec.right, PREC.lazy_and, "&&"],
         [prec.right, PREC.lazy_or, "||"],
         [prec.left, PREC.bind, ">>="],
-        [prec.right, PREC.apply, "$"],
       ];
 
       return choice(
@@ -336,9 +334,6 @@ module.exports = grammar({
         "/", // infix div
         "^", // infix pow
         "%", // infix rem
-        "&", // infix bitwise AND
-        "|", // infix bitwise OR
-        "~", // infix bitwise XOR
         "<=>", // infix cmp
         "==", // infix eq
         "!=", // infix neq
@@ -349,7 +344,6 @@ module.exports = grammar({
         "|>", // infix pipe right
         "<|", // infix pipe left
         ">>=", // infix monadic bind
-        "$", // infix apply
         "::", // infix cons
         "++", // infix concat
         "||", // infix lazy or
