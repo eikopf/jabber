@@ -23,6 +23,29 @@ fn main() {
           name: (ident))
         value: (ident)))))
 
+=================
+literal patterns
+=================
+
+fn main() {
+  let () = ();
+  let  0 =  0;
+}
+
+------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (block
+      (let_stmt
+        pattern: (unit_literal)
+        value: (unit_literal))
+      (let_stmt
+        pattern: (dec_literal)
+        value: (dec_literal)))))
+
 =========
 wildcard
 =========

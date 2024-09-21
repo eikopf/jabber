@@ -58,7 +58,7 @@ module.exports = grammar({
   ],
 
   rules: {
-    // start_symbol
+    // start symbol
     source_file: ($) => seq(optional($.shebang), repeat($._decl)),
 
     shebang: (_) => /#![^\n]*/,
