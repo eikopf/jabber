@@ -1,0 +1,66 @@
+====================
+identifier patterns
+====================
+
+fn main() {
+  let name = ();
+  let Option.None = None;
+}
+
+--------------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (block
+      (let_stmt
+        pattern: (ident)
+        value: (unit_literal))
+      (let_stmt
+        pattern: (path
+          root: (ident)
+          name: (ident))
+        value: (ident)))))
+
+=================
+literal patterns
+=================
+
+fn main() {
+  let () = ();
+  let  0 =  0;
+}
+
+------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (block
+      (let_stmt
+        pattern: (unit_literal)
+        value: (unit_literal))
+      (let_stmt
+        pattern: (dec_literal)
+        value: (dec_literal)))))
+
+=========
+wildcard
+=========
+
+fn main() {
+  let _ = ();
+}
+
+-------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (block
+      (let_stmt
+        pattern: (wildcard_pattern)
+        value: (unit_literal)))))

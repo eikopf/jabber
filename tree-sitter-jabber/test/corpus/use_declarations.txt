@@ -1,0 +1,100 @@
+============
+named items
+============
+
+use std.foo.bar
+
+----------------------------
+
+(source_file
+  (use_decl
+    (path
+      root: (path
+        root: (ident)
+        name: (ident))
+      name: (ident))))
+
+=====================
+aliased items
+=====================
+
+use std.baz as _alias
+
+----------------------------
+
+(source_file
+  (use_decl
+    (alias_item
+      item: (path
+        root: (ident)
+        name: (ident))
+      alias: (ident))))
+
+===========
+plain glob
+===========
+
+use *
+
+--------------------------
+
+(source_file
+  (use_decl
+    (glob_item)))
+
+=====================
+path-to-glob items
+=====================
+
+use std.option.Option.*
+
+----------------------------
+
+(source_file
+  (use_decl
+    (glob_item
+      root: (path
+        root: (path
+          root: (ident)
+          name: (ident))
+        name: (ident)))))
+
+===========
+item trees
+===========
+
+use std.tree.{
+  some_item,
+  aliased_item as new_name,
+  Enum.*,
+}
+
+----------------------------
+
+(source_file
+  (use_decl
+    (tree_item
+      root: (path
+        root: (ident)
+        name: (ident))
+      (ident)
+      (alias_item
+        item:  (ident)
+        alias: (ident))
+      (glob_item
+        root: (ident)))))
+
+=====================
+pub use declarations
+=====================
+
+pub use foo.Foo
+
+---------------------------------
+
+(source_file
+  (use_decl
+    visibility: (access_spec)
+    (path
+      root: (ident)
+      name: (ident))))

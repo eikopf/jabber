@@ -33,13 +33,13 @@ GenericParams = '<' Ident (',' Ident)* '>'
 
 SigDecl = 'sig' Ident ':' FnTypeExpr
 
-FnDecl = 'fn' Name FnParams? ('->' TypeExpr)? ('=' Expr | BlockExpr)
-FnParams = '(' (FnParam (',' FnParam)* ','?)? ')'
+FnDecl = 'fn' Name '(' FnParams? ')' ('->' TypeExpr)? ('=' Expr | BlockExpr)
+FnParams = FnParam (',' FnParam)* ','?
 FnParam = Pattern ':' TypeExpr
 
 Expr =
   Name
-  LiteralExpr
+| LiteralExpr
 | ListExpr
 | TupleExpr
 | StructExpr
@@ -113,10 +113,9 @@ LetStmt = 'let' Pattern (':' TypeExpr)? '=' Expr
 Pattern =
   Ident                                 // binding
 | '_'                                   // wildcard
-| '..'                                  // rest
 | '(' SeqPatternContents? ')'           // tuple
 | '[' SeqPatternContents? ']'           // list
-| Pattern '::' Pattern                  // cons
+| Pattern '::' Pattern                   // cons
 | Name EnumPatternPayload?              // enum
 | Name '{' StructPatternFields? '}'     // struct
 | LiteralExpr                           // literal
@@ -125,8 +124,8 @@ SeqPatternContents = Pattern (',' Pattern)* ','?
 
 EnumPatternPayload = '(' Pattern (',' Pattern)* ','? ')'
 
-StructPatternFields = StructFieldPattern (',' StructFieldPattern)* ','?
-StructFieldPattern = Ident (':' Pattern)? | '..'
+StructPatternFields = StructFieldPattern (',' StructFieldPattern)* (',' '..')? ','?
+StructFieldPattern = Ident (':' Pattern)?
 
 TypeExpr =
   '!'
@@ -152,7 +151,7 @@ TypeExpr =
 | FnTypeExpr
 | '_'   // the inference placeholder
 
-GenericArgs = '<' TypeExpr (',' TypeExpr)* ','? '>'
+GenericArgs = '[' TypeExpr (',' TypeExpr)* ','? ']'
 
 FnTypeExpr = '(' FnTypeArgs? ')' '->' TypeExpr
 FnTypeArgs = FnTypeArg (',' FnTypeArg)* ','?

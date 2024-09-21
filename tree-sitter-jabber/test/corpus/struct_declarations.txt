@@ -1,0 +1,78 @@
+==========================
+empty struct declarations
+==========================
+
+pub struct Singleton {}
+
+-------------------------
+
+(source_file
+  (struct_decl
+    visibility: (access_spec)
+    name: (ident)
+    fields: (struct_fields)))
+
+
+=====================
+public struct fields
+=====================
+
+struct Bytes {
+  pub _0: u8,
+  pub _1: u8,
+  pub _2: u8,
+  pub _3: u8,
+}
+
+----------------------------
+
+(source_file
+  (struct_decl
+    name: (ident)
+    fields: (struct_fields
+      (struct_field
+        visibility: (access_spec)
+        name: (ident)
+        type: (primitive_type))
+      (struct_field
+        visibility: (access_spec)
+        name: (ident)
+        type: (primitive_type))
+      (struct_field
+        visibility: (access_spec)
+        name: (ident)
+        type: (primitive_type))
+      (struct_field
+        visibility: (access_spec)
+        name: (ident)
+        type: (primitive_type)))))
+
+============================
+generic struct declarations
+============================
+
+struct Triplet[A, B, C] {
+  a: A,
+  b: B,
+  c: C,
+}
+
+---------------------------------
+
+(source_file
+  (struct_decl
+    name: (ident)
+    params: (generic_params
+      (ident)
+      (ident)
+      (ident))
+    fields: (struct_fields
+      (struct_field
+        name: (ident)
+        type: (ident))
+      (struct_field
+        name: (ident)
+        type: (ident))
+      (struct_field
+        name: (ident)
+        type: (ident)))))
