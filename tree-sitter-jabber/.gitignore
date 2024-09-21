@@ -36,3 +36,7 @@ dist/
 *.wasm
 *.obj
 *.o
+
+# Windows-specific import/export files
+*.lib
+*.exp
