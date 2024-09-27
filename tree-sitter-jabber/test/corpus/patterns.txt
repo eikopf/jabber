@@ -46,9 +46,9 @@ fn main() {
         pattern: (dec_literal)
         value: (dec_literal)))))
 
-=========
-wildcard
-=========
+==================
+wildcard patterns
+==================
 
 fn main() {
   let _ = ();
@@ -64,3 +64,83 @@ fn main() {
       (let_stmt
         pattern: (wildcard_pattern)
         value: (unit_literal)))))
+
+===============
+tuple patterns
+===============
+
+fn foo() = match tup {
+  (x) => "singleton",
+  (x,) => "singleton with a trailing comma",
+  (x, y) => "pair",
+  (x, y, z,) => "triple with a trailing comma",
+}
+
+-------------------------------------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (match_expr
+      scrutinee: (ident)
+      arms: (match_arms
+        (match_arm
+          pattern: (tuple_pattern (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (tuple_pattern (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (tuple_pattern
+            (ident)
+            (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (tuple_pattern
+            (ident)
+            (ident)
+            (ident))
+          body: (string_literal))))))
+
+==============
+list patterns
+==============
+
+fn bar() = match list {
+  []        => "empty list",
+  [x]       => "singleton",
+  [x,]      => "singleton with a trailing comma",
+  [x, y,]   => "pair with a trailing comma",
+  [x, y, z] => "triple",
+}
+
+---------------------------------------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (match_expr
+      scrutinee: (ident)
+      arms: (match_arms
+        (match_arm
+          pattern: (list_pattern)
+          body: (string_literal))
+        (match_arm
+          pattern: (list_pattern (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (list_pattern (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (list_pattern
+            (ident)
+            (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (list_pattern
+            (ident)
+            (ident)
+            (ident))
+          body: (string_literal))))))
