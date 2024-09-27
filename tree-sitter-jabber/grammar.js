@@ -415,7 +415,8 @@ module.exports = grammar({
         seq(field("head", $._pattern), "::", field("tail", $._pattern)),
       ),
 
-    enum_pattern: ($) => seq($._name, $.enum_pattern_payload),
+    enum_pattern: ($) =>
+      seq(field("name", $._name), field("payload", $.enum_pattern_payload)),
     enum_pattern_payload: ($) => seq("(", comma_list1($._pattern), ")"),
 
     struct_pattern: ($) =>

@@ -191,3 +191,48 @@ fn cons() = match list {
                 tail: (ident)))
             tail: (ident))
           body: (string_literal))))))
+
+==============
+enum patterns
+==============
+
+fn baz() = match something {
+  Ident         => "in-scope unit variant",
+  Some.Path     => "qualified unit variant",
+  Foo(x, y)     => "in-scope variant with payload",
+  Bar.Baz(z, _) => "qualified variant with payload",
+}
+
+------------------------------------------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (match_expr
+      scrutinee: (ident)
+      arms: (match_arms
+        (match_arm
+          pattern: (ident)
+          body: (string_literal))
+        (match_arm
+          pattern: (path
+            root: (ident)
+            name: (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (enum_pattern
+            name: (ident)
+            payload: (enum_pattern_payload
+              (ident)
+              (ident)))
+          body: (string_literal))
+        (match_arm
+          pattern: (enum_pattern
+            name: (path
+              root: (ident)
+              name: (ident))
+            payload: (enum_pattern_payload
+              (ident)
+              (wildcard_pattern)))
+          body: (string_literal))))))

@@ -626,20 +626,27 @@
   {
     "type": "enum_pattern",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "_name",
-          "named": true
-        },
-        {
-          "type": "enum_pattern_payload",
-          "named": true
-        }
-      ]
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_name",
+            "named": true
+          }
+        ]
+      },
+      "payload": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "enum_pattern_payload",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {

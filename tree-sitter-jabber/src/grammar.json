@@ -2803,12 +2803,20 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "SYMBOL",
-          "name": "_name"
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_name"
+          }
         },
         {
-          "type": "SYMBOL",
-          "name": "enum_pattern_payload"
+          "type": "FIELD",
+          "name": "payload",
+          "content": {
+            "type": "SYMBOL",
+            "name": "enum_pattern_payload"
+          }
         }
       ]
     },
