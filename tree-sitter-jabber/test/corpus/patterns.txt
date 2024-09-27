@@ -70,8 +70,8 @@ tuple patterns
 ===============
 
 fn foo() = match tup {
-  (x) => "singleton",
-  (x,) => "singleton with a trailing comma",
+  (x) => "parenthesized ident",
+  (x,) => "singleton tuple",
   (x, y) => "pair",
   (x, y, z,) => "triple with a trailing comma",
 }
@@ -86,7 +86,8 @@ fn foo() = match tup {
       scrutinee: (ident)
       arms: (match_arms
         (match_arm
-          pattern: (tuple_pattern (ident))
+          pattern: (parenthesized_pattern
+            inner: (ident))
           body: (string_literal))
         (match_arm
           pattern: (tuple_pattern (ident))
@@ -143,4 +144,50 @@ fn bar() = match list {
             (ident)
             (ident)
             (ident))
+          body: (string_literal))))))
+
+==============
+cons patterns
+==============
+
+fn cons() = match list {
+   x :: xs        => "head & tail",
+   x :: []        => "singleton",
+   x :: y   :: zs => "head & head & tail",
+  (x :: ys) :: zs => "head & tail & tail",
+}
+
+-----------------------------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (match_expr
+      scrutinee: (ident)
+      arms: (match_arms
+        (match_arm
+          pattern: (cons_pattern
+            head: (ident)
+            tail: (ident))
+          body: (string_literal))
+        (match_arm
+          pattern: (cons_pattern
+            head: (ident)
+            tail: (list_pattern))
+          body: (string_literal))
+        (match_arm
+          pattern: (cons_pattern
+            head: (ident)
+            tail: (cons_pattern
+              head: (ident)
+              tail: (ident)))
+          body: (string_literal))
+        (match_arm
+          pattern: (cons_pattern
+            head: (parenthesized_pattern
+              inner: (cons_pattern
+                head: (ident)
+                tail: (ident)))
+            tail: (ident))
           body: (string_literal))))))

@@ -401,6 +401,7 @@ module.exports = grammar({
         $.cons_pattern,
         $.enum_pattern,
         $.struct_pattern,
+        $.parenthesized_pattern,
       ),
 
     wildcard_pattern: (_) => "_",
@@ -431,6 +432,9 @@ module.exports = grammar({
     struct_pattern_field: ($) => seq($.ident, optional(seq(":", $._pattern))),
 
     rest_pattern: (_) => "..",
+
+    parenthesized_pattern: ($) =>
+      prec(10, seq("(", field("inner", $._pattern), ")")),
 
     /// TYPES
 
