@@ -350,14 +350,16 @@ module.exports = grammar({
       ),
 
     match_expr: ($) =>
+      seq("match", field("scrutinee", $._expr), field("arms", $.match_arms)),
+
+    match_arms: ($) => seq("{", comma_list0($.match_arm), "}"),
+    match_arm: ($) =>
       seq(
-        "match",
-        field("scrutinee", $._expr),
-        "{",
-        comma_list0($.match_arm),
-        "}",
+        field("pattern", $._pattern),
+        optional(field("guard", $.guard_expr)),
+        "=>",
+        field("body", $._expr),
       ),
-    match_arm: ($) => seq($._pattern, optional($.guard_expr), "=>", $._expr),
     guard_expr: ($) => seq("if", $._expr),
 
     if_else_expr: ($) =>
@@ -405,8 +407,7 @@ module.exports = grammar({
 
     tuple_pattern: ($) => seq("(", comma_list1($._pattern), ")"),
 
-    list_pattern: ($) =>
-      seq("[", comma_list0(choice($._pattern, $.rest_pattern)), "]"),
+    list_pattern: ($) => seq("[", comma_list0($._pattern), "]"),
 
     cons_pattern: ($) =>
       prec.right(
