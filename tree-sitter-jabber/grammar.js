@@ -420,9 +420,14 @@ module.exports = grammar({
     enum_pattern_payload: ($) => seq("(", comma_list1($._pattern), ")"),
 
     struct_pattern: ($) =>
-      seq($._name, "{", optional($.struct_pattern_body), "}"),
+      seq(
+        field("name", $._name),
+        "{",
+        optional(field("fields", $.struct_pattern_fields)),
+        "}",
+      ),
 
-    struct_pattern_body: ($) =>
+    struct_pattern_fields: ($) =>
       seq(
         $.struct_pattern_field,
         repeat(seq(",", $.struct_pattern_field)),
@@ -430,7 +435,11 @@ module.exports = grammar({
         optional(","),
       ),
 
-    struct_pattern_field: ($) => seq($.ident, optional(seq(":", $._pattern))),
+    struct_pattern_field: ($) =>
+      seq(
+        field("field", $.ident),
+        optional(seq(":", field("pattern", $._pattern))),
+      ),
 
     rest_pattern: (_) => "..",
 

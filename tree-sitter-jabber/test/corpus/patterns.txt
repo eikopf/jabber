@@ -236,3 +236,55 @@ fn baz() = match something {
               (ident)
               (wildcard_pattern)))
           body: (string_literal))))))
+
+================
+struct patterns
+================
+
+fn qux() = match thing {
+  some.Foo {} => "qualified singleton",
+  Bar {x, y}  => "direct binding",
+  Baz {z: _}  => "pattern binding",
+  Qux {w, ..} => "rest pattern",
+}
+
+------------------------------------
+
+(source_file
+  (fn_decl
+    name: (ident)
+    parameters: (parameters)
+    body: (match_expr
+      scrutinee: (ident)
+      arms: (match_arms
+        (match_arm
+          pattern: (struct_pattern
+            name: (path
+              root: (ident)
+              name: (ident)))
+          body: (string_literal))
+        (match_arm
+          pattern: (struct_pattern
+            name: (ident)
+            fields: (struct_pattern_fields
+              (struct_pattern_field
+                field: (ident))
+              (struct_pattern_field
+                field: (ident))))
+          body: (string_literal))
+        (match_arm
+          pattern: (struct_pattern
+            name: (ident)
+            fields: (struct_pattern_fields
+              (struct_pattern_field
+                field: (ident)
+                pattern: (wildcard_pattern))))
+          body: (string_literal))
+        (match_arm
+          pattern: (struct_pattern
+            name: (ident)
+            fields: (struct_pattern_fields
+              (struct_pattern_field
+                field: (ident))
+              (rest_pattern)))
+          body: (string_literal))))))
