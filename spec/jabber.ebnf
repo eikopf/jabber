@@ -1,0 +1,242 @@
+(* 
+  this file defines Jabber's formal context-free grammar using
+  Extended Backus-Naur Form, though it does not explicitly define
+  rules related to whitespace and comments; such "extra" rules can
+  appear between all other rules, and their structure is defined in
+  the ./extras.ebnf file.
+*)
+
+(* TODO: add pragma/annotation syntax for compiler metadata *)
+(* TODO: add functional record update syntax *)
+
+START = {decl} ;
+
+(* DECLARATIONS *)
+
+declaration = mod decl              (* modules *)
+            | use decl              (* imports *)
+            | type decl             (* type aliases *)
+            | extern type decl      (* foreign types *)
+            | struct decl           (* struct types *)
+            | enum decl             (* enum types *)
+            | sig decl              (* generic interfaces *)
+            | fn decl               (* functions *)
+            | extern fn decl        (* foreign functions *)
+            | const decl            (* constants *)
+            ;
+
+mod decl = [visibility], "mod", identifier ;
+
+use decl = [visibility], "use", use item ;
+
+use item = name 
+         | glob item 
+         | alias item 
+         | tree item 
+         ;
+
+glob item  = [name, "."], "*" ;
+alias item = name, "as", ident ;
+tree item  = [name, "."], "{", [use item, {",", use item}, [","]], "}" ;
+
+type decl        = [visibility],           "type", type alias, "=", type ;
+extern type decl = [visibility], "extern", "type", type alias ;
+type alias = ident | generic type ;
+
+struct decl = [visibility], "struct", ident, [generic parameters], struct fields ;
+enum decl   = [visibility], "enum",   ident, [generic parameters], enum variants ;
+
+struct fields = "{", [struct field, {",", struct field}, [","]], "}" ;
+enum variants = "{", [enum variant, {",", enum variant}, [","]], "}" ;
+
+struct field = [visibility], ident, ":", type ;
+enum variant = ident, ["(", type, {"," type}, [","], ")"] ;
+
+generic parameters = "[", ident, {",", ident}, [","], "]" ;
+
+sig decl = [visibility], "sig", ident, ":", function type ;
+
+fn decl        = [visibility], "fn", name, parameters, ["->", type], fn body;
+extern fn decl = [visibility], "extern", "fn", name, parameters, ["->", type];
+
+parameters = "(", [parameter, {"," parameter}, [","]], ")" ;
+parameter  = pattern, [":", type] ;
+
+fn body = ("=", expr) | block ;
+
+const decl  = [visibility], "const", ident, ":", type, "=", expr ;
+
+visibility = "pub" ;
+
+(* EXPRESSIONS *)
+
+expr = name                     (* items *)
+     | literal expr             (* literals *)
+     | list expr                (* lists *)
+     | tuple expr               (* tuples *)
+     | struct expr              (* struct literals *)
+     | field expr               (* projections *)
+     | lambda expr              (* function literals *)
+     | call expr                (* function calls *)
+     | prefix expr              (* prefix operators *)
+     | postfix expr             (* postfix operators *)
+     | binary expr              (* infix operators *)
+     | match expr               (* pattern matches *)
+     | if expr                  (* boolean conditionals *)
+     | parenthesized expr       (* parentheses *)
+     | block                    (* block-scoped expressions *)
+     ;
+
+literal expr = unit literal
+             | true literal
+             | false literal
+             | character literal
+             | string literal
+             | integer literal
+             | float literal
+             ;
+
+unit literal = "(", ")" ;
+true literal = "true" ;
+false literal = "false" ;
+char literal = ? regex: "'(\\'|.|\\u\{[0-9a-fA-F]+\}|\\x\d+|\\.)'" ? ;
+string literal = ? regex: '"(\\"|[^"\r])*"' ? ;
+
+integer literal = bin integer literal
+                | oct integer literal
+                | dec integer literal
+                | hex integer literal
+                ;
+
+bin integer literal = ?? regex: "0b[01_]+([ui](8|16|32|64))?"  ?? ;
+oct integer literal = ?? regex: "0o[0-7_]+([ui](8|16|32|64))?" ?? ;
+dec integer literal = ?? regex: "(0d[0-9_]|[0-9])[0-9_]*([ui](8|16|32|64))?" ?? ;
+hex integer literal = ?? regex: "0[xX][0-9a-fA-F_]+([ui](8|16|32|64))?" ?? ;
+
+float literal 
+  = ?? regex: "[0-9][0-9_]+(\.[0-9_]+)?([eE][\+\-]?[0-9]+)?(f(32|64))?" ?? ;
+
+list expr  = "[", [expr, {",", expr}, [","]], "]" ;
+tuple expr = "(",  expr, {",", expr}, [","],  ")" ;
+
+struct expr = name, "{", struct expr fields, "}" ;
+struct expr fields = [struct expr field, {",", struct expr field}, [","]] ;
+struct expr field = ident, [":", expr] ;
+
+field expr = expr, ".", ident ;
+
+lambda expr = (ident | parameters), "->", expr ;
+
+call expr = expr, "(", [expr, {",", expr}, [","]], ")" ;
+
+prefix expr  = prefix operator, expr ;
+postfix expr = expr, postfix operator ;
+binary expr  = expr, binary operator, expr ;
+
+prefix operator  = "!" | "+" | "-" ;
+postfix operator = "!" | "?" ;
+binary operator  = "^"
+                 | "<|"
+                 | "|>"
+                 | "<=>" | "==" | "!=" | ">" | "<" | ">=" | "<="
+                 | "+" | "-"
+                 | "*" | "/" | "%"
+                 | "::"
+                 | "++"
+                 | "&&"
+                 | "||"
+                 | ">>="
+                 ;
+
+match expr = "match", expr, match arms ;
+match arms = "{", [match arm, {",", match arm}, [","]], "}" ;
+match arm = pattern, ["if", expr], "=>" expr ;
+
+if expr = "if", expr, block, [else clause] ;
+else clause = "else" (if expr | block) ;
+
+block = "{", {stmt}, [expr], "}" ;
+stmt = ";" | expr stmt | let stmt ;
+expr stmt = expr, ";" ;
+let stmt = "let", pattern, [":", type], "=", expr, ";" ;
+
+(* this rule conflicts with the tuple expr rule without precedence annotations *)
+parenthesized expr = "(", expr, ")" ;
+
+(* PATTERNS *)
+
+pattern = "_"
+        | name
+        | literal expr
+        | tuple pattern
+        | list pattern
+        | cons pattern
+        | enum pattern
+        | struct pattern
+        | parenthesized pattern
+        ;
+
+tuple pattern = "(",  pattern, {",", pattern}, [","],  ")" ;
+list pattern  = "[", [pattern, {",", pattern}, [","]], "]" ;
+
+cons pattern = pattern, "::", pattern ;
+
+enum pattern = name, "(", pattern, {",", pattern}, [","], ")" ;
+
+struct pattern = name, struct pattern fields ;
+struct pattern fields = "{", [struct pattern field, {",", struct pattern field}, 
+                                                    [",", rest pattern],
+                                                    [","]], "}" ;
+
+rest pattern = ".."
+
+parenthesized pattern = "(", pattern, ")" ;
+
+(* TYPES *)
+
+type = "_"   (* inference placeholder *)
+     | name
+     | primitive type
+     | unit type
+     | tuple type
+     | generic type
+     | function type
+     | parenthesized type
+     ;
+
+(* TODO: refactor the primitive integral types *)
+primitive type = "!"
+               | "bool"
+               | "char"
+               | "string"
+               | "f32"
+               | "f64"
+               | "u8"
+               | "u16"
+               | "u32"
+               | "u64"
+               | "uint"
+               | "i8"
+               | "i16"
+               | "i32"
+               | "i64"
+               | "int"
+               ;
+
+unit type = "(", ")" ;
+
+tuple type = "(", type, {",", type}, [","], ")" ;
+
+generic type = name, "[", type, {",", type}, [","], "]" ;
+
+function type = type, "->", type ;
+
+parenthesized type = "(", type, ")" ;
+
+(* IDENTIFIERS *)
+
+name = path | identifier ;
+
+path = name, ".", identifier ;
+
+identifier = ? regex: "(_+[a-zA-Z0-9]|[a-zA-Z])[_a-zA-Z0-9]*" ? ;

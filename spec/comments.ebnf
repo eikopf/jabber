@@ -1,0 +1,15 @@
+(*
+  this file defines Jabber's "extra" grammar rules, which
+  are permitted to appear between all other grammar rules.
+*)
+
+comment = line comment
+        | doc comment
+        | module comment
+        ;
+
+line comment    = ? regex: "//[^\n]*"  ?
+doc comment     = ? regex: "//![^\n]*" ?
+module comment  = ? regex: "///[^\n]*" ?
+
+whitespace = ? a nonempty string of Pattern_White_Space unicode characters ?
