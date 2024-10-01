@@ -480,6 +480,7 @@ module.exports = grammar({
         "f64",
       ),
 
+    // TODO: potentially change this to be the token "()"
     unit_type: (_) => seq("(", ")"),
 
     tuple_type: ($) => seq("(", comma_list1($._type_expr), ")"),
