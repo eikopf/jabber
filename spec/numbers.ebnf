@@ -1,0 +1,45 @@
+(*
+  this file defines Jabber's number literal sublanguage. in practice,
+  number literals can (and should) be implemented with regular expressions,
+  but this file exists to be clearer than the opaque regexes in the actual
+  grammar file.
+
+  note: whereas the full grammar admits arbitrary whitespace between all
+        ordinary rules, this grammar does not
+*)
+
+number literal = float literal 
+               | integer literal 
+               ;
+
+float literal = dec literal, [".", dec literal], [exponent], [float suffix] ; 
+exponent = ("e" | "E"), ["+" | "-"], {dec digit | "_"}, dec literal ;
+float suffix = "f32" | "f64" ;
+
+integer literal = bin literal, [integer suffix]
+                | oct literal, [integer suffix]
+                | dec literal, [integer suffix]
+                | hex literal, [integer suffix]
+                ;
+
+integer suffix = ("u" | "i"), ("8" | "16" | "32" | "64")
+               | "uint"
+               | "int"
+               ;
+
+bin literal = bin prefix, {bin digit | "_"}, bin digit, {bin digit | "_"} ;
+oct literal = oct prefix, {oct digit | "_"}, oct digit, {oct digit | "_"} ;
+dec literal =                                dec digit, {dec digit | "_"} ;
+hex literal = hex prefix, {hex digit | "_"}, hex digit, {hex digit | "_"} ;
+
+bin prefix = "0b" ;
+oct prefix = "0o" ;
+hex prefix = "0", ("x" | "X") ;
+
+bin digit = "0" | "1" ;
+oct digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" ;
+dec digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+hex digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+          | "a" | "b" | "c" | "d" | "e" | "f"
+          | "A" | "B" | "C" | "D" | "E" | "F"
+          ;
