@@ -85,8 +85,7 @@ prefixed integer literals
 
 const bin_zero: _ = 0b00u8
 const oct_zero: _ = 0o00
-const dec_zero: _ = 0d00i32
-const hex_zero: _ = 0x00
+const hex_zero: _ = 0x00uint
 
 -----------------------------
 
@@ -102,15 +101,11 @@ const hex_zero: _ = 0x00
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (dec_literal))
-  (const_decl
-    name: (ident)
-    type: (inferred_type)
     value: (hex_literal)))
 
-==================================
-implicit decimal integer literals
-==================================
+=========================
+decimal integer literals
+=========================
 
 const zero: _ = 0
 const  one: _ = 1i32
@@ -141,13 +136,13 @@ const eighth: f64 = 0.8
   (const_decl
     name: (ident)
     type: (primitive_type)
-    value: (dec_literal))
+    value: (float_literal))
   (const_decl
     name: (ident)
     type: (primitive_type)
-    value: (dec_literal))
+    value: (float_literal))
   (const_decl
     name: (ident)
     type: (primitive_type)
-    value: (dec_literal)))
+    value: (float_literal)))
 

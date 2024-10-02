@@ -46,7 +46,7 @@ const seven: _ = +4 + +3
     type: (inferred_type)
     value: (prefix_op
       operator: (operator)
-      operand: (dec_literal)))
+      operand: (float_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)
@@ -82,7 +82,7 @@ const eight: _ = 6 - -2
     type: (inferred_type)
     value: (prefix_op
       operator: (operator)
-      operand: (dec_literal)))
+      operand: (float_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)

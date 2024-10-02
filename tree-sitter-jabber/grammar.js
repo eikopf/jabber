@@ -240,6 +240,7 @@ module.exports = grammar({
         $.bool_literal_false,
         $.char_literal,
         $.string_literal,
+        $.float_literal,
         $.bin_literal,
         $.oct_literal,
         $.dec_literal,
@@ -509,10 +510,16 @@ module.exports = grammar({
     bool_literal_false: (_) => "false",
     char_literal: (_) => /'(\\'|.|\\u\{[0-9a-fA-F]+\}|\\x\d+|\\.)'/,
     string_literal: (_) => /"(\\"|[^"\r])*"/,
-    bin_literal: (_) => /0b[01_]+([ui](8|16|32|64))?/,
-    oct_literal: (_) => /0o[0-7_]+([ui](8|16|32|64))?/,
-    dec_literal: (_) => /(0d)?[0-9][0-9_]*(\.[0-9_]+)?([uif](8|16|32|64))?/,
-    hex_literal: (_) => /0[xX][0-9a-fA-F_]+([ui](8|16|32|64))?/,
+    bin_literal: (_) => /0b[01_]*[01][01_]*(uint|int|[iu](8|16|32|64))?/,
+    oct_literal: (_) => /0o[0-7_]*[0-7][0-7_]*(uint|int|[iu](8|16|32|64))?/,
+    hex_literal: (_) =>
+      /0[xX][0-9a-fA-F_]*[0-9a-fA-F][0-9a-fA-F_]*(uint|int|[iu](8|16|32|64))?/,
+
+    // this ordering of number literals is load-bearing; dec_literal
+    // MUST appear before float_literal
+    dec_literal: (_) => /[0-9][0-9_]*(uint|int|[iu](8|16|32|64))?/,
+    float_literal: (_) =>
+      /[0-9][0-9_]*(\.[0-9][0-9_]*)?([eE][\+\-]?[0-9_]*[0-9][0-9_]*)?(f(32|64))?/,
 
     /// IDENTIFIERS
 
