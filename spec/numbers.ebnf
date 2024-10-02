@@ -1,11 +1,10 @@
 (*
   this file defines Jabber's number literal sublanguage. in practice,
   number literals can (and should) be implemented with regular expressions,
-  but this file exists to be clearer than the opaque regexes in the actual
-  grammar file.
+  but this file exists to be clearer than opaque regexes
 
-  note: whereas the full grammar admits arbitrary whitespace between all
-        ordinary rules, this grammar does not
+  NOTE: whereas the full grammar admits arbitrary whitespace between all
+        ordinary rules, this subgrammar does not.
 *)
 
 number literal = float literal 

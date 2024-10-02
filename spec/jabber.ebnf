@@ -102,19 +102,10 @@ false literal = "false" ;
 char literal = ? regex: "'(\\'|.|\\u\{[0-9a-fA-F]+\}|\\x\d+|\\.)'" ? ;
 string literal = ? regex: '"(\\"|[^"\r])*"' ? ;
 
-integer literal = bin integer literal
-                | oct integer literal
-                | dec integer literal
-                | hex integer literal
-                ;
-
-bin integer literal = ?? regex: "0b[01_]+([ui](8|16|32|64))?"  ?? ;
-oct integer literal = ?? regex: "0o[0-7_]+([ui](8|16|32|64))?" ?? ;
-dec integer literal = ?? regex: "(0d[0-9_]|[0-9])[0-9_]*([ui](8|16|32|64))?" ?? ;
-hex integer literal = ?? regex: "0[xX][0-9a-fA-F_]+([ui](8|16|32|64))?" ?? ;
-
-float literal 
-  = ?? regex: "[0-9][0-9_]+(\.[0-9_]+)?([eE][\+\-]?[0-9]+)?(f(32|64))?" ?? ;
+(* 
+  NOTE: the integer literal and float literal rules are
+        defined in ./numbers.ebnf
+*)
 
 list expr  = "[", [expr, {",", expr}, [","]], "]" ;
 tuple expr = "(",  expr, {",", expr}, [","],  ")" ;
