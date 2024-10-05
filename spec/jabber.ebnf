@@ -6,8 +6,11 @@
   the ./extras.ebnf file.
 *)
 
-(* TODO: add pragma/annotation syntax for compiler metadata *)
-(* TODO: add functional record update syntax *)
+(*
+  TODO: add `where` clauses for functions and signatures
+  TODO: add pragma/annotation syntax for compiler metadata
+  TODO: add functional record update syntax
+*)
 
 START = {decl} ;
 
