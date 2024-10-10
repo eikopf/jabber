@@ -453,24 +453,7 @@ module.exports = grammar({
       ),
 
     primitive_type: (_) =>
-      choice(
-        "!",
-        "bool",
-        "char",
-        "string",
-        "u8",
-        "u16",
-        "u32",
-        "u64",
-        "usize",
-        "i8",
-        "i16",
-        "i32",
-        "i64",
-        "isize",
-        "f32",
-        "f64",
-      ),
+      choice("!", "bool", "char", "string", "int", "float"),
 
     // TODO: potentially change this to be the token "()"
     unit_type: (_) => seq("(", ")"),
@@ -501,16 +484,15 @@ module.exports = grammar({
     bool_literal_false: (_) => "false",
     char_literal: (_) => /'(\\'|.|\\u\{[0-9a-fA-F]+\}|\\x\d+|\\.)'/,
     string_literal: (_) => /"(\\"|[^"\r])*"/,
-    bin_literal: (_) => /0b[01_]*[01][01_]*(uint|int|[iu](8|16|32|64))?/,
-    oct_literal: (_) => /0o[0-7_]*[0-7][0-7_]*(uint|int|[iu](8|16|32|64))?/,
-    hex_literal: (_) =>
-      /0[xX][0-9a-fA-F_]*[0-9a-fA-F][0-9a-fA-F_]*(uint|int|[iu](8|16|32|64))?/,
+    bin_literal: (_) => /0b[01_]*[01][01_]*/,
+    oct_literal: (_) => /0o[0-7_]*[0-7][0-7_]*/,
+    hex_literal: (_) => /0[xX][0-9a-fA-F_]*[0-9a-fA-F][0-9a-fA-F_]*/,
 
     // this ordering of number literals is load-bearing; dec_literal
     // MUST appear before float_literal
-    dec_literal: (_) => /[0-9][0-9_]*(uint|int|[iu](8|16|32|64))?/,
+    dec_literal: (_) => /[0-9][0-9_]*/,
     float_literal: (_) =>
-      /[0-9][0-9_]*(\.[0-9][0-9_]*)?([eE][\+\-]?[0-9_]*[0-9][0-9_]*)?(f(32|64))?/,
+      /[0-9][0-9_]*(\.[0-9][0-9_]*)?([eE][\+\-]?[0-9][0-9_]*)?/,
 
     /// IDENTIFIERS
 

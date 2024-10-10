@@ -83,52 +83,52 @@ const escaped_quote: string = "\""
 prefixed integer literals
 ==========================
 
-const bin_zero: _ = 0b00u8
-const oct_zero: _ = 0o00
-const hex_zero: _ = 0x00uint
+const bin_zero: int = 0b00
+const oct_zero: int = 0o00
+const hex_zero: int = 0x00
 
 -----------------------------
 
 (source_file
   (const_decl
     name: (ident)
-    type: (inferred_type)
+    type: (primitive_type)
     value: (bin_literal))
   (const_decl
     name: (ident)
-    type: (inferred_type)
+    type: (primitive_type)
     value: (oct_literal))
   (const_decl
     name: (ident)
-    type: (inferred_type)
+    type: (primitive_type)
     value: (hex_literal)))
 
 =========================
 decimal integer literals
 =========================
 
-const zero: _ = 0
-const  one: _ = 1i32
+const zero: int = 0
+const  one: int = 1
 
 ---------------------------
 
 (source_file
   (const_decl
     name: (ident)
-    type: (inferred_type)
+    type: (primitive_type)
     value: (dec_literal))
   (const_decl
     name: (ident)
-    type: (inferred_type)
+    type: (primitive_type)
     value: (dec_literal)))
 
 ===============
 float literals
 ===============
 
-const  tenth: f32 = 0.1f32
-const   half: f64 = 0.5f64
-const eighth: f64 = 0.8
+const  tenth: float = 0.1
+const   half: float = 0.5
+const     mu: float = 1E-6
 
 ------------------------------
 

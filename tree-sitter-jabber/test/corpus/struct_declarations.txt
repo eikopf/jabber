@@ -17,11 +17,11 @@ pub struct Singleton {}
 public struct fields
 =====================
 
-struct Bytes {
-  pub _0: u8,
-  pub _1: u8,
-  pub _2: u8,
-  pub _3: u8,
+struct Int4 {
+  pub _0: int,
+  pub _1: int,
+  pub _2: int,
+  pub _3: int,
 }
 
 ----------------------------

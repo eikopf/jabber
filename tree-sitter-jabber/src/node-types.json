@@ -2804,11 +2804,7 @@
     "named": false
   },
   {
-    "type": "f32",
-    "named": false
-  },
-  {
-    "type": "f64",
+    "type": "float",
     "named": false
   },
   {
@@ -2824,22 +2820,6 @@
     "named": true
   },
   {
-    "type": "i16",
-    "named": false
-  },
-  {
-    "type": "i32",
-    "named": false
-  },
-  {
-    "type": "i64",
-    "named": false
-  },
-  {
-    "type": "i8",
-    "named": false
-  },
-  {
     "type": "ident",
     "named": true
   },
@@ -2848,7 +2828,7 @@
     "named": false
   },
   {
-    "type": "isize",
+    "type": "int",
     "named": false
   },
   {
@@ -2900,27 +2880,7 @@
     "named": false
   },
   {
-    "type": "u16",
-    "named": false
-  },
-  {
-    "type": "u32",
-    "named": false
-  },
-  {
-    "type": "u64",
-    "named": false
-  },
-  {
-    "type": "u8",
-    "named": false
-  },
-  {
     "type": "use",
-    "named": false
-  },
-  {
-    "type": "usize",
     "named": false
   },
   {
