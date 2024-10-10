@@ -36,16 +36,5 @@
     "bindings/node/*",
     "queries/*",
     "src/**"
-  ],
-  "tree-sitter": [
-    {
-      "scope": "source.jabber",
-      "injection-regex": "^jabber$",
-      "file-types": [
-        "jbr",
-        "jabber",
-        "jab"
-      ]
-    }
   ]
 }

@@ -75,7 +75,6 @@ module.exports = grammar({
         $.extern_type_decl,
         $.struct_decl,
         $.enum_decl,
-        $.sig_decl,
         $.fn_decl,
         $.extern_fn_decl,
         $.const_decl,
@@ -159,15 +158,6 @@ module.exports = grammar({
     enum_payload: ($) => seq("(", comma_list1($._type_expr), ")"),
 
     generic_params: ($) => seq("[", comma_list1($.ident), "]"),
-
-    sig_decl: ($) =>
-      seq(
-        optional(field("visibility", $.access_spec)),
-        "sig",
-        field("name", $.ident),
-        ":",
-        field("type", $.fn_type),
-      ),
 
     fn_decl: ($) =>
       seq(

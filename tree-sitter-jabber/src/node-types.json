@@ -28,10 +28,6 @@
         "named": true
       },
       {
-        "type": "sig_decl",
-        "named": true
-      },
-      {
         "type": "struct_decl",
         "named": true
       },
@@ -2096,44 +2092,9 @@
     "fields": {}
   },
   {
-    "type": "sig_decl",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "ident",
-            "named": true
-          }
-        ]
-      },
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "fn_type",
-            "named": true
-          }
-        ]
-      },
-      "visibility": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "access_spec",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "source_file",
     "named": true,
+    "root": true,
     "fields": {},
     "children": {
       "multiple": true,
@@ -2753,18 +2714,6 @@
     "named": false
   },
   {
-    "type": "!=",
-    "named": false
-  },
-  {
-    "type": "%",
-    "named": false
-  },
-  {
-    "type": "&&",
-    "named": false
-  },
-  {
     "type": "(",
     "named": false
   },
@@ -2777,19 +2726,7 @@
     "named": false
   },
   {
-    "type": "+",
-    "named": false
-  },
-  {
-    "type": "++",
-    "named": false
-  },
-  {
     "type": ",",
-    "named": false
-  },
-  {
-    "type": "-",
     "named": false
   },
   {
@@ -2798,10 +2735,6 @@
   },
   {
     "type": ".",
-    "named": false
-  },
-  {
-    "type": "/",
     "named": false
   },
   {
@@ -2821,47 +2754,11 @@
     "named": false
   },
   {
-    "type": "<",
-    "named": false
-  },
-  {
-    "type": "<=",
-    "named": false
-  },
-  {
-    "type": "<=>",
-    "named": false
-  },
-  {
-    "type": "<|",
-    "named": false
-  },
-  {
     "type": "=",
     "named": false
   },
   {
-    "type": "==",
-    "named": false
-  },
-  {
     "type": "=>",
-    "named": false
-  },
-  {
-    "type": ">",
-    "named": false
-  },
-  {
-    "type": ">=",
-    "named": false
-  },
-  {
-    "type": ">>=",
-    "named": false
-  },
-  {
-    "type": "?",
     "named": false
   },
   {
@@ -2870,10 +2767,6 @@
   },
   {
     "type": "]",
-    "named": false
-  },
-  {
-    "type": "^",
     "named": false
   },
   {
@@ -3021,10 +2914,6 @@
     "named": true
   },
   {
-    "type": "sig",
-    "named": false
-  },
-  {
     "type": "string",
     "named": false
   },
@@ -3066,14 +2955,6 @@
   },
   {
     "type": "{",
-    "named": false
-  },
-  {
-    "type": "|>",
-    "named": false
-  },
-  {
-    "type": "||",
     "named": false
   },
   {
