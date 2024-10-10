@@ -1,10 +1,9 @@
 ===================================
-bang (prefix NOT / postfix unwrap)
+bang (prefix NOT)
 ===================================
 
 const    not: _ = !x
-const unwrap: _ =  x!
-const  juxta: _ = !x!
+const notnot: _ = !!x
 
 ----------------------
 
@@ -18,35 +17,22 @@ const  juxta: _ = !x!
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (postfix_op
-      operand: (ident)
-      operator: (operator)))
-  (const_decl
-    name: (ident)
-    type: (inferred_type)
     value: (prefix_op
       operator: (operator)
-      operand: (postfix_op
-        operand: (ident)
-        operator: (operator)))))
+      operand: (prefix_op
+        operator: (operator)
+        operand: (ident)))))
 
 ==============================
-plus (prefix pos / infix add)
+plus (infix add)
 ==============================
 
-const  zero: _ = +0.0
-const three: _ = 1 + 2
-const seven: _ = +4 + +3
+const   ints: _ = 7   +  8
+const floats: _ = 7.0 +. 8.0
 
 --------------------------------
 
 (source_file
-  (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (prefix_op
-      operator: (operator)
-      operand: (float_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)
@@ -58,13 +44,9 @@ const seven: _ = +4 + +3
     name: (ident)
     type: (inferred_type)
     value: (binary_op
-      lhs: (prefix_op
-        operator: (operator)
-        operand: (dec_literal))
+      lhs: (float_literal)
       operator: (operator)
-      rhs: (prefix_op
-        operator: (operator)
-        operand: (dec_literal)))))
+      rhs: (float_literal))))
 
 ===============================
 minus (prefix neg / infix sub)
@@ -130,31 +112,6 @@ const right: _ = x * y ^ z
         lhs: (ident)
         operator: (operator)
         rhs: (ident)))))
-
-===================
-hook (postfix try)
-===================
-
-const  once: _ = x?
-const twice: _ = x??
-
----------------------
-
-(source_file
-  (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (postfix_op
-      operand: (ident)
-      operator: (operator)))
-  (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (postfix_op
-      operand: (postfix_op
-        operand: (ident)
-        operator: (operator))
-      operator: (operator))))
 
 ==================
 carat (infix pow)
@@ -230,7 +187,7 @@ const  both: _ = f <| x |> g
 comparison operators
 =====================
 
-const cmp: _ = x <=> y
+const cmp: _ = x >= y
 
 -----------------------
 (source_file
@@ -327,33 +284,29 @@ const both: _ = x && y || z
       operator: (operator)
       rhs: (ident))))
 
-=============
-monadic bind
-=============
+=================
+update operators
+=================
 
-const none: _ =
-  Option.None
-    >>= f
-    >>= (x -> x + 1)
+const ref: _ = some_ref := 3
+const rec: _ = rec.mut_field <- 3
 
-----------------------
+-----------------------------------
 
 (source_file
   (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_op
-      lhs: (binary_op
-        lhs: (path
-          root: (ident)
-          name: (ident))
-        operator: (operator)
-        rhs: (ident))
+      lhs: (ident)
       operator: (operator)
-      rhs: (parenthesized_expr
-        inner: (lambda_expr
-          parameters: (ident)
-          body: (binary_op
-            lhs: (ident)
-            operator: (operator)
-            rhs: (dec_literal)))))))
+      rhs: (dec_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (binary_op
+      lhs: (path
+        root: (ident)
+        name: (ident))
+      operator: (operator)
+      rhs: (dec_literal))))

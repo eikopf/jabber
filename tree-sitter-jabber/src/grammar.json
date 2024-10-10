@@ -1165,10 +1165,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "postfix_op"
-        },
-        {
-          "type": "SYMBOL",
           "name": "binary_op"
         },
         {
@@ -1621,63 +1617,28 @@
                   },
                   {
                     "type": "STRING",
-                    "value": "+"
+                    "value": "*"
                   },
                   {
                     "type": "STRING",
                     "value": "-"
-                  }
-                ]
-              },
-              "named": true,
-              "value": "operator"
-            }
-          },
-          {
-            "type": "FIELD",
-            "name": "operand",
-            "content": {
-              "type": "SYMBOL",
-              "name": "_expr"
-            }
-          }
-        ]
-      }
-    },
-    "postfix_op": {
-      "type": "PREC_LEFT",
-      "value": 14,
-      "content": {
-        "type": "SEQ",
-        "members": [
-          {
-            "type": "FIELD",
-            "name": "operand",
-            "content": {
-              "type": "SYMBOL",
-              "name": "_expr"
-            }
-          },
-          {
-            "type": "FIELD",
-            "name": "operator",
-            "content": {
-              "type": "ALIAS",
-              "content": {
-                "type": "CHOICE",
-                "members": [
-                  {
-                    "type": "STRING",
-                    "value": "?"
                   },
                   {
                     "type": "STRING",
-                    "value": "!"
+                    "value": "-."
                   }
                 ]
               },
               "named": true,
               "value": "operator"
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "operand",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expr"
             }
           }
         ]
@@ -1706,8 +1667,17 @@
                 "content": {
                   "type": "ALIAS",
                   "content": {
-                    "type": "STRING",
-                    "value": "^"
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "STRING",
+                        "value": "^"
+                      },
+                      {
+                        "type": "STRING",
+                        "value": "^."
+                      }
+                    ]
                   },
                   "named": true,
                   "value": "operator"
@@ -1824,10 +1794,6 @@
                     "members": [
                       {
                         "type": "STRING",
-                        "value": "<=>"
-                      },
-                      {
-                        "type": "STRING",
                         "value": "=="
                       },
                       {
@@ -1840,7 +1806,15 @@
                       },
                       {
                         "type": "STRING",
+                        "value": ">."
+                      },
+                      {
+                        "type": "STRING",
                         "value": "<"
+                      },
+                      {
+                        "type": "STRING",
+                        "value": "<."
                       },
                       {
                         "type": "STRING",
@@ -1848,7 +1822,15 @@
                       },
                       {
                         "type": "STRING",
+                        "value": ">=."
+                      },
+                      {
+                        "type": "STRING",
                         "value": "<="
+                      },
+                      {
+                        "type": "STRING",
+                        "value": "<=."
                       }
                     ]
                   },
@@ -1895,7 +1877,15 @@
                       },
                       {
                         "type": "STRING",
+                        "value": "+."
+                      },
+                      {
+                        "type": "STRING",
                         "value": "-"
+                      },
+                      {
+                        "type": "STRING",
+                        "value": "-."
                       }
                     ]
                   },
@@ -1942,7 +1932,15 @@
                       },
                       {
                         "type": "STRING",
+                        "value": "*."
+                      },
+                      {
+                        "type": "STRING",
                         "value": "/"
+                      },
+                      {
+                        "type": "STRING",
+                        "value": "/."
                       },
                       {
                         "type": "STRING",
@@ -2118,7 +2116,7 @@
           }
         },
         {
-          "type": "PREC_LEFT",
+          "type": "PREC_RIGHT",
           "value": 2,
           "content": {
             "type": "SEQ",
@@ -2137,8 +2135,17 @@
                 "content": {
                   "type": "ALIAS",
                   "content": {
-                    "type": "STRING",
-                    "value": ">>="
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "STRING",
+                        "value": ":="
+                      },
+                      {
+                        "type": "STRING",
+                        "value": "<-"
+                      }
+                    ]
                   },
                   "named": true,
                   "value": "operator"
@@ -2166,11 +2173,11 @@
         },
         {
           "type": "STRING",
-          "value": "?"
+          "value": "+"
         },
         {
           "type": "STRING",
-          "value": "+"
+          "value": "+."
         },
         {
           "type": "STRING",
@@ -2178,7 +2185,15 @@
         },
         {
           "type": "STRING",
+          "value": "-."
+        },
+        {
+          "type": "STRING",
           "value": "*"
+        },
+        {
+          "type": "STRING",
+          "value": "*."
         },
         {
           "type": "STRING",
@@ -2186,15 +2201,19 @@
         },
         {
           "type": "STRING",
+          "value": "/."
+        },
+        {
+          "type": "STRING",
           "value": "^"
         },
         {
           "type": "STRING",
-          "value": "%"
+          "value": "^."
         },
         {
           "type": "STRING",
-          "value": "<=>"
+          "value": "%"
         },
         {
           "type": "STRING",
@@ -2210,7 +2229,15 @@
         },
         {
           "type": "STRING",
+          "value": ">."
+        },
+        {
+          "type": "STRING",
           "value": "<"
+        },
+        {
+          "type": "STRING",
+          "value": "<."
         },
         {
           "type": "STRING",
@@ -2218,7 +2245,15 @@
         },
         {
           "type": "STRING",
+          "value": ">=."
+        },
+        {
+          "type": "STRING",
           "value": "<="
+        },
+        {
+          "type": "STRING",
+          "value": "<=."
         },
         {
           "type": "STRING",
@@ -2227,10 +2262,6 @@
         {
           "type": "STRING",
           "value": "<|"
-        },
-        {
-          "type": "STRING",
-          "value": ">>="
         },
         {
           "type": "STRING",
@@ -2247,6 +2278,14 @@
         {
           "type": "STRING",
           "value": "&&"
+        },
+        {
+          "type": "STRING",
+          "value": "<-"
+        },
+        {
+          "type": "STRING",
+          "value": ":="
         }
       ]
     },

@@ -17,7 +17,6 @@ const comma_list0 = (rule) => optional(comma_list1(rule));
 const PREC = {
   call: 16,
   field: 15,
-  postfix: 14,
   prefix: 13,
   pow: 12,
   mul: 11,
@@ -29,7 +28,7 @@ const PREC = {
   pipe_right: 7,
   lazy_and: 6,
   lazy_or: 5,
-  bind: 2,
+  update: 2,
   lambda: 0,
 };
 
@@ -213,7 +212,6 @@ module.exports = grammar({
         $.lambda_expr,
         $.call_expr,
         $.prefix_op,
-        $.postfix_op,
         $.binary_op,
         $.match_expr,
         $.if_else_expr,
@@ -269,33 +267,28 @@ module.exports = grammar({
       prec.right(
         PREC.prefix,
         seq(
-          field("operator", alias(choice("!", "+", "-"), $.operator)),
+          field("operator", alias(choice("!", "*", "-", "-."), $.operator)),
           field("operand", $._expr),
-        ),
-      ),
-
-    postfix_op: ($) =>
-      prec.left(
-        PREC.postfix,
-        seq(
-          field("operand", $._expr),
-          field("operator", alias(choice("?", "!"), $.operator)),
         ),
       ),
 
     binary_op: ($) => {
       const table = [
-        [prec.right, PREC.pow, "^"],
+        [prec.right, PREC.pow, choice("^", "^.")],
         [prec.right, PREC.pipe_left, "<|"],
         [prec.left, PREC.pipe_right, "|>"],
-        [prec.left, PREC.cmp, choice("<=>", "==", "!=", ">", "<", ">=", "<=")],
-        [prec.left, PREC.add, choice("+", "-")],
-        [prec.left, PREC.mul, choice("*", "/", "%")],
+        [
+          prec.left,
+          PREC.cmp,
+          choice("==", "!=", ">", ">.", "<", "<.", ">=", ">=.", "<=", "<=."),
+        ],
+        [prec.left, PREC.add, choice("+", "+.", "-", "-.")],
+        [prec.left, PREC.mul, choice("*", "*.", "/", "/.", "%")],
         [prec.right, PREC.cons, "::"],
         [prec.right, PREC.concat, "++"],
         [prec.right, PREC.lazy_and, "&&"],
         [prec.right, PREC.lazy_or, "||"],
-        [prec.left, PREC.bind, ">>="],
+        [prec.right, PREC.update, choice(":=", "<-")],
       ];
 
       return choice(
@@ -316,28 +309,36 @@ module.exports = grammar({
 
     operator: (_) =>
       choice(
-        "!", // prefix NOT / postfix unwrap
-        "?", // postfix try
-        "+", // prefix pos / infix add
-        "-", // prefix neg / infix sub
-        "*", // infix mul
-        "/", // infix div
-        "^", // infix pow
+        "!", // prefix NOT
+        "+", // infix int add
+        "+.", // infix float add
+        "-", // prefix int neg / infix int sub
+        "-.", // prefix float neg / infix float sub
+        "*", // infix float mul / prefix deref
+        "*.", //inflix float mul
+        "/", // infix int div
+        "/.", // infix float div
+        "^", // infix int pow
+        "^.", // infix float pow
         "%", // infix rem
-        "<=>", // infix cmp
         "==", // infix eq
         "!=", // infix neq
-        ">", // infix gt
-        "<", // infix lt
-        ">=", // infix ge
-        "<=", // infix le
+        ">", // infix int gt
+        ">.", // infix float gt
+        "<", // infix int lt
+        "<.", // infix float lt
+        ">=", // infix int ge
+        ">=.", // infix float ge
+        "<=", // infix int le
+        "<=.", // infix float le
         "|>", // infix pipe right
         "<|", // infix pipe left
-        ">>=", // infix monadic bind
         "::", // infix cons
         "++", // infix concat
         "||", // infix lazy or
         "&&", // infix lazy and
+        "<-", // infix update mutable field
+        ":=", // infix update ref
       ),
 
     match_expr: ($) =>

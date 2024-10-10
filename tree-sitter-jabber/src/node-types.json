@@ -122,10 +122,6 @@
         "named": true
       },
       {
-        "type": "postfix_op",
-        "named": true
-      },
-      {
         "type": "prefix_op",
         "named": true
       },
@@ -2028,32 +2024,6 @@
         "types": [
           {
             "type": "_name",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "postfix_op",
-    "named": true,
-    "fields": {
-      "operand": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "_expr",
-            "named": true
-          }
-        ]
-      },
-      "operator": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "operator",
             "named": true
           }
         ]
