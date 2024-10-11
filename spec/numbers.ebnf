@@ -11,20 +11,17 @@ number literal = float literal
                | integer literal 
                ;
 
-float literal = dec literal, [".", dec literal], [exponent], [float suffix] ; 
+float literal = dec literal,  ".", dec literal
+              | dec literal, [".", dec literal], exponent
+              ;
+
 exponent = ("e" | "E"), ["+" | "-"], {dec digit | "_"}, dec literal ;
-float suffix = "f32" | "f64" ;
 
-integer literal = bin literal, [integer suffix]
-                | oct literal, [integer suffix]
-                | dec literal, [integer suffix]
-                | hex literal, [integer suffix]
+integer literal = bin literal                
+                | oct literal
+                | dec literal
+                | hex literal
                 ;
-
-integer suffix = ("u" | "i"), ("8" | "16" | "32" | "64")
-               | "uint"
-               | "int"
-               ;
 
 bin literal = bin prefix, {bin digit | "_"}, bin digit, {bin digit | "_"} ;
 oct literal = oct prefix, {oct digit | "_"}, oct digit, {oct digit | "_"} ;

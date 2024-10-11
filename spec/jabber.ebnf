@@ -7,7 +7,6 @@
 *)
 
 (*
-  TODO: add `where` clauses for functions and signatures
   TODO: add pragma/annotation syntax for compiler metadata
   TODO: add functional record update syntax
 *)
@@ -22,7 +21,6 @@ declaration = mod decl              (* modules *)
             | extern type decl      (* foreign types *)
             | struct decl           (* struct types *)
             | enum decl             (* enum types *)
-            | sig decl              (* generic interfaces *)
             | fn decl               (* functions *)
             | extern fn decl        (* foreign functions *)
             | const decl            (* constants *)
@@ -57,10 +55,8 @@ enum variant = ident, ["(", type, {"," type}, [","], ")"] ;
 
 generic parameters = "[", ident, {",", ident}, [","], "]" ;
 
-sig decl = [visibility], "sig", ident, ":", function type ;
-
-fn decl        = [visibility], "fn", name, parameters, ["->", type], fn body;
-extern fn decl = [visibility], "extern", "fn", name, parameters, ["->", type];
+fn decl        = [visibility], "fn", ident, parameters, ["->", type], fn body;
+extern fn decl = [visibility], "extern", "fn", ident, parameters, ["->", type];
 
 parameters = "(", [parameter, {"," parameter}, [","]], ")" ;
 parameter  = pattern, [":", type] ;
@@ -82,7 +78,6 @@ expr = name                     (* items *)
      | lambda expr              (* function literals *)
      | call expr                (* function calls *)
      | prefix expr              (* prefix operators *)
-     | postfix expr             (* postfix operators *)
      | binary expr              (* infix operators *)
      | match expr               (* pattern matches *)
      | if expr                  (* boolean conditionals *)
@@ -124,22 +119,22 @@ lambda expr = (ident | parameters), "->", expr ;
 call expr = expr, "(", [expr, {",", expr}, [","]], ")" ;
 
 prefix expr  = prefix operator, expr ;
-postfix expr = expr, postfix operator ;
 binary expr  = expr, binary operator, expr ;
 
-prefix operator  = "!" | "+" | "-" ;
-postfix operator = "!" | "?" ;
-binary operator  = "^"
-                 | "<|"
-                 | "|>"
-                 | "<=>" | "==" | "!=" | ">" | "<" | ">=" | "<="
-                 | "+" | "-"
-                 | "*" | "/" | "%"
-                 | "::"
-                 | "++"
-                 | "&&"
-                 | "||"
-                 | ">>="
+prefix operator  = "!" | "*" | "-" | "-." ;
+binary operator  = "^"  | "^."
+                 | "<|" | "|>"
+                 | "==" | "!=" 
+                 | ">"  | "<"  | ">="  | "<="
+                 | ">." | "<." | ">=." | "<=."
+                 | "+"  | "-"
+                 | "+." | "-."
+                 | "*"  | "/" 
+                 | "*." | "/." 
+                 | "%"
+                 | "::" | "++"
+                 | "&&" | "||"
+                 | ":=" | "<-"
                  ;
 
 match expr = "match", expr, match arms ;
@@ -198,23 +193,12 @@ type = "_"   (* inference placeholder *)
      | parenthesized type
      ;
 
-(* TODO: refactor the primitive integral types *)
 primitive type = "!"
                | "bool"
                | "char"
                | "string"
-               | "f32"
-               | "f64"
-               | "u8"
-               | "u16"
-               | "u32"
-               | "u64"
-               | "uint"
-               | "i8"
-               | "i16"
-               | "i32"
-               | "i64"
                | "int"
+               | "float"
                ;
 
 unit type = "(", ")" ;
