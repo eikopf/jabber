@@ -487,12 +487,9 @@ module.exports = grammar({
     bin_literal: (_) => /0b[01_]*[01][01_]*/,
     oct_literal: (_) => /0o[0-7_]*[0-7][0-7_]*/,
     hex_literal: (_) => /0[xX][0-9a-fA-F_]*[0-9a-fA-F][0-9a-fA-F_]*/,
-
-    // this ordering of number literals is load-bearing; dec_literal
-    // MUST appear before float_literal
     dec_literal: (_) => /[0-9][0-9_]*/,
     float_literal: (_) =>
-      /[0-9][0-9_]*(\.[0-9][0-9_]*)?([eE][\+\-]?[0-9][0-9_]*)?/,
+      /[0-9][0-9_]*((\.[0-9][0-9_]*)?[eE][\+\-]?[0-9][0-9_]*|\.[0-9][0-9_]*)/,
 
     /// IDENTIFIERS
 
