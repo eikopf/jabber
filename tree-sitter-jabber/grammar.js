@@ -162,7 +162,7 @@ module.exports = grammar({
       seq(
         optional(field("visibility", $.access_spec)),
         "fn",
-        field("name", $._name),
+        field("name", $.ident),
         field("parameters", $.parameters),
         field("return_type", optional(seq("->", $._type_expr))),
         field("body", choice(seq("=", $._expr), $.block)),

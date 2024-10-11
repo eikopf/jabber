@@ -981,7 +981,7 @@
         "required": true,
         "types": [
           {
-            "type": "_name",
+            "type": "ident",
             "named": true
           }
         ]
