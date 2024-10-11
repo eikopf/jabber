@@ -15,7 +15,7 @@ float literal = dec literal,  ".", dec literal
               | dec literal, [".", dec literal], exponent
               ;
 
-exponent = ("e" | "E"), ["+" | "-"], {dec digit | "_"}, dec literal ;
+exponent = ("e" | "E"), ["+" | "-"], dec literal ;
 
 integer literal = bin literal                
                 | oct literal
