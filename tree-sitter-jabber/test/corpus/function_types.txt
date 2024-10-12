@@ -1,0 +1,54 @@
+======================
+function type domains
+======================
+
+type Plain =  A     -> B
+type Paren = (A)    -> B
+type Args2 = (A, B) -> C
+
+--------------------------
+
+(source_file
+  (type_decl
+    alias: (ident)
+    type: (fn_type
+      domain: (ident)
+      codomain: (ident)))
+  (type_decl
+    alias: (ident)
+    type: (fn_type
+      domain: (fn_type_args (ident))
+      codomain: (ident)))
+  (type_decl
+    alias: (ident)
+    type: (fn_type
+      domain: (fn_type_args
+        (ident)
+        (ident))
+      codomain: (ident))))
+
+============================
+function type associativity
+============================
+
+type Right =  A -> B  -> C
+type Left  = (A -> B) -> C
+
+----------------------------
+
+(source_file
+  (type_decl
+    alias: (ident)
+    type: (fn_type
+      domain: (ident)
+      codomain: (fn_type
+        domain: (ident)
+        codomain: (ident))))
+  (type_decl
+    alias: (ident)
+    type: (fn_type
+      domain: (fn_type_args
+        (fn_type
+          domain: (ident)
+          codomain: (ident)))
+      codomain: (ident))))

@@ -1120,6 +1120,10 @@
             "named": true
           },
           {
+            "type": "fn_type_args",
+            "named": true
+          },
+          {
             "type": "generic_type",
             "named": true
           },
@@ -1145,6 +1149,49 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "fn_type_args",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "_name",
+          "named": true
+        },
+        {
+          "type": "fn_type",
+          "named": true
+        },
+        {
+          "type": "generic_type",
+          "named": true
+        },
+        {
+          "type": "inferred_type",
+          "named": true
+        },
+        {
+          "type": "parenthesized_type",
+          "named": true
+        },
+        {
+          "type": "primitive_type",
+          "named": true
+        },
+        {
+          "type": "tuple_type",
+          "named": true
+        },
+        {
+          "type": "unit_type",
+          "named": true
+        }
+      ]
     }
   },
   {

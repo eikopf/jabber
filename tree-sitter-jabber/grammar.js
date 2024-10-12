@@ -467,7 +467,7 @@ module.exports = grammar({
 
     tuple_type: ($) => seq("(", comma_list2($._type_expr), ")"),
     parenthesized_type: ($) =>
-      prec(9, seq("(", field("inner", $._type_expr), ")")),
+      prec(1, seq("(", field("inner", $._type_expr), ")")),
 
     generic_type: ($) =>
       seq(field("name", $._name), field("arguments", $.generic_type_args)),
@@ -476,11 +476,14 @@ module.exports = grammar({
     fn_type: ($) =>
       prec.right(
         seq(
-          field("domain", $._type_expr),
+          field("domain", choice($.fn_type_args, $._type_expr)),
           "->",
           field("codomain", $._type_expr),
         ),
       ),
+
+    // this rule takes precedence over tuple_type and parenthesized_type
+    fn_type_args: ($) => prec(2, seq("(", comma_list1($._type_expr), ")")),
 
     inferred_type: (_) => "_",
 
