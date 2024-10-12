@@ -1,0 +1,101 @@
+===============
+nested lambdas
+===============
+
+const   once: _ = () -> 0
+const  twice: _ = () -> () -> 0
+const thrice: _
+  = () -> () -> () -> 0
+
+---------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (lambda_expr
+      parameters: (parameters)
+      body: (dec_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (lambda_expr
+      parameters: (parameters)
+      body: (lambda_expr
+        parameters: (parameters)
+        body: (dec_literal))))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (lambda_expr
+      parameters: (parameters)
+      body: (lambda_expr
+        parameters: (parameters)
+        body: (lambda_expr
+          parameters: (parameters)
+          body: (dec_literal))))))
+
+==========================
+direct lambda invocations
+==========================
+
+const unary: _ = (__x -> 0xFF)(16)
+const nullary: _ = (() -> ())()
+
+-----------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (call_expr
+      callee: (parenthesized_expr
+        inner: (lambda_expr
+          parameters: (ident)
+          body: (hex_literal)))
+      arguments: (arguments (dec_literal))))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (call_expr
+      callee: (parenthesized_expr
+        inner: (lambda_expr
+          parameters: (parameters)
+          body: (unit_literal)))
+      arguments: (arguments))))
+
+==========================
+pathological lambda cases
+==========================
+
+const unit_pat: _ = ((),) -> ()
+const struct_pat: _ = (Foo {a, b}) -> a * b
+
+---------------------------------------------
+
+(source_file
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (lambda_expr
+      parameters: (parameters
+        (parameter
+          pattern: (unit_literal)))
+      body: (unit_literal)))
+  (const_decl
+    name: (ident)
+    type: (inferred_type)
+    value: (lambda_expr
+      parameters: (parameters
+        (parameter
+          pattern: (struct_pattern
+            name: (ident)
+            fields: (struct_pattern_fields
+              (struct_pattern_field
+                field: (ident))
+              (struct_pattern_field
+                field: (ident))))))
+      body: (binary_op
+        lhs: (ident)
+        operator: (operator)
+        rhs: (ident)))))
