@@ -1,16 +1,18 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-/** A comma-delimited list of items matching `rule`, with at least one element
- *  and an optional trailing comma.
- *
- *  @param {RuleOrLiteral} rule - The rule for elements to be matched against.
+/**
+ *  @param {RuleOrLiteral} rule
+ */
+const comma_list2 = (rule) => seq(rule, repeat1(seq(",", rule)), optional(","));
+
+/**
+ *  @param {RuleOrLiteral} rule
  */
 const comma_list1 = (rule) => seq(rule, repeat(seq(",", rule)), optional(","));
 
-/** A comma-delimited list of items matching `rule`, with an optional trailing comma.
- *
- *  @param {RuleOrLiteral} rule - The rule for elements to be matched against.
+/**
+ *  @param {RuleOrLiteral} rule
  */
 const comma_list0 = (rule) => optional(comma_list1(rule));
 
@@ -41,7 +43,6 @@ module.exports = grammar({
 
   supertypes: ($) => [$._decl, $._expr, $._name],
 
-  // https://tree-sitter.github.io/tree-sitter/creating-parsers#keyword-extraction
   word: ($) => $.ident,
 
   // these are LR(1) conflicts --- places where the parser needs more than one
@@ -236,13 +237,19 @@ module.exports = grammar({
       ),
 
     list_expr: ($) => seq("[", comma_list0($._expr), "]"),
-    tuple_expr: ($) => seq("(", comma_list1($._expr), ")"),
+    tuple_expr: ($) => seq("(", comma_list2($._expr), ")"),
 
     struct_expr: ($) =>
       seq($._name, "{", comma_list0($.struct_expr_field), "}"),
     struct_expr_field: ($) => seq($.ident, optional(seq(":", $._expr))),
 
-    field_expr: ($) => seq($._expr, ".", $.ident),
+    field_expr: ($) =>
+      seq(
+        field("item", $._expr),
+        ".",
+        field("field", choice($.ident, $.tuple_field)),
+      ),
+    tuple_field: (_) => /[0-9]+/,
 
     lambda_expr: ($) =>
       prec.right(
@@ -398,7 +405,7 @@ module.exports = grammar({
 
     wildcard_pattern: (_) => "_",
 
-    tuple_pattern: ($) => seq("(", comma_list1($._pattern), ")"),
+    tuple_pattern: ($) => seq("(", comma_list2($._pattern), ")"),
 
     list_pattern: ($) => seq("[", comma_list0($._pattern), "]"),
 
@@ -458,7 +465,7 @@ module.exports = grammar({
     // TODO: potentially change this to be the token "()"
     unit_type: (_) => seq("(", ")"),
 
-    tuple_type: ($) => seq("(", comma_list1($._type_expr), ")"),
+    tuple_type: ($) => seq("(", comma_list2($._type_expr), ")"),
     parenthesized_type: ($) =>
       prec(9, seq("(", field("inner", $._type_expr), ")")),
 

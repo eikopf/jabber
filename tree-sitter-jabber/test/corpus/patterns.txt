@@ -71,7 +71,6 @@ tuple patterns
 
 fn foo() = match tup {
   (x) => "parenthesized ident",
-  (x,) => "singleton tuple",
   (x, y) => "pair",
   (x, y, z,) => "triple with a trailing comma",
 }
@@ -88,9 +87,6 @@ fn foo() = match tup {
         (match_arm
           pattern: (parenthesized_pattern
             inner: (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (tuple_pattern (ident))
           body: (string_literal))
         (match_arm
           pattern: (tuple_pattern

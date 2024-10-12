@@ -946,16 +946,31 @@
   {
     "type": "field_expr",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "_expr",
-          "named": true
-        }
-      ]
+    "fields": {
+      "field": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ident",
+            "named": true
+          },
+          {
+            "type": "tuple_field",
+            "named": true
+          }
+        ]
+      },
+      "item": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_expr",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -2874,6 +2889,10 @@
   {
     "type": "struct",
     "named": false
+  },
+  {
+    "type": "tuple_field",
+    "named": true
   },
   {
     "type": "type",

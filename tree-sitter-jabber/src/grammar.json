@@ -1328,7 +1328,7 @@
               "name": "_expr"
             },
             {
-              "type": "REPEAT",
+              "type": "REPEAT1",
               "content": {
                 "type": "SEQ",
                 "members": [
@@ -1459,18 +1459,39 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "SYMBOL",
-          "name": "_expr"
+          "type": "FIELD",
+          "name": "item",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_expr"
+          }
         },
         {
           "type": "STRING",
           "value": "."
         },
         {
-          "type": "SYMBOL",
-          "name": "ident"
+          "type": "FIELD",
+          "name": "field",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "ident"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "tuple_field"
+              }
+            ]
+          }
         }
       ]
+    },
+    "tuple_field": {
+      "type": "PATTERN",
+      "value": "[0-9]+"
     },
     "lambda_expr": {
       "type": "PREC_RIGHT",
@@ -2672,7 +2693,7 @@
               "name": "_pattern"
             },
             {
-              "type": "REPEAT",
+              "type": "REPEAT1",
               "content": {
                 "type": "SEQ",
                 "members": [
@@ -3121,7 +3142,7 @@
               "name": "_type_expr"
             },
             {
-              "type": "REPEAT",
+              "type": "REPEAT1",
               "content": {
                 "type": "SEQ",
                 "members": [
