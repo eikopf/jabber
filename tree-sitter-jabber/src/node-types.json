@@ -2227,6 +2227,16 @@
     "type": "struct_field",
     "named": true,
     "fields": {
+      "mutable": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "mutable",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": true,
@@ -2907,6 +2917,10 @@
   },
   {
     "type": "module_doc_comment_marker",
+    "named": true
+  },
+  {
+    "type": "mutable",
     "named": true
   },
   {

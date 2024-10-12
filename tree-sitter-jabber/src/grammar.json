@@ -536,6 +536,22 @@
           ]
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "mutable",
+              "content": {
+                "type": "SYMBOL",
+                "name": "mutable"
+              }
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "FIELD",
           "name": "name",
           "content": {
@@ -556,6 +572,10 @@
           }
         }
       ]
+    },
+    "mutable": {
+      "type": "STRING",
+      "value": "mutable"
     },
     "enum_decl": {
       "type": "SEQ",

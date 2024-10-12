@@ -136,10 +136,13 @@ module.exports = grammar({
     struct_field: ($) =>
       seq(
         optional(field("visibility", $.access_spec)),
+        optional(field("mutable", $.mutable)),
         field("name", $.ident),
         ":",
         field("type", $._type_expr),
       ),
+
+    mutable: (_) => "mutable",
 
     enum_decl: ($) =>
       seq(

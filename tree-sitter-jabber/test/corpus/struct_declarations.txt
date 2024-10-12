@@ -76,3 +76,28 @@ struct Triplet[A, B, C] {
       (struct_field
         name: (ident)
         type: (ident)))))
+
+======================
+mutable struct fields
+======================
+
+struct Mut {
+  mutable foo : A,
+  pub mutable bar : B
+}
+
+------------------------
+
+(source_file
+  (struct_decl
+    name: (ident)
+    fields: (struct_fields
+      (struct_field
+        mutable: (mutable)
+        name: (ident)
+        type: (ident))
+      (struct_field
+        visibility: (access_spec)
+        mutable: (mutable)
+        name: (ident)
+        type: (ident)))))
