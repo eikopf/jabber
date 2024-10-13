@@ -243,8 +243,23 @@ module.exports = grammar({
     tuple_expr: ($) => seq("(", comma_list2($._expr), ")"),
 
     struct_expr: ($) =>
-      seq($._name, "{", comma_list0($.struct_expr_field), "}"),
-    struct_expr_field: ($) => seq($.ident, optional(seq(":", $._expr))),
+      seq(
+        field("name", $._name),
+        "{",
+        optional(field("fields", $.struct_expr_fields)),
+        "}",
+      ),
+
+    struct_expr_fields: ($) =>
+      seq(
+        $.struct_expr_field,
+        repeat(seq(",", $.struct_expr_field)),
+        optional(seq(",", $.struct_update_base)),
+        optional(","),
+      ),
+    struct_expr_field: ($) =>
+      seq(field("name", $.ident), optional(seq(":", field("value", $._expr)))),
+    struct_update_base: ($) => seq("..", $._expr),
 
     field_expr: ($) =>
       seq(
@@ -465,7 +480,6 @@ module.exports = grammar({
     primitive_type: (_) =>
       choice("!", "bool", "char", "string", "int", "float"),
 
-    // TODO: potentially change this to be the token "()"
     unit_type: (_) => seq("(", ")"),
 
     tuple_type: ($) => seq("(", comma_list2($._type_expr), ")"),
@@ -513,12 +527,6 @@ module.exports = grammar({
     ident: (_) => /(_+[a-zA-Z0-9]|[a-zA-Z])[_a-zA-Z0-9]*/,
 
     /// COMMENTS
-
-    // notes:
-    // - syntax drawn from Zig's comments
-    // - block comments explicitly not included
-    //    - refer to https://futhark-lang.org/blog/2017-10-10-block-comments-are-a-bad-idea.html
-    // - grammar doesn't enforce where the distinct comment types can appear -- deferred to static analysis
 
     comment: ($) =>
       seq(
