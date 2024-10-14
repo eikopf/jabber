@@ -47,8 +47,6 @@ module.exports = grammar({
 
   // these are LR(1) conflicts --- places where the parser needs more than one
   // token of lookahead to parse the language correctly
-  // NOTE: i think the pattern grammar could be rewritten to
-  // remove most of these conflicts
   conflicts: ($) => [
     [$._expr, $._pattern],
     [$._expr, $._name],
