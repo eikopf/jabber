@@ -4,6 +4,3 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Oliver Wooding <oliverwooding@icloud.com>"]
-
-[workspace.dependencies]
-tree-sitter-jabber = { path = "../tree-sitter-jabber/bindings/rust"}
