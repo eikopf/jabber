@@ -6,9 +6,10 @@ use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 /// list of [declarations](`Decl`).
 #[derive(Debug, Clone)]
 pub struct Cst {
-    pub shebang: Option<Span>,
-    pub decls: Box<[Decl]>,
-    pub comments: Box<[Span]>,
+    shebang: Option<Span>,
+    mod_comment: Option<Span>,
+    decls: Box<[Decl]>,
+    comments: Box<[Span]>,
 }
 
 // DECLARATIONS
