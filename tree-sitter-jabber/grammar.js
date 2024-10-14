@@ -34,14 +34,12 @@ const PREC = {
   lambda: 0,
 };
 
-// TODO: add an attribute/pragma system for compiler metadata
-
 module.exports = grammar({
   name: "jabber",
 
   extras: ($) => [/\s/, $.comment],
 
-  supertypes: ($) => [$._decl, $._expr, $._name],
+  supertypes: ($) => [$._decl, $._expr, $._name, $._pattern, $._type_expr],
 
   word: ($) => $.ident,
 
@@ -80,13 +78,19 @@ module.exports = grammar({
 
     mod_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "mod",
         field("name", $.ident),
       ),
 
     use_decl: ($) =>
-      seq(optional(field("visibility", $.access_spec)), "use", $._use_item),
+      seq(
+        optional(field("attributes", $.attributes)),
+        optional(field("visibility", $.access_spec)),
+        "use",
+        $._use_item,
+      ),
 
     _use_item: ($) => choice($._name, $.glob_item, $.alias_item, $.tree_item),
 
@@ -105,6 +109,7 @@ module.exports = grammar({
 
     type_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "type",
         field("alias", choice($.ident, $.generic_type)),
@@ -114,6 +119,7 @@ module.exports = grammar({
 
     extern_type_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "extern",
         "type",
@@ -122,6 +128,7 @@ module.exports = grammar({
 
     struct_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "struct",
         field("name", $.ident),
@@ -133,6 +140,7 @@ module.exports = grammar({
 
     struct_field: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         optional(field("mutable", $.mutable)),
         field("name", $.ident),
@@ -144,6 +152,7 @@ module.exports = grammar({
 
     enum_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "enum",
         field("name", $.ident),
@@ -154,7 +163,11 @@ module.exports = grammar({
     enum_variants: ($) => seq("{", comma_list0($.enum_variant), "}"),
 
     enum_variant: ($) =>
-      seq(field("name", $.ident), field("payload", optional($.enum_payload))),
+      seq(
+        optional(field("attributes", $.attributes)),
+        field("name", $.ident),
+        field("payload", optional($.enum_payload)),
+      ),
 
     enum_payload: ($) => seq("(", comma_list1($._type_expr), ")"),
 
@@ -162,6 +175,7 @@ module.exports = grammar({
 
     fn_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "fn",
         field("name", $.ident),
@@ -172,6 +186,7 @@ module.exports = grammar({
 
     extern_fn_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "extern",
         "fn",
@@ -191,6 +206,7 @@ module.exports = grammar({
 
     const_decl: ($) =>
       seq(
+        optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "const",
         field("name", $.ident),
@@ -199,6 +215,18 @@ module.exports = grammar({
         "=",
         field("value", $._expr),
       ),
+
+    /// ATTRIBUTES
+
+    attributes: ($) => repeat1($.attribute),
+    attribute: ($) =>
+      seq(
+        "@",
+        field("name", $._name),
+        optional(field("arguments", $.attribute_arguments)),
+      ),
+    attribute_arguments: ($) =>
+      seq("(", comma_list0(choice($._name, $._literal_expr)), ")"),
 
     /// EXPRESSIONS
 

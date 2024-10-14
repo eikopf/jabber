@@ -1,0 +1,47 @@
+=================
+plain attributes
+=================
+
+@something
+@foo.bar.baz
+const A: B = C
+
+------------------
+
+(source_file
+  (const_decl
+    attributes: (attributes
+      (attribute
+        name: (ident))
+      (attribute
+        name: (path
+          root: (path
+            root: (ident)
+            name: (ident))
+          name: (ident))))
+    name: (ident)
+    type: (ident)
+    value: (ident)))
+
+====================
+function attributes
+====================
+
+@thing("hello", 0xFF, 'c', some_item)
+const foo: bar = baz
+
+---------------------------------------
+
+(source_file
+  (const_decl
+    attributes: (attributes
+      (attribute
+        name: (ident)
+        arguments: (attribute_arguments
+          (string_literal)
+          (hex_literal)
+          (char_literal)
+          (ident))))
+    name: (ident)
+    type: (ident)
+    value: (ident)))
