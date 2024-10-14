@@ -8,12 +8,15 @@ use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 pub struct Cst {
     pub shebang: Option<Span>,
     pub decls: Box<[Decl]>,
+    pub comments: Box<[Span]>,
 }
 
 // DECLARATIONS
 
 #[derive(Debug, Clone)]
 pub struct Decl {
+    pub doc_comment: Option<Span>,
+    pub attributes: Option<Box<[Spanned<Attr>]>>,
     pub visibility: Visibility,
     pub body: Spanned<DeclBody>,
 }
@@ -89,6 +92,8 @@ pub enum TypeAlias {
 
 #[derive(Debug, Clone)]
 pub struct StructField {
+    pub doc_comment: Option<Span>,
+    pub attributes: Option<Box<[Spanned<Attr>]>>,
     pub visibility: Visibility,
     pub mutability: Mutability,
     pub name: Ident,
@@ -104,6 +109,8 @@ pub enum Mutability {
 
 #[derive(Debug, Clone)]
 pub struct EnumVariant {
+    pub doc_comment: Option<Span>,
+    pub attributes: Option<Box<[Spanned<Attr>]>>,
     pub name: Ident,
     pub payload: SpanSeq<Type>,
 }
@@ -120,6 +127,20 @@ pub struct Parameter {
 pub enum FnBody {
     EqExpr(Spanned<Expr>),
     Block(Spanned<Block>),
+}
+
+// ATTRIBUTES
+
+#[derive(Debug, Clone)]
+pub enum Attr {
+    Name(Name),
+    Fn { name: Name, args: SpanSeq<AttrArg> },
+}
+
+#[derive(Debug, Clone)]
+pub enum AttrArg {
+    Name(Name),
+    Literal(Spanned<LiteralExpr>),
 }
 
 // EXPRESSIONS
@@ -167,6 +188,7 @@ pub enum Expr {
     },
     Block(SpanBox<Block>),
     Paren(SpanBox<Self>),
+    Error(Span),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -289,6 +311,7 @@ pub enum Pattern {
         rest: Span,
     },
     Paren(SpanBox<Self>),
+    Error(Span),
 }
 
 #[derive(Debug, Clone)]
@@ -314,6 +337,7 @@ pub enum Type {
         name: Name,
         args: SpanSeq<Type>,
     },
+    Error(Span),
 }
 
 #[derive(Debug, Clone)]
