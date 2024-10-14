@@ -5,7 +5,7 @@ use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 /// A concrete syntax tree, which consists of an optional shebang line and a
 /// list of [declarations](`Decl`).
 #[derive(Debug, Clone)]
-struct Cst {
+pub struct Cst {
     pub shebang: Option<Span>,
     pub decls: Box<[Decl]>,
 }
@@ -13,30 +13,30 @@ struct Cst {
 // DECLARATIONS
 
 #[derive(Debug, Clone)]
-struct Decl {
+pub struct Decl {
     pub visibility: Visibility,
     pub body: Spanned<DeclBody>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-enum Visibility {
+pub enum Visibility {
     Pub(Span),
     #[default]
     Private,
 }
 
 #[derive(Debug, Clone)]
-enum DeclBody {
+pub enum DeclBody {
     Mod {
         name: Ident,
     },
     Use {
-        item: UseItem,
+        item: Spanned<UseItem>,
     },
     Type {
         name: Ident,
         params: GenericParams,
-        value: Type,
+        value: Spanned<Type>,
     },
     ExternType {
         name: Ident,
@@ -45,41 +45,41 @@ enum DeclBody {
     Struct {
         name: Ident,
         params: GenericParams,
-        fields: Spanned<Box<[Spanned<StructField>]>>,
+        fields: SpanSeq<StructField>,
     },
     Enum {
         name: Ident,
         params: GenericParams,
-        variants: Spanned<Box<[Spanned<EnumVariant>]>>,
+        variants: SpanSeq<EnumVariant>,
     },
     Fn {
         name: Ident,
-        params: Parameters,
-        ret_ty: Option<Type>,
+        params: SpanSeq<Parameter>,
+        ret_ty: Option<Spanned<Type>>,
         body: Spanned<FnBody>,
     },
     ExternFn {
         name: Ident,
-        params: Parameters,
-        ret_ty: Option<Type>,
+        params: SpanSeq<Parameter>,
+        ret_ty: Option<Spanned<Type>>,
     },
     Const {
         name: Ident,
-        ty: Type,
-        value: Expr,
+        ty: Spanned<Type>,
+        value: Spanned<Expr>,
     },
 }
 
 #[derive(Debug, Clone)]
-enum UseItem {
+pub enum UseItem {
     Name(Name),
     Glob(Name),
     Alias { item: Name, alias: Ident },
-    Tree { root: Name, items: Box<[Self]> },
+    Tree { root: Name, items: SpanSeq<Self> },
 }
 
 #[derive(Debug, Clone)]
-enum TypeAlias {
+pub enum TypeAlias {
     Ident(Ident),
     Generic {
         name: Ident,
@@ -88,48 +88,44 @@ enum TypeAlias {
 }
 
 #[derive(Debug, Clone)]
-struct StructField {
-    visibility: Visibility,
-    mutability: Mutability,
-    name: Ident,
-    ty: Type,
+pub struct StructField {
+    pub visibility: Visibility,
+    pub mutability: Mutability,
+    pub name: Ident,
+    pub ty: Spanned<Type>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-enum Mutability {
+pub enum Mutability {
     Mutable(Span),
     #[default]
     Immutable,
 }
 
 #[derive(Debug, Clone)]
-struct EnumVariant {
-    name: Ident,
-    payload: Spanned<Box<[Type]>>,
+pub struct EnumVariant {
+    pub name: Ident,
+    pub payload: SpanSeq<Type>,
 }
 
-type GenericParams = Option<Spanned<Box<[Ident]>>>;
-
-type Parameters = Spanned<Box<[Spanned<Parameter>]>>;
+pub type GenericParams = Option<Spanned<Box<[Ident]>>>;
 
 #[derive(Debug, Clone)]
-struct Parameter {
-    pattern: Pattern,
-    ty: Type,
+pub struct Parameter {
+    pub pattern: Spanned<Pattern>,
+    pub ty: Spanned<Type>,
 }
 
 #[derive(Debug, Clone)]
-enum FnBody {
-    EqExpr(Expr),
-    Block(Block),
+pub enum FnBody {
+    EqExpr(Spanned<Expr>),
+    Block(Spanned<Block>),
 }
 
 // EXPRESSIONS
 
-type SpExpr = Spanned<Expr>;
-
 #[derive(Debug, Clone)]
-enum Expr {
+pub enum Expr {
     Name(Name),
     Literal(Spanned<LiteralExpr>),
     List(SpanSeq<Self>),
@@ -174,7 +170,7 @@ enum Expr {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum LiteralExpr {
+pub enum LiteralExpr {
     Unit,
     BoolTrue,
     BoolFalse,
@@ -188,25 +184,25 @@ enum LiteralExpr {
 }
 
 #[derive(Debug, Clone)]
-struct StructExprField {
+pub struct StructExprField {
     pub name: Ident,
-    pub value: Box<Expr>,
+    pub value: SpanBox<Expr>,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum FieldKind {
+pub enum FieldKind {
     Ident,
     Tuple,
 }
 
 #[derive(Debug, Clone)]
-enum LambdaParams {
+pub enum LambdaParams {
     Ident(Ident),
-    Parameters(Parameters),
+    Parameters(SpanSeq<Parameter>),
 }
 
 #[derive(Debug, Clone, Copy)]
-enum PrefixOp {
+pub enum PrefixOp {
     Bang,
     Star,
     Minus,
@@ -214,7 +210,7 @@ enum PrefixOp {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum BinaryOp {
+pub enum BinaryOp {
     Carat,
     CaratDot,
     PipeLeft,
@@ -247,20 +243,20 @@ enum BinaryOp {
 }
 
 #[derive(Debug, Clone)]
-struct MatchArm {
+pub struct MatchArm {
     pub pattern: Spanned<Pattern>,
     pub guard: Option<Spanned<Expr>>,
     pub body: Spanned<Expr>,
 }
 
 #[derive(Debug, Clone)]
-struct Block {
+pub struct Block {
     pub stmts: SpanSeq<Stmt>,
     pub ret_expr: Option<Spanned<Expr>>,
 }
 
 #[derive(Debug, Clone)]
-enum Stmt {
+pub enum Stmt {
     Empty,
     Expr(Spanned<Expr>),
     Let {
@@ -273,7 +269,7 @@ enum Stmt {
 // PATTERNS
 
 #[derive(Debug, Clone)]
-enum Pattern {
+pub enum Pattern {
     Name(Name),
     Literal(Spanned<LiteralExpr>),
     Wildcard,
@@ -296,7 +292,7 @@ enum Pattern {
 }
 
 #[derive(Debug, Clone)]
-struct StructPatternField {
+pub struct StructPatternField {
     pub field: Ident,
     pub pattern: Option<SpanBox<Pattern>>,
 }
@@ -304,24 +300,30 @@ struct StructPatternField {
 // TYPES
 
 #[derive(Debug, Clone)]
-enum Type {
+pub enum Type {
     Inferred,
     Name(Name),
     Prim(Spanned<PrimType>),
     Paren(SpanBox<Type>),
     Tuple(SpanSeq<Type>),
-    Fn(FnTypeArgs, SpanBox<Type>),
-    Generic { name: Name, args: SpanSeq<Type> },
+    Fn {
+        domain: FnTypeArgs,
+        codomain: SpanBox<Type>,
+    },
+    Generic {
+        name: Name,
+        args: SpanSeq<Type>,
+    },
 }
 
 #[derive(Debug, Clone)]
-enum FnTypeArgs {
-    Simple(SpanBox<Type>),
+pub enum FnTypeArgs {
+    NoParens(SpanBox<Type>),
     Parens(SpanSeq<Type>),
 }
 
 #[derive(Debug, Clone)]
-enum PrimType {
+pub enum PrimType {
     Never,
     Unit,
     Bool,
@@ -334,10 +336,10 @@ enum PrimType {
 // NAMES
 
 #[derive(Debug, Clone)]
-enum Name {
+pub enum Name {
     Path(SpanSeq<Ident>),
     Ident(Ident),
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Ident(Span);
+pub struct Ident(pub Span);

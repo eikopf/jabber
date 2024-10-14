@@ -53,7 +53,7 @@ pub struct Span {
 }
 
 /// The integer type used for span indices.
-type SpanIndex = usize;
+type SpanIndex = u32;
 
 impl Span {
     /// Returns the length of the byte range represented by `self`. Note that
