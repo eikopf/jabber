@@ -55,7 +55,8 @@ module.exports = grammar({
 
   rules: {
     // start symbol
-    source_file: ($) => seq(optional($.shebang), repeat($._decl)),
+    source_file: ($) =>
+      seq(optional($.shebang), optional($.module_comments), repeat($._decl)),
 
     shebang: (_) => /#![^\n]*/,
 
@@ -78,6 +79,7 @@ module.exports = grammar({
 
     mod_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "mod",
@@ -86,6 +88,7 @@ module.exports = grammar({
 
     use_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "use",
@@ -109,6 +112,7 @@ module.exports = grammar({
 
     type_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "type",
@@ -119,6 +123,7 @@ module.exports = grammar({
 
     extern_type_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "extern",
@@ -128,6 +133,7 @@ module.exports = grammar({
 
     struct_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "struct",
@@ -140,6 +146,7 @@ module.exports = grammar({
 
     struct_field: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         optional(field("mutable", $.mutable)),
@@ -152,6 +159,7 @@ module.exports = grammar({
 
     enum_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "enum",
@@ -164,6 +172,7 @@ module.exports = grammar({
 
     enum_variant: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         field("name", $.ident),
         field("payload", optional($.enum_payload)),
@@ -175,6 +184,7 @@ module.exports = grammar({
 
     fn_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "fn",
@@ -186,6 +196,7 @@ module.exports = grammar({
 
     extern_fn_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "extern",
@@ -206,6 +217,7 @@ module.exports = grammar({
 
     const_decl: ($) =>
       seq(
+        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "const",
@@ -563,11 +575,14 @@ module.exports = grammar({
             choice($.module_doc_comment_marker, $.decl_doc_comment_marker),
           ),
         ),
-        field("content", $.comment_body),
+        $._comment_body,
       ),
+
+    module_comments: ($) => repeat1(seq("//!", $._comment_body)),
+    doc_comments: ($) => repeat1(seq("///", $._comment_body)),
 
     module_doc_comment_marker: (_) => token.immediate(prec(2, "!")),
     decl_doc_comment_marker: (_) => token.immediate(prec(2, "/")),
-    comment_body: (_) => token.immediate(/[^\n]*/),
+    _comment_body: (_) => token.immediate(/[^\n]*/),
   },
 });
