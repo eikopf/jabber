@@ -1,0 +1,8 @@
+[package]
+name = "jabber_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tree-sitter = "0.24.3"
+tree-sitter-jabber = { workspace = true }
