@@ -9,8 +9,7 @@ const foobar: _ = (S).foo.bar
 ----------------------------
 
 (source_file
-  (comment
-    content: (comment_body))
+  (comment)
   (const_decl
     name: (ident)
     type: (inferred_type)

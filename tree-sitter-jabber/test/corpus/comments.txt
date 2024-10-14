@@ -1,0 +1,59 @@
+=======================
+documentation comments
+=======================
+
+/// This is a module!
+pub mod foobar
+
+-----------------------
+
+(source_file
+  (mod_decl
+    docs: (doc_comments)
+    visibility: (access_spec)
+    name: (ident)))
+
+=================================
+multiline documentation comments
+=================================
+
+/// This doc comment spans multiple
+/// lines, just to check that the
+/// parser can handle more than one.
+pub mod multi
+
+--------------------------------------
+
+(source_file
+  (mod_decl
+    docs: (doc_comments)
+    visibility: (access_spec)
+    name: (ident)))
+
+=================
+regular comments
+=================
+
+// this regular comment shouldn't attach to the next decl
+const zero: float = 0.0000
+
+------------------------------------------------------------
+
+(source_file
+  (comment)
+  (const_decl
+    name: (ident)
+    type: (primitive_type)
+    value: (float_literal)))
+
+================
+module comments
+================
+
+//! This is an internal module doc comment, which
+//! can span multiple lines!
+
+---------------------------------------------------
+
+(source_file
+  (module_comments))
