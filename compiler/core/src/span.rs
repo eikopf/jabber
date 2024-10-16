@@ -1,6 +1,6 @@
 //! Types representing spans of source code.
 //!
-//! # Converting From Tree-sitter Types
+//! # Tree-sitter Source Types
 //!
 //! Tree-sitter reasons about source locations in terms of points and ranges. A
 //! point is a pair of `usize` indices representing the row and column at a
@@ -8,17 +8,17 @@
 //! indices that denote the byte offsets at the start and end of the range.
 //! Note that the end byte index is 1 byte _past_ the end of the range, and
 //! that row and column indices begin at 0.
-//!
-//! In all, tree-sitter's `Range` type is 4 `usize` values tracking redundant
-//! information, and we would like to avoid using them where possible.
 
-use std::ops::{Deref, DerefMut};
+use std::{
+    num::TryFromIntError,
+    ops::{Deref, DerefMut},
+};
 
 /// A spanned sequence of spanned values of `T`.
 pub type SpanSeq<T> = Spanned<Box<[Spanned<T>]>>;
 
 /// A spanned boxed value of `T`.
-pub type SpanBox<T> = Spanned<Box<T>>;
+pub type SpanBox<T> = Box<Spanned<T>>;
 
 /// A value of `T` together with its [`Span`] in the source.
 ///
@@ -48,24 +48,39 @@ impl<T> DerefMut for Spanned<T> {
 /// A half-open byte span in the source code.
 #[derive(Debug, Clone, Copy)]
 pub struct Span {
-    pub start: SpanIndex,
-    pub end: SpanIndex,
+    pub start: u32,
+    pub end: u32,
 }
-
-/// The integer type used for span indices.
-type SpanIndex = u32;
 
 impl Span {
     /// Returns the length of the byte range represented by `self`. Note that
     /// this length is not necessarily the same as the number of characters in
     /// the byte range.
-    pub fn length(&self) -> SpanIndex {
+    pub fn length(&self) -> u32 {
         self.end - self.start
+    }
+
+    pub fn of<T>(self, value: T) -> Spanned<T> {
+        Spanned {
+            item: value,
+            span: self,
+        }
     }
 }
 
 impl std::fmt::Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.start, self.end)
+    }
+}
+
+impl TryFrom<tree_sitter::Range> for Span {
+    type Error = TryFromIntError;
+
+    fn try_from(value: tree_sitter::Range) -> Result<Self, Self::Error> {
+        let start: u32 = value.start_byte.try_into()?;
+        let end: u32 = value.end_byte.try_into()?;
+
+        Ok(Span { start, end })
     }
 }
