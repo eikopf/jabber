@@ -10,13 +10,13 @@ type AlwaysNone = Option[!]
 
 (source_file
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (unit_type))
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (primitive_type))
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (generic_type
       name: (ident)
       arguments: (generic_type_args
@@ -33,20 +33,16 @@ type  Maybe[T] = Option[T]
 
 (source_file
   (type_decl
-    alias: (generic_type
-      name: (ident)
-      arguments: (generic_type_args
-        (ident)))
+    name: (ident)
+    params: (generic_params (ident))
     type: (generic_type
       name: (ident)
       arguments: (generic_type_args
         (ident)
         (primitive_type))))
   (type_decl
-    alias: (generic_type
-      name: (ident)
-      arguments: (generic_type_args
-        (ident)))
+    name: (ident)
+    params: (generic_params (ident))
     type: (generic_type
       name: (ident)
       arguments: (generic_type_args
@@ -64,9 +60,7 @@ pub extern type Buffer
 (source_file
   (extern_type_decl
     visibility: (access_spec)
-    type: (ident))
+    name: (ident))
   (extern_type_decl
-    type: (generic_type
-      name: (ident)
-      arguments: (generic_type_args
-        (ident)))))
+    name: (ident)
+    params: (generic_params (ident))))
