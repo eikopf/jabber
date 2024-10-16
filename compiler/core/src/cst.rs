@@ -136,6 +136,8 @@ pub enum FnBody {
 
 // ATTRIBUTES
 
+pub type Attributes = Box<[Spanned<Attr>]>;
+
 #[derive(Debug, Clone)]
 pub enum Attr {
     Name(Spanned<Name>),

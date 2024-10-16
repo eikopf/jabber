@@ -3,131 +3,150 @@ use tree_sitter as ts;
 use tree_sitter_jabber;
 
 use crate::{
-    cst::{Attr, Cst, Decl, Ident, Visibility},
-    span::{Span, Spanned},
+    cst::{Attr, Attributes, Cst, Decl, DeclBody, Ident, Name, UseItem, Visibility},
+    span::{Span, SpanSeq, Spanned},
 };
 
-pub struct CstBuilder<'a> {
-    source: &'a [u8],
+#[derive(Clone)]
+pub struct TreeVisitor<'a> {
     cursor: ts::TreeCursor<'a>,
-    shebang: Option<Span>,
-    module_comment: Option<Span>,
-    decls: Vec<Decl>,
-    errors: Vec<ParseError>,
+    source: &'a [u8],
     comments: Vec<Span>,
 }
 
-impl<'a> CstBuilder<'a> {
-    pub fn new(source: &'a [u8], tree: &'a ts::Tree) -> Self {
+impl<'a> TreeVisitor<'a> {
+    pub fn new(tree: &'a ts::Tree, source: &'a [u8]) -> Self {
         let cursor = tree.walk();
+        let comments = Vec::new();
 
         Self {
-            source,
             cursor,
-            shebang: None,
-            module_comment: None,
-            decls: Vec::new(),
-            errors: Vec::new(),
-            comments: Vec::new(),
+            source,
+            comments,
         }
     }
 
-    pub fn build(mut self) -> (Vec<ParseError>, Cst) {
-        loop {
-            self.process_top_level_node();
+    pub fn build_cst(mut self) -> Result<Cst, Vec<ParseError>> {
+        assert_eq!(self.cursor.node().kind(), "source_file");
+        let root = self.cursor.node();
 
-            match self.goto_next_sibling() {
-                Some(()) => continue,
-                None => break,
+        let mut errors = Vec::new();
+        collect_errors(&mut self.cursor, &mut errors);
+
+        if errors.is_empty() {
+            self.cursor.reset(root);
+        } else {
+            return Err(errors);
+        }
+
+        // beyond this point, the tree is guaranteed to have
+        // no errors or missing nodes.
+
+        self.cursor.goto_first_child();
+
+        let shebang = self.try_visit_shebang();
+        let mod_comment = self.try_visit_mod_comment();
+
+        let mut decls = Vec::new();
+        loop {
+            if let Some(decl) = self.visit_decl() {
+                decls.push(decl)
+            };
+
+            if !self.cursor.goto_next_sibling() {
+                break;
             }
         }
 
-        let cst = Cst {
-            shebang: self.shebang,
-            mod_comment: self.module_comment,
-            comments: self.comments.into(),
-            decls: self.decls.into(),
-        };
-
-        (self.errors, cst)
+        Ok(Cst {
+            shebang,
+            mod_comment,
+            decls: decls.into_boxed_slice(),
+            comments: self.comments.into_boxed_slice(),
+        })
     }
 
-    fn goto_next_sibling(&mut self) -> Option<()> {
+    fn try_visit_shebang(&mut self) -> Option<Span> {
         self.consume_comments();
 
-        match self.cursor.goto_next_sibling() {
-            true => Some(()),
-            false => None,
+        match self.current_node_kind() {
+            "shebang" => Some(self.current_node_span()),
+            _ => None,
         }
     }
 
-    fn goto_first_child(&mut self) -> Option<()> {
-        match self.cursor.goto_first_child() {
-            true => {
-                self.consume_comments();
-                Some(())
-            }
-            false => None,
+    fn try_visit_mod_comment(&mut self) -> Option<Span> {
+        self.consume_comments();
+
+        match self.current_node_kind() {
+            "module_comment" => Some(self.current_node_span()),
+            _ => None,
         }
     }
 
-    fn consume_comments(&mut self) {
-        while self.cursor.node().kind() == "comment" {
-            let span = self.current_node_span();
-            self.comments.push(span);
-            self.cursor.goto_next_sibling();
+    fn visit_decl(&mut self) -> Option<Decl> {
+        let node = self.cursor.node();
+
+        match node.kind() {
+            "use_decl" => self.visit_use_decl(),
+            _ => unreachable!("There are no other top-level node kinds"),
         }
     }
 
-    fn process_top_level_node(&mut self) {
-        match self.cursor.node().kind() {
-            "module_comment" => self.process_module_commnent(),
-            "shebang" => self.process_shebang(),
-            "use_decl" => todo!(),
-            "mod_decl" => todo!(),
-            "type_decl" => todo!(),
-            "extern_type_decl" => todo!(),
-            "struct_decl" => todo!(),
-            "enum_decl" => todo!(),
-            "fn_decl" => todo!(),
-            "extern_fn_decl" => todo!(),
-            "const_decl" => todo!(),
-            _ => unreachable!("No other top-level nodes can exist"),
-        }
-    }
-
-    fn process_module_commnent(&mut self) {
-        debug_assert_eq!(self.cursor.node().kind(), "module_comment");
-
-        let span = self.current_node_span();
-        self.module_comment = Some(span);
-    }
-
-    fn process_shebang(&mut self) {
-        debug_assert_eq!(self.cursor.node().kind(), "shebang");
-
-        let span = self.current_node_span();
-        self.shebang = Some(span);
-    }
-
-    fn process_use_decl(&mut self) {
-        debug_assert_eq!(self.cursor.node().kind(), "use_decl");
-
-        assert!(self.goto_first_child().is_some());
-
-        let doc_comment = todo!();
-        let attributes = todo!();
-        let visibility = todo!();
+    fn visit_use_decl(&mut self) -> Option<Decl> {
+        debug_assert_eq!(self.current_node_kind(), "use_decl");
+        let use_decl = self.cursor.node();
+        let span = span(use_decl);
 
         todo!()
     }
 
+    fn collect_decl_properties(&mut self) -> (Option<Span>, Option<Attributes>, Visibility) {
+        todo!()
+    }
+
+    fn visit_use_item(&mut self) -> Option<Spanned<UseItem>> {
+        todo!()
+    }
+
+    fn visit_name(&mut self) -> Spanned<Name> {
+        let span = self.current_node_span();
+
+        span.of(match self.current_node_kind() {
+            "ident" => Name::Ident(Ident),
+            "path" => Name::Path(self.visit_path()),
+            _ => unreachable!("There are no other kinds of name."),
+        })
+    }
+
+    fn visit_path(&mut self) -> Box<[Spanned<Ident>]> {
+        todo!()
+    }
+
+    fn visit_ident(&mut self) -> Spanned<Ident> {
+        debug_assert_eq!(self.current_node_kind(), "ident");
+
+        let span = self.current_node_span();
+        span.of(Ident)
+    }
+
+    fn consume_comments(&mut self) {
+        while self.cursor.node().kind() == "comment" {
+            self.comments.push(self.current_node_span());
+            self.cursor.goto_next_sibling();
+        }
+    }
+
+    fn current_node_kind(&self) -> &'static str {
+        self.cursor.node().kind()
+    }
+
     fn current_node_span(&self) -> Span {
-        span(&self.cursor.node())
+        span(self.cursor.node())
     }
 }
 
-fn span(node: &ts::Node<'_>) -> Span {
+fn span(node: ts::Node<'_>) -> Span {
     node.range()
         .try_into()
         .expect("Encountered byte index larger than u32::MAX")
@@ -151,12 +170,12 @@ fn collect_errors(cursor: &mut ts::TreeCursor, errors: &mut Vec<ParseError>) {
 
     if node.is_error() {
         errors.push(ParseError::Error {
-            span: span(&node),
+            span: span(node),
             range: node.range(),
         });
     } else if node.is_missing() {
         errors.push(ParseError::Missing {
-            span: span(&node),
+            span: span(node),
             range: node.range(),
             kind: node.kind(),
             parent: node.parent().map(|n| n.kind()),
