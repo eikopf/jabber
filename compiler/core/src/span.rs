@@ -14,8 +14,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-/// A spanned sequence of spanned values of `T`.
-pub type SpanSeq<T> = Spanned<Box<[Spanned<T>]>>;
+/// A sequence of spanned values of `T`.
+pub type SpanSeq<T> = Box<[Spanned<T>]>;
 
 /// A spanned boxed value of `T`.
 pub type SpanBox<T> = Box<Spanned<T>>;

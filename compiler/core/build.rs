@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs};
-use type_sitter_gen::{generate_nodes, tree_sitter};
+use type_sitter_gen::{generate_nodes, generate_queries, super_nodes};
 
 fn main() {
     // common setup
@@ -14,10 +14,21 @@ fn main() {
     let path = Path::new("../../tree-sitter-jabber/src/node-types.json");
     fs::write(
         out_dir.join("nodes.rs"),
-        generate_nodes(path, &tree_sitter())
-            .unwrap()
-            .collapse() // this line doesn't appear in the type-sitter README
-            .to_string(),
+        generate_nodes(path).unwrap().into_string(),
+    )
+    .unwrap();
+
+    // generate queries for CST analysis
+    fs::write(
+        out_dir.join("queries.rs"),
+        generate_queries(
+            "../../tree-sitter-jabber/queries",
+            "../../tree-sitter-jabber",
+            &super_nodes(),
+            false,
+        )
+        .unwrap()
+        .into_string(),
     )
     .unwrap();
 }
