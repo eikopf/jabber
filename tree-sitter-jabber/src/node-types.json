@@ -1638,21 +1638,34 @@
     "type": "source_file",
     "named": true,
     "root": true,
-    "fields": {},
+    "fields": {
+      "module_comment": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "module_comments",
+            "named": true
+          }
+        ]
+      },
+      "shebang": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "shebang",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": false,
       "types": [
         {
           "type": "_decl",
-          "named": true
-        },
-        {
-          "type": "module_comments",
-          "named": true
-        },
-        {
-          "type": "shebang",
           "named": true
         }
       ]

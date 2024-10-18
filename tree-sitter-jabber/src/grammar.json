@@ -10,8 +10,12 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "shebang"
+              "type": "FIELD",
+              "name": "shebang",
+              "content": {
+                "type": "SYMBOL",
+                "name": "shebang"
+              }
             },
             {
               "type": "BLANK"
@@ -22,8 +26,12 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "module_comments"
+              "type": "FIELD",
+              "name": "module_comment",
+              "content": {
+                "type": "SYMBOL",
+                "name": "module_comments"
+              }
             },
             {
               "type": "BLANK"
