@@ -1,24 +1,30 @@
-//! Unbound ASTs derived from CSTs
+//! Unbound ASTs derived from [`Cst`s](crate::cst::Cst).
+//!
+//! ASTs in this stage store almost everything in terms of [`Span`] data,
+//! including in particular both identifiers and string literals. Float, int,
+//! char, and bool literals are converted to the corresponding Rust types,
+//! but preserve information about their formats. No syntax errors are
+//! present.
+//!
+//! # Spanning Data Conventions
+//! Objects in this module do not store their own spanning information, and
+//! only store spanning information for a member if that member's spanning
+//! information cannot be inferred.
+//!
+//! As an example, [`Ty`] stores spanning information for all its members
+//! except [`Ty::Infer`], [`Ty::Name`], and [`Ty::Prim`]. For those three
+//! variants, their spanning information is exactly the same as the [`Span`]
+//! represented in a [`Spanned<Ty>`].
 
 use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 
 #[derive(Debug, Clone)]
-pub struct Ast {
+pub struct Ast<'a> {
+    source: &'a str,
     shebang: Option<Span>,
     module_comment: Option<Span>,
     comments: Box<[Span]>,
     decls: SpanSeq<Decl>,
-}
-
-impl Ast {
-    pub fn empty() -> Self {
-        Self {
-            shebang: None,
-            module_comment: None,
-            comments: Vec::new().into_boxed_slice(),
-            decls: Vec::new().into_boxed_slice(),
-        }
-    }
 }
 
 // DECLARATIONS
@@ -327,17 +333,17 @@ pub struct StructPatternField {
 #[derive(Debug, Clone)]
 pub enum Ty {
     Infer,
-    Name,
+    Name(Name),
     Prim(PrimTy),
     Tuple(SpanSeq<Self>),
     Paren(SpanBox<Self>),
     Fn {
-        args: SpanBox<FnTyArgs>,
-        ret: SpanBox<Self>,
+        domain: SpanBox<FnTyArgs>,
+        codomain: SpanBox<Self>,
     },
     Generic {
         name: Spanned<Name>,
-        params: SpanSeq<Self>,
+        args: SpanSeq<Self>,
     },
 }
 

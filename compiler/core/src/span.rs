@@ -25,10 +25,22 @@ pub type SpanBox<T> = Box<Spanned<T>>;
 /// This type implements [`Deref`] and [`DerefMut`] for `Target = T`, and so
 /// methods on `&T` and `&mut T` can be called transparently on `&Spanned<T>`
 /// and `&mut Spanned<T>`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Spanned<T> {
     pub item: T,
     pub span: Span,
+}
+
+impl<T> Spanned<T> {
+    pub fn map<F, U>(self, f: F) -> Spanned<U>
+    where
+        F: Fn(T) -> U,
+    {
+        Spanned {
+            item: f(self.item),
+            span: self.span,
+        }
+    }
 }
 
 impl<T> Deref for Spanned<T> {
@@ -45,11 +57,23 @@ impl<T> DerefMut for Spanned<T> {
     }
 }
 
+impl<T: std::fmt::Debug> std::fmt::Debug for Spanned<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?} {:?}", self.item, self.span)
+    }
+}
+
 /// A half-open byte span in the source code.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Span {
     pub start: u32,
     pub end: u32,
+}
+
+impl std::fmt::Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "@<{}:{}>", self.start, self.end)
+    }
 }
 
 impl Span {
@@ -60,7 +84,7 @@ impl Span {
         self.end - self.start
     }
 
-    pub fn of<T>(self, value: T) -> Spanned<T> {
+    pub fn with<T>(self, value: T) -> Spanned<T> {
         Spanned {
             item: value,
             span: self,
