@@ -160,8 +160,8 @@ pub enum AttrArg {
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Name(Spanned<Name>),
-    Literal(Spanned<LiteralExpr>),
+    Name(Name),
+    Literal(LiteralExpr),
     List(SpanSeq<Self>),
     Tuple(SpanSeq<Self>),
     Paren(SpanBox<Self>),
@@ -206,12 +206,26 @@ pub enum Expr {
 #[derive(Debug, Clone, Copy)]
 pub enum LiteralExpr {
     Unit,
-    True,
-    False,
-    Char(char),
+    Bool(bool),
+    Char { value: char, kind: CharKind },
     String,
     Int(i64),
-    Float(f64),
+    Float { value: f64, kind: FloatKind },
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum CharKind {
+    #[default]
+    Literal,
+    Ascii,
+    Unicode,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum FloatKind {
+    #[default]
+    Normal,
+    Exponential,
 }
 
 #[derive(Debug, Clone)]

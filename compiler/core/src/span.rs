@@ -98,10 +98,10 @@ impl std::fmt::Display for Span {
     }
 }
 
-impl TryFrom<tree_sitter::Range> for Span {
+impl TryFrom<type_sitter::raw::Range> for Span {
     type Error = TryFromIntError;
 
-    fn try_from(value: tree_sitter::Range) -> Result<Self, Self::Error> {
+    fn try_from(value: type_sitter::raw::Range) -> Result<Self, Self::Error> {
         let start: u32 = value.start_byte.try_into()?;
         let end: u32 = value.end_byte.try_into()?;
 

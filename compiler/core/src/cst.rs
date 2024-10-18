@@ -13,8 +13,8 @@ use crate::{
     span::{Span, SpanSeq, Spanned},
 };
 use nodes::{
-    anon_unions::TypeExpr_FnTypeArgs, FnType, GenericType, Ident, Name, Path, PrimitiveType,
-    SourceFile, TupleType, TypeExpr,
+    anon_unions::TypeExpr_FnTypeArgs, FnType, GenericType, Ident, Name, Path,
+    PrimitiveType, SourceFile, TupleType, TypeExpr,
 };
 use type_sitter::{raw, IncorrectKind, Node, Parser, Tree};
 
@@ -43,6 +43,10 @@ impl<'a> Cst<'a> {
     }
 }
 
+// TODO: write a function to walk the raw tree and grab all error/missing nodes
+// this can then be called when trying to convert a CST into an AST, and the
+// Result of that can be returned (rather than just panicking).
+
 pub struct CstVisitor<'a> {
     source: &'a str,
 }
@@ -52,7 +56,10 @@ type CstResult<'a, T> = Result<T, IncorrectKind<'a>>;
 impl<'a> CstVisitor<'a> {
     // TYPES
 
-    fn visit_type(&self, node: TypeExpr<'a>) -> CstResult<'a, Spanned<ast::Ty>> {
+    fn visit_type(
+        &self,
+        node: TypeExpr<'a>,
+    ) -> CstResult<'a, Spanned<ast::Ty>> {
         let span = node_span(node);
 
         match node {
@@ -61,7 +68,9 @@ impl<'a> CstVisitor<'a> {
                 .map(ast::Ty::Name)
                 .map(|node| span.with(node)),
             TypeExpr::FnType(fn_type) => self.visit_fn_type(fn_type),
-            TypeExpr::GenericType(generic_type) => self.visit_generic_type(generic_type),
+            TypeExpr::GenericType(generic_type) => {
+                self.visit_generic_type(generic_type)
+            }
             TypeExpr::InferredType(_) => Ok(span.with(ast::Ty::Infer)),
             TypeExpr::ParenthesizedType(paren_type) => self
                 .visit_type(paren_type.inner()?)
@@ -76,17 +85,20 @@ impl<'a> CstVisitor<'a> {
                 .visit_tuple_type(tuple_type)
                 .map(ast::Ty::Tuple)
                 .map(|tup| span.with(tup)),
-            TypeExpr::UnitType(unit_type) => Ok(ast::PrimTy::Unit)
-                .map(ast::Ty::Prim)
-                .map(|ty| span.with(ty)),
+            TypeExpr::UnitType(_) => {
+                Ok(ast::Ty::Prim(ast::PrimTy::Unit)).map(|ty| span.with(ty))
+            }
         }
     }
 
-    fn visit_prim_type(&self, node: PrimitiveType<'a>) -> CstResult<'a, ast::PrimTy> {
+    fn visit_prim_type(
+        &self,
+        node: PrimitiveType<'a>,
+    ) -> CstResult<'a, ast::PrimTy> {
         let prim = match node.utf8_text(self.source.as_bytes()).unwrap() {
             "!" => ast::PrimTy::Never,
             // we don't include () here because it has a dedicated
-            // node in the grammar
+            // node in the tree-sitter grammar, and so cannot appear
             "bool" => ast::PrimTy::Bool,
             "char" => ast::PrimTy::Char,
             "string" => ast::PrimTy::String,
@@ -98,11 +110,17 @@ impl<'a> CstVisitor<'a> {
         Ok(prim)
     }
 
-    fn visit_tuple_type(&self, node: TupleType<'a>) -> CstResult<'a, SpanSeq<ast::Ty>> {
+    fn visit_tuple_type(
+        &self,
+        node: TupleType<'a>,
+    ) -> CstResult<'a, SpanSeq<ast::Ty>> {
         todo!()
     }
 
-    fn visit_fn_type(&self, node: FnType<'a>) -> CstResult<'a, Spanned<ast::Ty>> {
+    fn visit_fn_type(
+        &self,
+        node: FnType<'a>,
+    ) -> CstResult<'a, Spanned<ast::Ty>> {
         let span = node_span(node);
         let codomain = self.visit_type(node.codomain()?).map(Box::new)?;
 
@@ -129,7 +147,10 @@ impl<'a> CstVisitor<'a> {
         Ok(ast::Ty::Fn { domain, codomain }).map(|ty| span.with(ty))
     }
 
-    fn visit_generic_type(&self, node: GenericType<'a>) -> CstResult<'a, Spanned<ast::Ty>> {
+    fn visit_generic_type(
+        &self,
+        node: GenericType<'a>,
+    ) -> CstResult<'a, Spanned<ast::Ty>> {
         let span = node_span(node);
         let name = self
             .visit_name(node.name()?)
@@ -196,7 +217,8 @@ impl<'a> CstVisitor<'a> {
 }
 
 fn node_span<'a>(node: impl Node<'a>) -> Span {
-    Span::try_from(node.range()).expect("Encountered byte index exceeding u32::MAX")
+    Span::try_from(node.range())
+        .expect("Encountered byte index exceeding u32::MAX")
 }
 
 #[cfg(test)]

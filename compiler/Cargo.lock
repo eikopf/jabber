@@ -88,7 +88,6 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "thiserror",
- "tree-sitter",
  "tree-sitter-jabber",
  "type-sitter",
  "type-sitter-gen",
@@ -379,13 +378,14 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.23.2"
+version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0203df02a3b6dd63575cc1d6e609edc2181c9a11867a271b25cfd2abff3ec5ca"
+checksum = "f9871f16d6cf5c4757dcf30d5d2172a2df6987c510c017bbb7abfb7f9aa24d06"
 dependencies = [
  "cc",
  "regex",
  "regex-syntax",
+ "streaming-iterator",
  "tree-sitter-language",
 ]
 
@@ -406,7 +406,8 @@ checksum = "e8ddffe35a0e5eeeadf13ff7350af564c6e73993a24db62caee1822b185c2600"
 [[package]]
 name = "type-sitter"
 version = "0.5.0"
-source = "git+https://github.com/Jakobeha/type-sitter?rev=4a037e6#4a037e69daa4795486860b317ab50872f0382ac6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78e6173c11e1aacdb620650bd6ff9e50fb26cc1b26600c4ecabfaf5518404d22"
 dependencies = [
  "type-sitter-lib",
 ]
@@ -414,7 +415,8 @@ dependencies = [
 [[package]]
 name = "type-sitter-gen"
 version = "0.5.0"
-source = "git+https://github.com/Jakobeha/type-sitter?rev=4a037e6#4a037e69daa4795486860b317ab50872f0382ac6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3930f3d2239c986d826c9e042ef41a325f691dac87f884bb53c6004f41c9fc01"
 dependencies = [
  "cc",
  "check_keyword",
@@ -439,7 +441,8 @@ dependencies = [
 [[package]]
 name = "type-sitter-lib"
 version = "0.5.0"
-source = "git+https://github.com/Jakobeha/type-sitter?rev=4a037e6#4a037e69daa4795486860b317ab50872f0382ac6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14ce125dae69994ef872120f5408b2f1ac52aed0185e5aaf9ce4b8e28cb5848e"
 dependencies = [
  "streaming-iterator",
  "tree-sitter",
