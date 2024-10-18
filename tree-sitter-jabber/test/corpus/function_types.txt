@@ -10,17 +10,17 @@ type Args2 = (A, B) -> C
 
 (source_file
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (fn_type
       domain: (ident)
       codomain: (ident)))
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (fn_type
       domain: (fn_type_args (ident))
       codomain: (ident)))
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (fn_type
       domain: (fn_type_args
         (ident)
@@ -38,14 +38,14 @@ type Left  = (A -> B) -> C
 
 (source_file
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (fn_type
       domain: (ident)
       codomain: (fn_type
         domain: (ident)
         codomain: (ident))))
   (type_decl
-    alias: (ident)
+    name: (ident)
     type: (fn_type
       domain: (fn_type_args
         (fn_type

@@ -936,16 +936,22 @@
           }
         ]
       },
-      "type": {
+      "name": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "generic_type",
-            "named": true
-          },
-          {
             "type": "ident",
+            "named": true
+          }
+        ]
+      },
+      "params": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "generic_params",
             "named": true
           }
         ]
@@ -2043,20 +2049,6 @@
     "type": "type_decl",
     "named": true,
     "fields": {
-      "alias": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "generic_type",
-            "named": true
-          },
-          {
-            "type": "ident",
-            "named": true
-          }
-        ]
-      },
       "attributes": {
         "multiple": false,
         "required": false,
@@ -2073,6 +2065,26 @@
         "types": [
           {
             "type": "doc_comments",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ident",
+            "named": true
+          }
+        ]
+      },
+      "params": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "generic_params",
             "named": true
           }
         ]

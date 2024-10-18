@@ -116,7 +116,8 @@ module.exports = grammar({
         optional(field("attributes", $.attributes)),
         optional(field("visibility", $.access_spec)),
         "type",
-        field("alias", choice($.ident, $.generic_type)),
+        field("name", $.ident),
+        optional(field("params", $.generic_params)),
         "=",
         field("type", $._type_expr),
       ),
@@ -128,7 +129,8 @@ module.exports = grammar({
         optional(field("visibility", $.access_spec)),
         "extern",
         "type",
-        field("type", choice($.ident, $.generic_type)),
+        field("name", $.ident),
+        optional(field("params", $.generic_params)),
       ),
 
     struct_decl: ($) =>
