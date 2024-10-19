@@ -39,7 +39,15 @@ module.exports = grammar({
 
   extras: ($) => [/\s/, $.comment],
 
-  supertypes: ($) => [$._decl, $._expr, $._name, $._pattern, $._type_expr],
+  supertypes: ($) => [
+    $._decl,
+    $._expr,
+    $._name,
+    $._pattern,
+    $._type_expr,
+    $._literal_expr,
+    $._attribute_argument,
+  ],
 
   word: ($) => $.ident,
 
@@ -244,7 +252,8 @@ module.exports = grammar({
         optional(field("arguments", $.attribute_arguments)),
       ),
     attribute_arguments: ($) =>
-      seq("(", comma_list0(choice($._name, $._literal_expr)), ")"),
+      seq("(", comma_list0($._attribute_argument), ")"),
+    _attribute_argument: ($) => choice($._name, $._literal_expr),
 
     /// EXPRESSIONS
 

@@ -1,5 +1,19 @@
 [
   {
+    "type": "_attribute_argument",
+    "named": true,
+    "subtypes": [
+      {
+        "type": "_literal_expr",
+        "named": true
+      },
+      {
+        "type": "_name",
+        "named": true
+      }
+    ]
+  },
+  {
     "type": "_decl",
     "named": true,
     "subtypes": [
@@ -46,7 +60,7 @@
     "named": true,
     "subtypes": [
       {
-        "type": "bin_literal",
+        "type": "_literal_expr",
         "named": true
       },
       {
@@ -58,35 +72,11 @@
         "named": true
       },
       {
-        "type": "bool_literal_false",
-        "named": true
-      },
-      {
-        "type": "bool_literal_true",
-        "named": true
-      },
-      {
         "type": "call_expr",
         "named": true
       },
       {
-        "type": "char_literal",
-        "named": true
-      },
-      {
-        "type": "dec_literal",
-        "named": true
-      },
-      {
         "type": "field_expr",
-        "named": true
-      },
-      {
-        "type": "float_literal",
-        "named": true
-      },
-      {
-        "type": "hex_literal",
         "named": true
       },
       {
@@ -110,10 +100,6 @@
         "named": true
       },
       {
-        "type": "oct_literal",
-        "named": true
-      },
-      {
         "type": "parenthesized_expr",
         "named": true
       },
@@ -126,15 +112,53 @@
         "named": true
       },
       {
-        "type": "string_literal",
-        "named": true
-      },
-      {
         "type": "struct_expr",
         "named": true
       },
       {
         "type": "tuple_expr",
+        "named": true
+      }
+    ]
+  },
+  {
+    "type": "_literal_expr",
+    "named": true,
+    "subtypes": [
+      {
+        "type": "bin_literal",
+        "named": true
+      },
+      {
+        "type": "bool_literal_false",
+        "named": true
+      },
+      {
+        "type": "bool_literal_true",
+        "named": true
+      },
+      {
+        "type": "char_literal",
+        "named": true
+      },
+      {
+        "type": "dec_literal",
+        "named": true
+      },
+      {
+        "type": "float_literal",
+        "named": true
+      },
+      {
+        "type": "hex_literal",
+        "named": true
+      },
+      {
+        "type": "oct_literal",
+        "named": true
+      },
+      {
+        "type": "string_literal",
         "named": true
       },
       {
@@ -162,23 +186,11 @@
     "named": true,
     "subtypes": [
       {
+        "type": "_literal_expr",
+        "named": true
+      },
+      {
         "type": "_name",
-        "named": true
-      },
-      {
-        "type": "bin_literal",
-        "named": true
-      },
-      {
-        "type": "bool_literal_false",
-        "named": true
-      },
-      {
-        "type": "bool_literal_true",
-        "named": true
-      },
-      {
-        "type": "char_literal",
         "named": true
       },
       {
@@ -186,19 +198,7 @@
         "named": true
       },
       {
-        "type": "dec_literal",
-        "named": true
-      },
-      {
         "type": "enum_pattern",
-        "named": true
-      },
-      {
-        "type": "float_literal",
-        "named": true
-      },
-      {
-        "type": "hex_literal",
         "named": true
       },
       {
@@ -206,15 +206,7 @@
         "named": true
       },
       {
-        "type": "oct_literal",
-        "named": true
-      },
-      {
         "type": "parenthesized_pattern",
-        "named": true
-      },
-      {
-        "type": "string_literal",
         "named": true
       },
       {
@@ -223,10 +215,6 @@
       },
       {
         "type": "tuple_pattern",
-        "named": true
-      },
-      {
-        "type": "unit_literal",
         "named": true
       },
       {
@@ -349,47 +337,7 @@
       "required": false,
       "types": [
         {
-          "type": "_name",
-          "named": true
-        },
-        {
-          "type": "bin_literal",
-          "named": true
-        },
-        {
-          "type": "bool_literal_false",
-          "named": true
-        },
-        {
-          "type": "bool_literal_true",
-          "named": true
-        },
-        {
-          "type": "char_literal",
-          "named": true
-        },
-        {
-          "type": "dec_literal",
-          "named": true
-        },
-        {
-          "type": "float_literal",
-          "named": true
-        },
-        {
-          "type": "hex_literal",
-          "named": true
-        },
-        {
-          "type": "oct_literal",
-          "named": true
-        },
-        {
-          "type": "string_literal",
-          "named": true
-        },
-        {
-          "type": "unit_literal",
+          "type": "_attribute_argument",
           "named": true
         }
       ]
