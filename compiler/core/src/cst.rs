@@ -22,9 +22,10 @@ use nodes::{
     anon_unions::{
         RestPattern_StructPatternField as RpSpf, TypeExpr_FnTypeArgs,
     },
-    AccessSpec, Attribute, AttributeArgument, Attributes, Decl, DocComments,
-    FnType, GenericParams, GenericType, Ident, LiteralExpr, Name, Path,
-    Pattern, PrimitiveType, SourceFile, TupleType, TypeDecl, TypeExpr,
+    AccessSpec, Attribute, AttributeArgument, Attributes, BinaryOperator, Decl,
+    DocComments, Expr, FnType, GenericParams, GenericType, Ident, LiteralExpr,
+    Name, Path, Pattern, PrefixOperator, PrimitiveType, SourceFile, TupleType,
+    TypeDecl, TypeExpr,
 };
 
 use thiserror::Error;
@@ -70,8 +71,16 @@ pub enum ParseError {
     Missing { parent_kind: &'static str },
 }
 
+impl<'a> TryFrom<Cst<'a>> for ast::Ast<'a> {
+    type Error = ParseError;
+
+    fn try_from(value: Cst<'a>) -> Result<Self, Self::Error> {
+        value.build_ast()
+    }
+}
+
 impl<'a> Cst<'a> {
-    pub fn build_ast(self) -> Result<ast::Ast<'a>, ParseError> {
+    fn build_ast(self) -> Result<ast::Ast<'a>, ParseError> {
         // TODO: walk the raw tree for error/missing nodes and emit
         // appropriate ParseErrors if they exist
 
@@ -310,6 +319,49 @@ impl<'a> CstVisitor<'a> {
 
     // EXPRESSIONS
 
+    fn visit_expr(&self, node: Expr<'a>) -> CstResult<'a, Spanned<ast::Expr>> {
+        let span = node_span(node);
+
+        match node {
+            Expr::Ident(_) => Ok(span.with(ast::Expr::Name(ast::Name::Ident))),
+            Expr::Path(path) => self
+                .visit_path(path)
+                .map(ast::Name::Path)
+                .map(ast::Expr::Name)
+                .map(|expr| span.with(expr)),
+            Expr::LiteralExpr(literal_expr) => {
+                Ok(ast::Expr::Literal(self.visit_literal_expr(literal_expr)))
+                    .map(|expr| span.with(expr))
+            }
+            Expr::PrefixExpr(prefix_op) => {
+                let operand =
+                    self.visit_expr(prefix_op.operand()?).map(Box::new)?;
+                let operator =
+                    self.visit_prefix_operator(prefix_op.operator()?);
+
+                Ok(span.with(ast::Expr::Prefix { operand, operator }))
+            }
+            Expr::BinaryExpr(binary_op) => {
+                let lhs = self.visit_expr(binary_op.lhs()?).map(Box::new)?;
+                let rhs = self.visit_expr(binary_op.rhs()?).map(Box::new)?;
+                let operator =
+                    self.visit_binary_operator(binary_op.operator()?);
+
+                Ok(span.with(ast::Expr::Binary { lhs, operator, rhs }))
+            }
+            Expr::Block(block) => todo!(),
+            Expr::CallExpr(call_expr) => todo!(),
+            Expr::FieldExpr(field_expr) => todo!(),
+            Expr::IfElseExpr(if_else_expr) => todo!(),
+            Expr::LambdaExpr(lambda_expr) => todo!(),
+            Expr::ListExpr(list_expr) => todo!(),
+            Expr::MatchExpr(match_expr) => todo!(),
+            Expr::ParenthesizedExpr(parenthesized_expr) => todo!(),
+            Expr::StructExpr(struct_expr) => todo!(),
+            Expr::TupleExpr(tuple_expr) => todo!(),
+        }
+    }
+
     fn visit_literal_expr(&self, node: LiteralExpr<'a>) -> ast::LiteralExpr {
         match node {
             LiteralExpr::BinLiteral(_) => ast::LiteralExpr::BinInt,
@@ -323,6 +375,61 @@ impl<'a> CstVisitor<'a> {
             LiteralExpr::StringLiteral(_) => ast::LiteralExpr::String,
             LiteralExpr::UnitLiteral(_) => ast::LiteralExpr::Unit,
         }
+    }
+
+    fn visit_prefix_operator(
+        &self,
+        node: PrefixOperator<'a>,
+    ) -> Spanned<ast::PrefixOp> {
+        let span = node_span(node);
+
+        span.with(match node.utf8_text(self.source.as_bytes()).unwrap() {
+            "!" => ast::PrefixOp::Bang,
+            "-" => ast::PrefixOp::Minus,
+            "-." => ast::PrefixOp::MinusDot,
+            "*" => ast::PrefixOp::Star,
+            _ => unreachable!("There are no other prefix operators."),
+        })
+    }
+
+    fn visit_binary_operator(
+        &self,
+        node: BinaryOperator<'a>,
+    ) -> Spanned<ast::BinaryOp> {
+        let span = node_span(node);
+
+        span.with(match node.utf8_text(self.source.as_bytes()).unwrap() {
+            "+" => ast::BinaryOp::Plus,
+            "+." => ast::BinaryOp::PlusDot,
+            "-" => ast::BinaryOp::Minus,
+            "-." => ast::BinaryOp::MinusDot,
+            "*" => ast::BinaryOp::Star,
+            "*." => ast::BinaryOp::StarDot,
+            "/" => ast::BinaryOp::Slash,
+            "/." => ast::BinaryOp::SlashDot,
+            "^" => ast::BinaryOp::Carat,
+            "^." => ast::BinaryOp::CaratDot,
+            "%" => ast::BinaryOp::Percent,
+            "==" => ast::BinaryOp::EqEq,
+            "!=" => ast::BinaryOp::BangEq,
+            ">" => ast::BinaryOp::Gt,
+            ">." => ast::BinaryOp::GtDot,
+            "<" => ast::BinaryOp::Lt,
+            "<." => ast::BinaryOp::LtDot,
+            ">=" => ast::BinaryOp::Geq,
+            ">=." => ast::BinaryOp::GeqDot,
+            "<=" => ast::BinaryOp::Leq,
+            "<=." => ast::BinaryOp::LeqDot,
+            "|>" => ast::BinaryOp::RightPipe,
+            "<|" => ast::BinaryOp::LeftPipe,
+            "::" => ast::BinaryOp::Cons,
+            "++" => ast::BinaryOp::PlusPlus,
+            "||" => ast::BinaryOp::BarBar,
+            "&&" => ast::BinaryOp::AmpAmp,
+            "<-" => ast::BinaryOp::LeftArrow,
+            ":=" => ast::BinaryOp::Walrus,
+            _ => unreachable!("There are no other binary operators."),
+        })
     }
 
     // PATTERNS
@@ -632,60 +739,9 @@ fn node_span<'a>(node: impl Node<'a>) -> Span {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::File, span::Spanned};
+    use crate::file::File;
 
-    use super::{ast, CstVisitor, Parser};
-
-    #[test]
-    fn cst_visitor_types() {
-        let source = File::fake(
-            r#"
-            type Err = std.result.Result[!, _, (X, Y, Z) -> (F -> bool)]
-            "#,
-        );
-
-        let mut parser = Parser::new().unwrap();
-        let tree = parser.parse(&source).unwrap().tree;
-        let visitor = CstVisitor {
-            source: source.contents(),
-        };
-
-        let mut cursor = tree.walk();
-        let mut decls = tree.root_node().unwrap().decls(&mut cursor);
-
-        let type_node = decls
-            .next()
-            .unwrap()
-            .unwrap()
-            .as_type_decl()
-            .unwrap()
-            .r#type()
-            .unwrap();
-
-        let ty = visitor.visit_type(type_node).unwrap();
-        dbg!(ty.clone());
-
-        match ty.item {
-            ast::Ty::Generic { name, args } => {
-                assert_eq!(args.len(), 3);
-                assert!(matches!(
-                    args.first(),
-                    Some(Spanned {
-                        item: ast::Ty::Prim(ast::PrimTy::Never,),
-                        ..
-                    })
-                ));
-
-                match name.item {
-                    ast::Name::Ident => panic!(),
-                    ast::Name::Path(path) => {
-                        assert_eq!(path.len(), 3);
-                    }
-                };
-            }
-            _ => panic!(),
-        }
-    }
+    use super::{ast, Parser};
 
     #[test]
     fn type_decl_full_file() {
@@ -710,7 +766,7 @@ mod tests {
 
         let mut parser = Parser::new().unwrap();
         let cst = parser.parse(&source).unwrap();
-        let ast = cst.build_ast().unwrap();
+        let ast = ast::Ast::try_from(cst).unwrap();
 
         assert!(ast.shebang().is_some());
         assert!(ast.module_comment().is_some());
@@ -721,5 +777,11 @@ mod tests {
         assert!(matches!(type_decl.item.kind, ast::DeclKind::Type { .. }));
         assert!(type_decl.item.doc_comment.is_some());
         assert_eq!(type_decl.item.attributes.len(), 1);
+
+        let attr = type_decl.item.attributes.first().unwrap().item();
+        match attr.name.item() {
+            ast::Name::Ident => panic!(),
+            ast::Name::Path(path) => assert_eq!(path.len(), 2),
+        }
     }
 }

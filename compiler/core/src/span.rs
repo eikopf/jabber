@@ -41,6 +41,10 @@ impl<T> Spanned<T> {
             span: self.span,
         }
     }
+
+    pub fn item(&self) -> &T {
+        &self.item
+    }
 }
 
 impl<T> Deref for Spanned<T> {
