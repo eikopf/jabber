@@ -19,10 +19,12 @@ use crate::{
 };
 
 use nodes::{
-    anon_unions::TypeExpr_FnTypeArgs, AccessSpec, Attribute, AttributeArgument,
-    Attributes, Decl, DocComments, FnType, GenericParams, GenericType, Ident,
-    LiteralExpr, Name, Path, PrimitiveType, SourceFile, TupleType, TypeDecl,
-    TypeExpr,
+    anon_unions::{
+        RestPattern_StructPatternField as RpSpf, TypeExpr_FnTypeArgs,
+    },
+    AccessSpec, Attribute, AttributeArgument, Attributes, Decl, DocComments,
+    FnType, GenericParams, GenericType, Ident, LiteralExpr, Name, Path,
+    Pattern, PrimitiveType, SourceFile, TupleType, TypeDecl, TypeExpr,
 };
 
 use thiserror::Error;
@@ -60,8 +62,11 @@ pub struct Cst<'a> {
     file: &'a File,
 }
 
+#[derive(Debug, Clone, Copy, Error)]
 pub enum ParseError {
+    #[error("")]
     Error { parent_kind: &'static str },
+    #[error("")]
     Missing { parent_kind: &'static str },
 }
 
@@ -70,7 +75,7 @@ impl<'a> Cst<'a> {
         // TODO: walk the raw tree for error/missing nodes and emit
         // appropriate ParseErrors if they exist
 
-        let visitor = &self.visitor();
+        let visitor = self.visitor();
         let Cst { tree, file } = self;
         let root = tree.root_node().unwrap();
         let (shebang, module_comment, comments, decls) =
@@ -123,7 +128,7 @@ impl<'a> CstVisitor<'a> {
 
             // matches is a StreamingIterator, so we have to manually
             // iterate over it
-            while let Some(comment) = matches.get() {
+            while let Some(comment) = matches.next() {
                 // get iterator over the individual line comments
                 let mut comment_elems = comment.comments();
                 // grab the span of the first line comment
@@ -140,7 +145,6 @@ impl<'a> CstVisitor<'a> {
                 // the list, and advance the iterator
                 let span = Span { start, end };
                 comments.push(span);
-                matches.advance();
             }
 
             comments.into_boxed_slice()
@@ -293,10 +297,10 @@ impl<'a> CstVisitor<'a> {
         let span = node_span(node);
 
         match node {
-            AttributeArgument::LiteralExpr(literal_expr) => self
-                .visit_literal_expr(literal_expr)
-                .map(ast::AttrArg::Literal)
-                .map(|arg| span.with(arg)),
+            AttributeArgument::LiteralExpr(literal_expr) => {
+                Ok(ast::AttrArg::Literal(self.visit_literal_expr(literal_expr)))
+                    .map(|arg| span.with(arg))
+            }
             AttributeArgument::Name(name) => self
                 .visit_name(name)
                 .map(ast::AttrArg::Name)
@@ -306,21 +310,148 @@ impl<'a> CstVisitor<'a> {
 
     // EXPRESSIONS
 
-    fn visit_literal_expr(
-        &self,
-        node: LiteralExpr<'a>,
-    ) -> CstResult<'a, ast::LiteralExpr> {
+    fn visit_literal_expr(&self, node: LiteralExpr<'a>) -> ast::LiteralExpr {
         match node {
-            LiteralExpr::BinLiteral(bin_literal) => todo!(),
-            LiteralExpr::BoolLiteralFalse(bool_literal_false) => todo!(),
-            LiteralExpr::BoolLiteralTrue(bool_literal_true) => todo!(),
-            LiteralExpr::CharLiteral(char_literal) => todo!(),
-            LiteralExpr::DecLiteral(dec_literal) => todo!(),
-            LiteralExpr::FloatLiteral(float_literal) => todo!(),
-            LiteralExpr::HexLiteral(hex_literal) => todo!(),
-            LiteralExpr::OctLiteral(oct_literal) => todo!(),
-            LiteralExpr::StringLiteral(string_literal) => todo!(),
-            LiteralExpr::UnitLiteral(_) => Ok(ast::LiteralExpr::Unit),
+            LiteralExpr::BinLiteral(_) => ast::LiteralExpr::BinInt,
+            LiteralExpr::BoolLiteralFalse(_) => ast::LiteralExpr::Bool(false),
+            LiteralExpr::BoolLiteralTrue(_) => ast::LiteralExpr::Bool(true),
+            LiteralExpr::CharLiteral(_) => ast::LiteralExpr::Char,
+            LiteralExpr::DecLiteral(_) => ast::LiteralExpr::DecInt,
+            LiteralExpr::FloatLiteral(_) => ast::LiteralExpr::Float,
+            LiteralExpr::HexLiteral(_) => ast::LiteralExpr::HexInt,
+            LiteralExpr::OctLiteral(_) => ast::LiteralExpr::OctInt,
+            LiteralExpr::StringLiteral(_) => ast::LiteralExpr::String,
+            LiteralExpr::UnitLiteral(_) => ast::LiteralExpr::Unit,
+        }
+    }
+
+    // PATTERNS
+
+    fn visit_pattern(
+        &self,
+        node: Pattern<'a>,
+    ) -> CstResult<'a, Spanned<ast::Pattern>> {
+        let span = node_span(node);
+
+        match node {
+            Pattern::LiteralExpr(literal_expr) => {
+                Ok(ast::Pattern::Literal(self.visit_literal_expr(literal_expr)))
+                    .map(|pat| span.with(pat))
+            }
+            Pattern::Name(name) => self
+                .visit_name(name)
+                .map(ast::Pattern::Name)
+                .map(|pat| span.with(pat)),
+            Pattern::ConsPattern(cons_pattern) => {
+                let span = node_span(cons_pattern);
+                let head =
+                    self.visit_pattern(cons_pattern.head()?).map(Box::new)?;
+                let tail =
+                    self.visit_pattern(cons_pattern.tail()?).map(Box::new)?;
+
+                Ok(span.with(ast::Pattern::Cons { head, tail }))
+            }
+            Pattern::EnumPattern(enum_pattern) => {
+                let name = {
+                    let span = node_span(enum_pattern.name());
+                    let name = self.visit_name(enum_pattern.name()?)?;
+                    span.with(name)
+                };
+
+                let elems = {
+                    let mut elems = Vec::new();
+                    let mut cursor = node.walk();
+
+                    for pat in enum_pattern.payload()?.patterns(&mut cursor) {
+                        let pat = self.visit_pattern(pat?)?;
+                        elems.push(pat);
+                    }
+
+                    elems.into_boxed_slice()
+                };
+
+                Ok(span.with(ast::Pattern::Enum { name, elems }))
+            }
+            Pattern::ListPattern(list_pattern) => {
+                let mut pats = Vec::new();
+                let mut cursor = node.walk();
+
+                for pat in list_pattern.patterns(&mut cursor) {
+                    let pat = self.visit_pattern(pat?)?;
+                    pats.push(pat);
+                }
+
+                Ok(span.with(ast::Pattern::List(pats.into_boxed_slice())))
+            }
+            Pattern::TuplePattern(tuple_pattern) => {
+                let mut pats = Vec::new();
+                let mut cursor = node.walk();
+
+                for pat in tuple_pattern.patterns(&mut cursor) {
+                    let pat = self.visit_pattern(pat?)?;
+                    pats.push(pat);
+                }
+
+                Ok(span.with(ast::Pattern::Tuple(pats.into_boxed_slice())))
+            }
+            Pattern::ParenthesizedPattern(paren_pattern) => self
+                .visit_pattern(paren_pattern.inner()?)
+                .map(Box::new)
+                .map(ast::Pattern::Paren)
+                .map(|pat| span.with(pat)),
+            Pattern::StructPattern(struct_pattern) => {
+                let name = {
+                    let span = node_span(struct_pattern.name());
+                    let name = self.visit_name(struct_pattern.name()?)?;
+                    span.with(name)
+                };
+
+                // yes, this is hideous.
+                let (fields, rest) = {
+                    let mut fields = Vec::new();
+                    let mut rest = None;
+
+                    if let Some(pat_fields) =
+                        struct_pattern.fields().transpose()?
+                    {
+                        let mut cursor = node.walk();
+
+                        for field in pat_fields.children(&mut cursor) {
+                            match field? {
+                                RpSpf::RestPattern(rest_pattern) => {
+                                    // this is fine, since the rest_pattern
+                                    // can only appear once
+                                    rest = Some(node_span(rest_pattern))
+                                }
+                                RpSpf::StructPatternField(sp_field) => {
+                                    let span = node_span(sp_field);
+                                    let field =
+                                        self.visit_ident(sp_field.field()?);
+                                    let pattern = sp_field
+                                        .pattern()
+                                        .transpose()?
+                                        .map(|pat| self.visit_pattern(pat))
+                                        .transpose()?;
+
+                                    fields.push(span.with(
+                                        ast::StructPatternField {
+                                            field,
+                                            pattern,
+                                        },
+                                    ))
+                                }
+                            }
+                        }
+                    }
+
+                    (fields.into_boxed_slice(), rest)
+                };
+
+                Ok(span.with(ast::Pattern::Struct { name, fields, rest }))
+            }
+            Pattern::WildcardPattern(_) => {
+                Ok(ast::Pattern::Wildcard).map(|pat| span.with(pat))
+            }
         }
     }
 
@@ -554,5 +685,41 @@ mod tests {
             }
             _ => panic!(),
         }
+    }
+
+    #[test]
+    fn type_decl_full_file() {
+        let source = File::fake(
+            r#"
+            #! a shebang line
+
+            // random comment
+
+            //! module comment
+
+            // second random comment
+            // including this second line
+
+            /// some documentation for Always
+            @an.attribute(true, 0xFAFD, "hello, world")
+            pub type Always[T] = std.Result[T, !]
+
+            // third random comment
+            "#,
+        );
+
+        let mut parser = Parser::new().unwrap();
+        let cst = parser.parse(&source).unwrap();
+        let ast = cst.build_ast().unwrap();
+
+        assert!(ast.shebang().is_some());
+        assert!(ast.module_comment().is_some());
+        assert_eq!(ast.comments().len(), 3);
+        assert_eq!(ast.decls().len(), 1);
+
+        let type_decl = ast.decls().first().unwrap();
+        assert!(matches!(type_decl.item.kind, ast::DeclKind::Type { .. }));
+        assert!(type_decl.item.doc_comment.is_some());
+        assert_eq!(type_decl.item.attributes.len(), 1);
     }
 }

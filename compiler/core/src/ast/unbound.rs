@@ -1,10 +1,10 @@
 //! Unbound ASTs derived from [`Cst`s](crate::cst::Cst).
 //!
 //! ASTs in this stage store almost everything in terms of [`Span`] data,
-//! including in particular both identifiers and string literals. Float, int,
-//! char, and bool literals are converted to the corresponding Rust types,
-//! but preserve information about their formats. No syntax errors are
-//! present.
+//! including in particular both identifiers and string literals. Literals
+//! are unprocessed (except for `true` and `false`, which are trivial). No
+//! syntax errors are present: ASTs are syntactically well-formed, but unbound
+//! and untyped.
 //!
 //! # Spanning Data Conventions
 //! Objects in this module do not store their own spanning information, and
@@ -23,11 +23,11 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Ast<'a> {
-    file: &'a File,
-    shebang: Option<Span>,
-    module_comment: Option<Span>,
-    comments: Box<[Span]>,
-    decls: SpanSeq<Decl>,
+    pub(super) file: &'a File,
+    pub(super) shebang: Option<Span>,
+    pub(super) module_comment: Option<Span>,
+    pub(super) comments: Box<[Span]>,
+    pub(super) decls: SpanSeq<Decl>,
 }
 
 impl<'a> Ast<'a> {
@@ -45,6 +45,26 @@ impl<'a> Ast<'a> {
             comments,
             decls,
         }
+    }
+
+    pub fn file(&self) -> &File {
+        self.file
+    }
+
+    pub fn shebang(&self) -> Option<Span> {
+        self.shebang
+    }
+
+    pub fn module_comment(&self) -> Option<Span> {
+        self.module_comment
+    }
+
+    pub fn comments(&self) -> &[Span] {
+        &self.comments
+    }
+
+    pub fn decls(&self) -> &[Spanned<Decl>] {
+        &self.decls
     }
 }
 
@@ -228,25 +248,13 @@ pub enum Expr {
 pub enum LiteralExpr {
     Unit,
     Bool(bool),
-    Char { value: char, kind: CharKind },
+    Char,
     String,
-    Int(i64),
-    Float { value: f64, kind: FloatKind },
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub enum CharKind {
-    #[default]
-    Literal,
-    Ascii,
-    Unicode,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub enum FloatKind {
-    #[default]
-    Normal,
-    Exponential,
+    BinInt,
+    OctInt,
+    DecInt,
+    HexInt,
+    Float,
 }
 
 #[derive(Debug, Clone)]
@@ -337,8 +345,8 @@ pub enum Stmt {
 #[derive(Debug, Clone)]
 pub enum Pattern {
     Wildcard,
-    Name(Spanned<Name>),
-    Literal(Spanned<LiteralExpr>),
+    Name(Name),
+    Literal(LiteralExpr),
     Tuple(SpanSeq<Self>),
     List(SpanSeq<Self>),
     Paren(SpanBox<Self>),
@@ -359,7 +367,7 @@ pub enum Pattern {
 
 #[derive(Debug, Clone)]
 pub struct StructPatternField {
-    pub field: Spanned<Name>,
+    pub field: Spanned<Ident>,
     pub pattern: Option<Spanned<Pattern>>,
 }
 
