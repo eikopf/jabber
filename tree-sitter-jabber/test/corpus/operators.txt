@@ -11,16 +11,16 @@ const notnot: _ = !!x
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (prefix_op
-      operator: (operator)
+    value: (prefix_expr
+      operator: (prefix_operator)
       operand: (ident)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (prefix_op
-      operator: (operator)
-      operand: (prefix_op
-        operator: (operator)
+    value: (prefix_expr
+      operator: (prefix_operator)
+      operand: (prefix_expr
+        operator: (prefix_operator)
         operand: (ident)))))
 
 ==============================
@@ -36,16 +36,16 @@ const floats: _ = 7.0 +. 8.0
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (dec_literal)
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (dec_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (float_literal)
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (float_literal))))
 
 ===============================
@@ -62,24 +62,24 @@ const eight: _ = 6 - -2
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (prefix_op
-      operator: (operator)
+    value: (prefix_expr
+      operator: (prefix_operator)
       operand: (float_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (dec_literal)
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (dec_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (dec_literal)
-      operator: (operator)
-      rhs: (prefix_op
-        operator: (operator)
+      operator: (binary_operator)
+      rhs: (prefix_expr
+        operator: (prefix_operator)
         operand: (dec_literal)))))
 
 ================================
@@ -95,22 +95,22 @@ const right: _ = x * y ^ z
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
-      lhs: (binary_op
+    value: (binary_expr
+      lhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident))
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (ident)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (ident)
-      operator: (operator)
-      rhs: (binary_op
+      operator: (binary_operator)
+      rhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident)))))
 
 ==================
@@ -126,19 +126,19 @@ const undef: _ = 0 ^ 0 ^ 0
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (dec_literal)
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (dec_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (dec_literal)
-      operator: (operator)
-      rhs: (binary_op
+      operator: (binary_operator)
+      rhs: (binary_expr
         lhs: (dec_literal)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (dec_literal)))))
 
 =====================
@@ -155,32 +155,32 @@ const  both: _ = f <| x |> g
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
-      lhs: (binary_op
+    value: (binary_expr
+      lhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident))
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (ident)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (ident)
-      operator: (operator)
-      rhs: (binary_op
+      operator: (binary_operator)
+      rhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident))))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
-      lhs: (binary_op
+    value: (binary_expr
+      lhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident))
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (ident))))
 
 =====================
@@ -194,9 +194,9 @@ const cmp: _ = x >= y
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (ident)
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (ident))))
 
 =====
@@ -211,15 +211,15 @@ const zeros: _ = 0 :: 0 :: 0 :: []
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (dec_literal)
-      operator: (operator)
-      rhs: (binary_op
+      operator: (binary_operator)
+      rhs: (binary_expr
         lhs: (dec_literal)
-        operator: (operator)
-        rhs: (binary_op
+        operator: (binary_operator)
+        rhs: (binary_expr
           lhs: (dec_literal)
-          operator: (operator)
+          operator: (binary_operator)
           rhs: (list_expr))))))
 
 =======
@@ -234,12 +234,12 @@ const _123: _ = [1] ++ [2] ++ [3]
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (list_expr (dec_literal))
-      operator: (operator)
-      rhs: (binary_op
+      operator: (binary_operator)
+      rhs: (binary_expr
         lhs: (list_expr (dec_literal))
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (list_expr (dec_literal))))))
 
 =======================
@@ -256,32 +256,32 @@ const both: _ = x && y || z
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (ident)
-      operator: (operator)
-      rhs: (binary_op
+      operator: (binary_operator)
+      rhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident))))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (ident)
-      operator: (operator)
-      rhs: (binary_op
+      operator: (binary_operator)
+      rhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident))))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
-      lhs: (binary_op
+    value: (binary_expr
+      lhs: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident))
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (ident))))
 
 =================
@@ -297,16 +297,16 @@ const rec: _ = rec.mut_field <- 3
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (ident)
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (dec_literal)))
   (const_decl
     name: (ident)
     type: (inferred_type)
-    value: (binary_op
+    value: (binary_expr
       lhs: (path
         root: (ident)
         name: (ident))
-      operator: (operator)
+      operator: (binary_operator)
       rhs: (dec_literal))))

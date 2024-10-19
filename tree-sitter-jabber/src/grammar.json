@@ -1678,11 +1678,11 @@
         },
         {
           "type": "SYMBOL",
-          "name": "prefix_op"
+          "name": "prefix_expr"
         },
         {
           "type": "SYMBOL",
-          "name": "binary_op"
+          "name": "binary_expr"
         },
         {
           "type": "SYMBOL",
@@ -2189,7 +2189,7 @@
         }
       ]
     },
-    "prefix_op": {
+    "prefix_expr": {
       "type": "PREC_RIGHT",
       "value": 13,
       "content": {
@@ -2199,30 +2199,8 @@
             "type": "FIELD",
             "name": "operator",
             "content": {
-              "type": "ALIAS",
-              "content": {
-                "type": "CHOICE",
-                "members": [
-                  {
-                    "type": "STRING",
-                    "value": "!"
-                  },
-                  {
-                    "type": "STRING",
-                    "value": "*"
-                  },
-                  {
-                    "type": "STRING",
-                    "value": "-"
-                  },
-                  {
-                    "type": "STRING",
-                    "value": "-."
-                  }
-                ]
-              },
-              "named": true,
-              "value": "operator"
+              "type": "SYMBOL",
+              "name": "prefix_operator"
             }
           },
           {
@@ -2236,7 +2214,7 @@
         ]
       }
     },
-    "binary_op": {
+    "binary_expr": {
       "type": "CHOICE",
       "members": [
         {
@@ -2272,7 +2250,7 @@
                     ]
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2310,7 +2288,7 @@
                     "value": "<|"
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2348,7 +2326,7 @@
                     "value": "|>"
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2427,7 +2405,7 @@
                     ]
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2482,7 +2460,7 @@
                     ]
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2541,7 +2519,7 @@
                     ]
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2579,7 +2557,7 @@
                     "value": "::"
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2617,7 +2595,7 @@
                     "value": "++"
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2655,7 +2633,7 @@
                     "value": "&&"
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2693,7 +2671,7 @@
                     "value": "||"
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2740,7 +2718,7 @@
                     ]
                   },
                   "named": true,
-                  "value": "operator"
+                  "value": "binary_operator"
                 }
               },
               {
@@ -2756,13 +2734,30 @@
         }
       ]
     },
-    "operator": {
+    "prefix_operator": {
       "type": "CHOICE",
       "members": [
         {
           "type": "STRING",
           "value": "!"
         },
+        {
+          "type": "STRING",
+          "value": "-"
+        },
+        {
+          "type": "STRING",
+          "value": "-."
+        },
+        {
+          "type": "STRING",
+          "value": "*"
+        }
+      ]
+    },
+    "binary_operator": {
+      "type": "CHOICE",
+      "members": [
         {
           "type": "STRING",
           "value": "+"

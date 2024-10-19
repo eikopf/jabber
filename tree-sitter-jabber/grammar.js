@@ -268,8 +268,8 @@ module.exports = grammar({
         $.field_expr,
         $.lambda_expr,
         $.call_expr,
-        $.prefix_op,
-        $.binary_op,
+        $.prefix_expr,
+        $.binary_expr,
         $.match_expr,
         $.if_else_expr,
         $.block,
@@ -341,16 +341,13 @@ module.exports = grammar({
 
     arguments: ($) => seq("(", comma_list0($._expr), ")"),
 
-    prefix_op: ($) =>
+    prefix_expr: ($) =>
       prec.right(
         PREC.prefix,
-        seq(
-          field("operator", alias(choice("!", "*", "-", "-."), $.operator)),
-          field("operand", $._expr),
-        ),
+        seq(field("operator", $.prefix_operator), field("operand", $._expr)),
       ),
 
-    binary_op: ($) => {
+    binary_expr: ($) => {
       const table = [
         [prec.right, PREC.pow, choice("^", "^.")],
         [prec.right, PREC.pipe_left, "<|"],
@@ -377,7 +374,7 @@ module.exports = grammar({
             seq(
               field("lhs", $._expr),
               //@ts-ignore
-              field("operator", alias(op, $.operator)),
+              field("operator", alias(op, $.binary_operator)),
               field("rhs", $._expr),
             ),
           ),
@@ -385,9 +382,10 @@ module.exports = grammar({
       );
     },
 
-    operator: (_) =>
+    prefix_operator: (_) => choice("!", "-", "-.", "*"),
+
+    binary_operator: (_) =>
       choice(
-        "!", // prefix NOT
         "+", // infix int add
         "+.", // infix float add
         "-", // prefix int neg / infix int sub

@@ -64,7 +64,7 @@
         "named": true
       },
       {
-        "type": "binary_op",
+        "type": "binary_expr",
         "named": true
       },
       {
@@ -108,7 +108,7 @@
         "named": true
       },
       {
-        "type": "prefix_op",
+        "type": "prefix_expr",
         "named": true
       },
       {
@@ -359,7 +359,7 @@
     }
   },
   {
-    "type": "binary_op",
+    "type": "binary_expr",
     "named": true,
     "fields": {
       "lhs": {
@@ -377,7 +377,7 @@
         "required": true,
         "types": [
           {
-            "type": "operator",
+            "type": "binary_operator",
             "named": true
           }
         ]
@@ -1547,7 +1547,7 @@
     }
   },
   {
-    "type": "prefix_op",
+    "type": "prefix_expr",
     "named": true,
     "fields": {
       "operand": {
@@ -1565,12 +1565,17 @@
         "required": true,
         "types": [
           {
-            "type": "operator",
+            "type": "prefix_operator",
             "named": true
           }
         ]
       }
     }
+  },
+  {
+    "type": "prefix_operator",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "primitive_type",
@@ -2166,6 +2171,14 @@
     "named": false
   },
   {
+    "type": "-",
+    "named": false
+  },
+  {
+    "type": "-.",
+    "named": false
+  },
+  {
     "type": "->",
     "named": false
   },
@@ -2235,6 +2248,10 @@
   },
   {
     "type": "bin_literal",
+    "named": true
+  },
+  {
+    "type": "binary_operator",
     "named": true
   },
   {
@@ -2331,10 +2348,6 @@
   },
   {
     "type": "oct_literal",
-    "named": true
-  },
-  {
-    "type": "operator",
     "named": true
   },
   {

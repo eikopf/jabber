@@ -95,7 +95,7 @@ const struct_pat: _ = (Foo {a, b}) -> a * b
                 field: (ident))
               (struct_pattern_field
                 field: (ident))))))
-      body: (binary_op
+      body: (binary_expr
         lhs: (ident)
-        operator: (operator)
+        operator: (binary_operator)
         rhs: (ident)))))
