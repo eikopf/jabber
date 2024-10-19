@@ -19,6 +19,14 @@ impl File {
         Ok(Self { path, contents, id })
     }
 
+    pub fn contents(&self) -> &str {
+        &self.contents
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub(crate) fn fake(contents: impl Into<Box<str>>) -> Self {
         let id = Uid::fresh();
         let path = std::path::PathBuf::default().into_boxed_path();

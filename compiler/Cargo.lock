@@ -87,6 +87,7 @@ name = "jabber_core"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "lazy_static",
  "thiserror",
  "tree-sitter-jabber",
  "type-sitter",

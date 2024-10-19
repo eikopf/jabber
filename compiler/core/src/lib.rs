@@ -2,4 +2,6 @@
 
 pub mod ast;
 pub mod cst;
+pub mod file;
 pub mod span;
+pub mod unique;

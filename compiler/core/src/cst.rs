@@ -1,59 +1,109 @@
 //! Concrete syntax trees parsed using Tree-sitter.
 
-pub mod nodes {
+pub(crate) mod nodes {
     include!(concat!(env!("OUT_DIR"), "/nodes.rs"));
 }
 
-pub mod queries {
+pub(crate) mod queries {
     include!(concat!(env!("OUT_DIR"), "/queries.rs"));
 }
 
 use crate::{
     ast::unbound as ast,
+    file::File,
     span::{Span, SpanSeq, Spanned},
 };
+
 use nodes::{
     anon_unions::TypeExpr_FnTypeArgs, FnType, GenericType, Ident, Name, Path,
     PrimitiveType, SourceFile, TupleType, TypeExpr,
 };
-use type_sitter::{raw, IncorrectKind, Node, Parser, Tree};
 
-type Root = SourceFile<'static>;
+use thiserror::Error;
+use type_sitter::{raw, IncorrectKind, Node, Tree};
 
-/// Constructs a new [`Parser`] for Jabber, which can then be used to build
-/// a [`Cst`] for some source code. Prefer using only one parser, as creating
-/// a parser appears to involve loading the relevant language's dynamic
-/// library at runtime.
-pub fn create_jabber_parser() -> Result<Parser<Root>, raw::LanguageError> {
-    Parser::new(&raw::Language::new(tree_sitter_jabber::LANGUAGE))
-}
+pub struct Parser(type_sitter::Parser<SourceFile<'static>>);
 
-pub struct Cst<'a> {
-    tree: Tree<Root>,
-    source: &'a str,
-}
+#[derive(Debug, Clone, Copy, Error)]
+#[error("Failed to parse {0}, probably because the parser timed out.")]
+pub struct CstParseError<'a>(&'a std::path::Path);
 
-impl<'a> Cst<'a> {
-    pub fn new(parser: &mut Parser<Root>, source: &'a str) -> Self {
-        let tree = parser
-            .parse(source, None)
-            .expect("Failed to build Cst, probably due to a parser timeout");
+impl Parser {
+    pub fn new() -> Result<Self, raw::LanguageError> {
+        type_sitter::Parser::new(&raw::Language::new(
+            tree_sitter_jabber::LANGUAGE,
+        ))
+        .map(Self)
+    }
 
-        Self { tree, source }
+    pub fn parse<'a>(
+        &'a mut self,
+        file: &'a File,
+    ) -> Result<Cst, CstParseError<'a>> {
+        self.0
+            .parse(file.contents(), None)
+            .map(|tree| Cst { tree, file })
+            .map_err(|()| CstParseError(file.path()))
     }
 }
 
-// TODO: write a function to walk the raw tree and grab all error/missing nodes
-// this can then be called when trying to convert a CST into an AST, and the
-// Result of that can be returned (rather than just panicking).
+pub struct Cst<'a> {
+    tree: Tree<SourceFile<'static>>,
+    file: &'a File,
+}
 
-pub struct CstVisitor<'a> {
+pub enum ParseError {
+    Error { parent_kind: &'static str },
+    Missing { parent_kind: &'static str },
+}
+
+impl<'a> Cst<'a> {
+    pub fn build_ast(self) -> Result<ast::Ast<'a>, ParseError> {
+        // TODO: walk the raw tree for error/missing nodes and emit
+        // appropriate ParseErrors if they exist
+
+        let visitor = &self.visitor();
+        let Cst { tree, file } = self;
+        let root = tree.root_node().unwrap();
+        let (shebang, module_comment, comments, decls) =
+            visitor.visit_source_file(root).unwrap();
+
+        Ok(ast::Ast::new(
+            file,
+            shebang,
+            module_comment,
+            comments,
+            decls,
+        ))
+    }
+
+    fn visitor(&self) -> CstVisitor<'a> {
+        CstVisitor {
+            source: self.file.contents(),
+        }
+    }
+}
+
+struct CstVisitor<'a> {
     source: &'a str,
 }
 
 type CstResult<'a, T> = Result<T, IncorrectKind<'a>>;
 
+/// The owned components of an [`ast::Ast`]. The first element is taken
+/// to be the `shebang` field, and the second is taken as the `module_comment`
+/// field.
+type AstComponents =
+    (Option<Span>, Option<Span>, Box<[Span]>, SpanSeq<ast::Decl>);
+
 impl<'a> CstVisitor<'a> {
+    fn visit_source_file(
+        &self,
+        node: SourceFile<'a>,
+    ) -> CstResult<'a, AstComponents> {
+        todo!()
+    }
+
     // TYPES
 
     fn visit_type(
@@ -114,7 +164,15 @@ impl<'a> CstVisitor<'a> {
         &self,
         node: TupleType<'a>,
     ) -> CstResult<'a, SpanSeq<ast::Ty>> {
-        todo!()
+        let mut cursor = node.walk();
+        let mut tys = Vec::new();
+
+        for ty in node.type_exprs(&mut cursor) {
+            let ty = self.visit_type(ty?)?;
+            tys.push(ty);
+        }
+
+        Ok(tys.into_boxed_slice())
     }
 
     fn visit_fn_type(
@@ -223,28 +281,30 @@ fn node_span<'a>(node: impl Node<'a>) -> Span {
 
 #[cfg(test)]
 mod tests {
-    use crate::span::Spanned;
+    use crate::{file::File, span::Spanned};
 
-    use super::{ast, create_jabber_parser, Cst, CstVisitor};
+    use super::{ast, CstVisitor, Parser};
 
     #[test]
     fn cst_visitor_types() {
-        let source = r#"
+        let source = File::fake(
+            r#"
             type Err = std.result.Result[!, _, (X, Y, Z) -> (F -> bool)]
-            "#;
+            "#,
+        );
 
-        let mut parser = create_jabber_parser().unwrap();
-        let tree = Cst::new(&mut parser, source).tree;
-        let visitor = CstVisitor { source };
+        let mut parser = Parser::new().unwrap();
+        let tree = parser.parse(&source).unwrap().tree;
+        let visitor = CstVisitor {
+            source: source.contents(),
+        };
 
         let mut cursor = tree.walk();
-        let mut root_children = tree.root_node().unwrap().children(&mut cursor);
+        let mut decls = tree.root_node().unwrap().decls(&mut cursor);
 
-        let type_node = root_children
+        let type_node = decls
             .next()
             .unwrap()
-            .unwrap()
-            .as_decl()
             .unwrap()
             .as_type_decl()
             .unwrap()
