@@ -20,12 +20,13 @@ use crate::{
 
 use nodes::{
     anon_unions::{
-        RestPattern_StructPatternField as RpSpf, TypeExpr_FnTypeArgs,
+        Ident_TupleField as ITf, RestPattern_StructPatternField as RpSpf,
+        TypeExpr_FnTypeArgs as TeFta,
     },
-    AccessSpec, Attribute, AttributeArgument, Attributes, BinaryOperator, Decl,
-    DocComments, Expr, FnType, GenericParams, GenericType, Ident, LiteralExpr,
-    Name, Path, Pattern, PrefixOperator, PrimitiveType, SourceFile, TupleType,
-    TypeDecl, TypeExpr,
+    AccessSpec, Attribute, AttributeArgument, Attributes, BinaryOperator,
+    Block, Decl, DocComments, Expr, FnType, GenericParams, GenericType, Ident,
+    LiteralExpr, Name, Path, Pattern, PrefixOperator, PrimitiveType,
+    SourceFile, TupleType, TypeDecl, TypeExpr,
 };
 
 use thiserror::Error;
@@ -349,16 +350,77 @@ impl<'a> CstVisitor<'a> {
 
                 Ok(span.with(ast::Expr::Binary { lhs, operator, rhs }))
             }
-            Expr::Block(block) => todo!(),
-            Expr::CallExpr(call_expr) => todo!(),
-            Expr::FieldExpr(field_expr) => todo!(),
-            Expr::IfElseExpr(if_else_expr) => todo!(),
+            Expr::CallExpr(call_expr) => {
+                let callee =
+                    self.visit_expr(call_expr.callee()?).map(Box::new)?;
+
+                let args = {
+                    let mut args = Vec::new();
+                    let mut cursor = call_expr.walk();
+
+                    for arg in call_expr.arguments()?.exprs(&mut cursor) {
+                        let arg = self.visit_expr(arg?)?;
+                        args.push(arg);
+                    }
+
+                    args.into_boxed_slice()
+                };
+
+                Ok(span.with(ast::Expr::Call { callee, args }))
+            }
+            Expr::FieldExpr(field_expr) => {
+                let item = self.visit_expr(field_expr.item()?).map(Box::new)?;
+                let field = {
+                    let span = node_span(field_expr.field());
+
+                    let field = match field_expr.field()? {
+                        ITf::Ident(_) => ast::FieldExprField::Ident,
+                        ITf::TupleField(_) => ast::FieldExprField::TupleIndex,
+                    };
+
+                    span.with(field)
+                };
+
+                Ok(span.with(ast::Expr::Field { item, field }))
+            }
+            Expr::IfElseExpr(if_else_expr) => {
+                let condition =
+                    self.visit_expr(if_else_expr.condition()?).map(Box::new)?;
+
+                let consequence = self
+                    .visit_block(if_else_expr.consequence()?)
+                    .map(Box::new)?;
+
+                let alternative = if_else_expr
+                    .alternative()
+                    .transpose()?
+                    .map(|else_clause| else_clause.body())
+                    .transpose()?
+                    .map(|block| self.visit_block(block))
+                    .transpose()?
+                    .map(Box::new);
+
+                Ok(span.with(ast::Expr::IfElse {
+                    condition,
+                    consequence,
+                    alternative,
+                }))
+            }
             Expr::LambdaExpr(lambda_expr) => todo!(),
-            Expr::ListExpr(list_expr) => todo!(),
             Expr::MatchExpr(match_expr) => todo!(),
-            Expr::ParenthesizedExpr(parenthesized_expr) => todo!(),
             Expr::StructExpr(struct_expr) => todo!(),
             Expr::TupleExpr(tuple_expr) => todo!(),
+            Expr::ListExpr(list_expr) => todo!(),
+            Expr::ParenthesizedExpr(paren_expr) => {
+                let inner =
+                    self.visit_expr(paren_expr.inner()?).map(Box::new)?;
+
+                Ok(span.with(ast::Expr::Paren(inner)))
+            }
+            Expr::Block(block) => self
+                .visit_block(block)
+                .map(|Spanned { item, .. }| ast::Expr::Block(Box::new(item)))
+                .map(|expr| span.with(expr)),
         }
     }
 
@@ -375,6 +437,13 @@ impl<'a> CstVisitor<'a> {
             LiteralExpr::StringLiteral(_) => ast::LiteralExpr::String,
             LiteralExpr::UnitLiteral(_) => ast::LiteralExpr::Unit,
         }
+    }
+
+    fn visit_block(
+        &self,
+        node: Block<'a>,
+    ) -> CstResult<'a, Spanned<ast::Block>> {
+        todo!()
     }
 
     fn visit_prefix_operator(
@@ -641,11 +710,11 @@ impl<'a> CstVisitor<'a> {
         let codomain = self.visit_type(node.codomain()?).map(Box::new)?;
 
         let domain = match node.domain()? {
-            TypeExpr_FnTypeArgs::TypeExpr(type_expr) => self
+            TeFta::TypeExpr(type_expr) => self
                 .visit_type(type_expr)
                 .map(|spanned| spanned.item)
                 .map(ast::FnTyArgs::NoParens),
-            TypeExpr_FnTypeArgs::FnTypeArgs(fn_type_args) => {
+            TeFta::FnTypeArgs(fn_type_args) => {
                 let mut cursor = node.walk();
                 let mut tys = Vec::new();
 

@@ -206,7 +206,7 @@ pub enum Expr {
     List(SpanSeq<Self>),
     Tuple(SpanSeq<Self>),
     Paren(SpanBox<Self>),
-    Block(SpanBox<Block>),
+    Block(Box<Block>),
     Struct {
         name: Spanned<Name>,
         fields: SpanSeq<StructExprField>,
@@ -266,7 +266,7 @@ pub struct StructExprField {
 #[derive(Debug, Clone)]
 pub enum FieldExprField {
     Ident,
-    Tuple(u16),
+    TupleIndex,
 }
 
 #[derive(Debug, Clone)]
