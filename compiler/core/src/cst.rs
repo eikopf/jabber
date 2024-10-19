@@ -1,9 +1,13 @@
 //! Concrete syntax trees parsed using Tree-sitter.
 
+#[allow(clippy::all)]
+#[allow(unused)]
 pub(crate) mod nodes {
     include!(concat!(env!("OUT_DIR"), "/nodes.rs"));
 }
 
+#[allow(clippy::all)]
+#[allow(unused)]
 pub(crate) mod queries {
     include!(concat!(env!("OUT_DIR"), "/queries.rs"));
 }
@@ -15,12 +19,16 @@ use crate::{
 };
 
 use nodes::{
-    anon_unions::TypeExpr_FnTypeArgs, FnType, GenericType, Ident, Name, Path,
-    PrimitiveType, SourceFile, TupleType, TypeExpr,
+    anon_unions::TypeExpr_FnTypeArgs, AccessSpec, Attribute, AttributeArgument,
+    Attributes, Decl, DocComments, FnType, GenericParams, GenericType, Ident,
+    LiteralExpr, Name, Path, PrimitiveType, SourceFile, TupleType, TypeDecl,
+    TypeExpr,
 };
 
 use thiserror::Error;
-use type_sitter::{raw, IncorrectKind, Node, Tree};
+use type_sitter::{
+    raw, IncorrectKind, Node, QueryCursor, StreamingIterator, Tree,
+};
 
 pub struct Parser(type_sitter::Parser<SourceFile<'static>>);
 
@@ -90,9 +98,8 @@ struct CstVisitor<'a> {
 
 type CstResult<'a, T> = Result<T, IncorrectKind<'a>>;
 
-/// The owned components of an [`ast::Ast`]. The first element is taken
-/// to be the `shebang` field, and the second is taken as the `module_comment`
-/// field.
+/// The owned components of an `Ast`. The first element is taken to be the
+/// `shebang` field, and the second is taken as the `module_comment` field.
 type AstComponents =
     (Option<Span>, Option<Span>, Box<[Span]>, SpanSeq<ast::Decl>);
 
@@ -101,7 +108,220 @@ impl<'a> CstVisitor<'a> {
         &self,
         node: SourceFile<'a>,
     ) -> CstResult<'a, AstComponents> {
-        todo!()
+        let shebang = node.shebang().transpose()?.map(node_span);
+        let module_comment = node.module_comment().transpose()?.map(node_span);
+
+        let comments: Box<[Span]> = {
+            // query boilerplate
+            let mut qcursor = QueryCursor::new();
+            let mut comments = Vec::new();
+            let mut matches = qcursor.matches(
+                &queries::Comments,
+                node,
+                self.source.as_bytes(),
+            );
+
+            // matches is a StreamingIterator, so we have to manually
+            // iterate over it
+            while let Some(comment) = matches.get() {
+                // get iterator over the individual line comments
+                let mut comment_elems = comment.comments();
+                // grab the span of the first line comment
+                let Span { start, mut end } =
+                    node_span(comment_elems.next().unwrap());
+                // if we have more than one line comment, grab the last one
+                // and set the end of the total span to its span.end
+                if let Some(last_comment) = comment_elems.last() {
+                    let Span { end: last_end, .. } = node_span(last_comment);
+                    end = last_end
+                }
+
+                // assemble the complete span, add it to
+                // the list, and advance the iterator
+                let span = Span { start, end };
+                comments.push(span);
+                matches.advance();
+            }
+
+            comments.into_boxed_slice()
+        };
+
+        let decls = {
+            let mut decls = Vec::new();
+            let mut cursor = node.walk();
+
+            for decl in node.decls(&mut cursor) {
+                let decl = self.visit_decl(decl?)?;
+                decls.push(decl);
+            }
+
+            decls.into_boxed_slice()
+        };
+
+        Ok((shebang, module_comment, comments, decls))
+    }
+
+    // DECLS
+    fn visit_decl(&self, node: Decl<'a>) -> CstResult<'a, Spanned<ast::Decl>> {
+        match node {
+            Decl::ConstDecl(const_decl) => todo!(),
+            Decl::EnumDecl(enum_decl) => todo!(),
+            Decl::ExternFnDecl(extern_fn_decl) => todo!(),
+            Decl::ExternTypeDecl(extern_type_decl) => todo!(),
+            Decl::FnDecl(fn_decl) => todo!(),
+            Decl::ModDecl(mod_decl) => todo!(),
+            Decl::StructDecl(struct_decl) => todo!(),
+            Decl::TypeDecl(type_decl) => self.visit_type_decl(type_decl),
+            Decl::UseDecl(use_decl) => todo!(),
+        }
+    }
+
+    fn visit_type_decl(
+        &self,
+        node: TypeDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        // common decl components
+        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
+        let attributes =
+            self.visit_attributes_opt(node.attributes().transpose()?)?;
+        let visibility =
+            self.visit_access_spec_opt(node.visibility().transpose()?);
+
+        // type decl components
+        let name = self.visit_ident(node.name()?);
+        let params =
+            self.visit_generic_params_opt(node.params().transpose()?)?;
+        let ty = self.visit_type(node.r#type()?)?;
+
+        let span = node_span(node);
+        Ok(span.with(ast::Decl {
+            doc_comment,
+            attributes,
+            visibility,
+            kind: ast::DeclKind::Type { name, params, ty },
+        }))
+    }
+
+    fn visit_generic_params_opt(
+        &self,
+        node: Option<GenericParams<'a>>,
+    ) -> CstResult<'a, SpanSeq<ast::Ident>> {
+        let mut params = Vec::new();
+
+        if let Some(node) = node {
+            let mut cursor = node.walk();
+
+            for param in node.idents(&mut cursor) {
+                let param = self.visit_ident(param?);
+                params.push(param);
+            }
+        }
+
+        Ok(params.into_boxed_slice())
+    }
+
+    fn visit_doc_comment_opt(
+        &self,
+        node: Option<DocComments<'a>>,
+    ) -> Option<Span> {
+        node.map(node_span)
+    }
+
+    fn visit_access_spec_opt(
+        &self,
+        node: Option<AccessSpec<'a>>,
+    ) -> ast::Visibility {
+        match node {
+            None => ast::Visibility::Priv,
+            Some(access_spec) => ast::Visibility::Pub(node_span(access_spec)),
+        }
+    }
+
+    // ATTRIBUTES
+    fn visit_attributes_opt(
+        &self,
+        node: Option<Attributes<'a>>,
+    ) -> CstResult<'a, SpanSeq<ast::Attr>> {
+        let mut attrs = Vec::new();
+
+        if let Some(node) = node {
+            let mut cursor = node.walk();
+
+            for attr in node.attributes(&mut cursor) {
+                let attr = self.visit_attribute(attr?)?;
+                attrs.push(attr);
+            }
+        }
+
+        Ok(attrs.into_boxed_slice())
+    }
+
+    fn visit_attribute(
+        &self,
+        node: Attribute<'a>,
+    ) -> CstResult<'a, Spanned<ast::Attr>> {
+        let span = node_span(node);
+
+        let name = {
+            let span = node_span(node.name());
+            let name = self.visit_name(node.name()?)?;
+            span.with(name)
+        };
+
+        let args = {
+            let mut args = Vec::new();
+
+            if let Some(attr_args) = node.arguments().transpose()? {
+                let mut cursor = node.walk();
+
+                for arg in attr_args.attribute_arguments(&mut cursor) {
+                    let arg = self.visit_attribute_argument(arg?)?;
+                    args.push(arg);
+                }
+            }
+
+            args.into_boxed_slice()
+        };
+
+        Ok(span.with(ast::Attr { name, args }))
+    }
+
+    fn visit_attribute_argument(
+        &self,
+        node: AttributeArgument<'a>,
+    ) -> CstResult<'a, Spanned<ast::AttrArg>> {
+        let span = node_span(node);
+
+        match node {
+            AttributeArgument::LiteralExpr(literal_expr) => self
+                .visit_literal_expr(literal_expr)
+                .map(ast::AttrArg::Literal)
+                .map(|arg| span.with(arg)),
+            AttributeArgument::Name(name) => self
+                .visit_name(name)
+                .map(ast::AttrArg::Name)
+                .map(|name| span.with(name)),
+        }
+    }
+
+    // EXPRESSIONS
+
+    fn visit_literal_expr(
+        &self,
+        node: LiteralExpr<'a>,
+    ) -> CstResult<'a, ast::LiteralExpr> {
+        match node {
+            LiteralExpr::BinLiteral(bin_literal) => todo!(),
+            LiteralExpr::BoolLiteralFalse(bool_literal_false) => todo!(),
+            LiteralExpr::BoolLiteralTrue(bool_literal_true) => todo!(),
+            LiteralExpr::CharLiteral(char_literal) => todo!(),
+            LiteralExpr::DecLiteral(dec_literal) => todo!(),
+            LiteralExpr::FloatLiteral(float_literal) => todo!(),
+            LiteralExpr::HexLiteral(hex_literal) => todo!(),
+            LiteralExpr::OctLiteral(oct_literal) => todo!(),
+            LiteralExpr::StringLiteral(string_literal) => todo!(),
+            LiteralExpr::UnitLiteral(_) => Ok(ast::LiteralExpr::Unit),
+        }
     }
 
     // TYPES

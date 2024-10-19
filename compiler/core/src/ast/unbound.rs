@@ -55,7 +55,7 @@ pub struct Decl {
     pub doc_comment: Option<Span>,
     pub attributes: SpanSeq<Attr>,
     pub visibility: Visibility,
-    pub kind: Spanned<DeclKind>,
+    pub kind: DeclKind,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -167,14 +167,14 @@ pub enum FnBody {
 
 #[derive(Debug, Clone)]
 pub struct Attr {
-    pub name: Name,
+    pub name: Spanned<Name>,
     pub args: SpanSeq<AttrArg>,
 }
 
 #[derive(Debug, Clone)]
 pub enum AttrArg {
-    Name(Spanned<Name>),
-    Literal(Spanned<LiteralExpr>),
+    Name(Name),
+    Literal(LiteralExpr),
 }
 
 // EXPRESSIONS
