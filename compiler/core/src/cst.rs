@@ -1486,7 +1486,7 @@ mod tests {
     }
 
     #[test]
-    fn large_example_ast_construction() {
+    fn fake_ref_module() {
         let source = File::fake(
             r#"
             //! Mutable reference cells
@@ -1525,5 +1525,64 @@ mod tests {
 
         assert!(ast.shebang().is_none());
         assert!(ast.module_comment().is_some());
+
+        let decls = ast.decls();
+        assert_eq!(decls.len(), 4);
+
+        let ref_struct = decls.first().unwrap();
+        assert!(ref_struct.item.doc_comment.is_some());
+        assert_eq!(ref_struct.item.attributes.len(), 1);
+        assert!(matches!(
+            ref_struct.item.visibility,
+            ast::Visibility::Pub(_)
+        ));
+    }
+
+    #[test]
+    fn fake_result_module() {
+        let source = File::fake(
+            r#"
+    //! Results representing fallible computations
+
+    /// A `Result` that may be `Ok` or an `Err`.
+    @core.lang_item
+    pub enum Result[T, E] {
+        @core.lang_item
+        Ok(T),
+        @core.lang_item
+        Err(E),
+    }
+
+    /// A `Result` which can only be `Ok`.
+    pub type Always[T]    = Result[T, !]
+    /// A `Result` which can only be `Err`.
+    pub type AlwaysErr[E] = Result[!, E]
+
+    pub fn map(res: Result[T, E], f: T -> U) -> Result[U, E] = match res {
+        Result.Ok(x)  => Result.Ok(f(x)),
+        Result.Err(e) => Result.Err(e),
+    }
+
+    pub fn map_err(res: Result[T, E], f: E -> U) -> Result[T, U] = match res {
+        Result.Ok(x)  => Result.Ok(x),
+        Result.Err(e) => Result.Err(f(e)),
+    }
+
+    pub fn unwrap(res: Result[T, E]) -> T = match res {
+        Result.Ok(x) => x,
+        _ => panic(),
+    }
+            "#,
+        );
+
+        let mut parser = Parser::new().unwrap();
+        let cst = parser.parse(&source).unwrap();
+        let ast = ast::Ast::try_from(cst).unwrap();
+
+        assert!(ast.shebang().is_none());
+        assert!(ast.module_comment().is_some());
+
+        let decls = ast.decls();
+        assert_eq!(decls.len(), 6);
     }
 }
