@@ -26,14 +26,17 @@ use nodes::{
         TypeExpr_FnTypeArgs as TeFta,
     },
     AccessSpec, Attribute, AttributeArgument, Attributes, BinaryOperator,
-    Block, Decl, DocComments, Expr, FnType, GenericParams, GenericType, Ident,
-    LiteralExpr, MatchArms, Name, Parameters, Path, Pattern, PrefixOperator,
-    PrimitiveType, SourceFile, StructExprFields, TupleType, TypeDecl, TypeExpr,
+    Block, ConstDecl, Decl, DocComments, EnumDecl, Expr, ExternFnDecl,
+    ExternTypeDecl, FnDecl, FnType, GenericParams, GenericType, Ident,
+    LiteralExpr, MatchArms, ModDecl, Name, Parameters, Path, Pattern,
+    PrefixOperator, PrimitiveType, SourceFile, StructDecl, StructExprFields,
+    TupleType, TypeDecl, TypeExpr, UseDecl,
 };
 
 use thiserror::Error;
 use type_sitter::{
-    raw, IncorrectKind, Node, QueryCursor, StreamingIterator, Tree,
+    raw, IncorrectKind, Node, QueryCursor, Range, StreamingIterator, Tree,
+    TreeCursor,
 };
 
 pub struct Parser(type_sitter::Parser<SourceFile<'static>>);
@@ -68,14 +71,28 @@ pub struct Cst<'a> {
 
 #[derive(Debug, Clone, Copy, Error)]
 pub enum ParseError {
-    #[error("")]
-    Error { parent_kind: &'static str },
-    #[error("")]
-    Missing { parent_kind: &'static str },
+    #[error(
+        "Parse error in {parent_kind} [{}..{}]", 
+        range.start_point, 
+        range.end_point)]
+    Error {
+        parent_kind: &'static str,
+        range: Range,
+    },
+    #[error(
+        "Missing {kind} in {parent_kind} [{}..{}]", 
+        range.start_point, 
+        range.end_point)]
+    Missing {
+        parent_kind: &'static str,
+        kind: &'static str,
+        name: Option<&'static str>,
+        range: Range,
+    },
 }
 
 impl<'a> TryFrom<Cst<'a>> for ast::Ast<'a> {
-    type Error = ParseError;
+    type Error = Box<[ParseError]>;
 
     fn try_from(value: Cst<'a>) -> Result<Self, Self::Error> {
         value.build_ast()
@@ -83,9 +100,13 @@ impl<'a> TryFrom<Cst<'a>> for ast::Ast<'a> {
 }
 
 impl<'a> Cst<'a> {
-    fn build_ast(self) -> Result<ast::Ast<'a>, ParseError> {
-        // TODO: walk the raw tree for error/missing nodes and emit
-        // appropriate ParseErrors if they exist
+    fn build_ast(self) -> Result<ast::Ast<'a>, Box<[ParseError]>> {
+        let errors = self.collect_errors();
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+
+        // beyond this point, self.tree contains no errors
 
         let visitor = self.visitor();
         let Cst { tree, file } = self;
@@ -106,6 +127,54 @@ impl<'a> Cst<'a> {
         CstVisitor {
             source: self.file.contents(),
         }
+    }
+
+    fn collect_errors(&self) -> Box<[ParseError]> {
+        fn collect_rec(errors: &mut Vec<ParseError>, cursor: &mut TreeCursor) {
+            let node = cursor.node();
+
+            if node.is_error() {
+                let range = node.range();
+                let parent_kind = node
+                    .parent()
+                    .map(|parent| parent.kind())
+                    .unwrap_or("source_file");
+
+                errors.push(ParseError::Error { range, parent_kind })
+            } else if node.is_missing() {
+                let range = node.range();
+                let kind = node.kind();
+                let name = cursor.field_name();
+                let parent_kind = node
+                    .parent()
+                    .map(|parent| parent.kind())
+                    .unwrap_or("source_file");
+
+                errors.push(ParseError::Missing {
+                    range,
+                    name,
+                    kind,
+                    parent_kind,
+                })
+            }
+
+            if cursor.goto_first_child() {
+                loop {
+                    collect_rec(errors, cursor);
+
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+
+                cursor.goto_parent();
+            }
+        }
+
+        let mut errors = Vec::new();
+        let mut cursor = self.tree.walk();
+        collect_rec(&mut errors, &mut cursor);
+        errors.into_boxed_slice()
     }
 }
 
@@ -180,16 +249,89 @@ impl<'a> CstVisitor<'a> {
     // DECLS
     fn visit_decl(&self, node: Decl<'a>) -> CstResult<'a, Spanned<ast::Decl>> {
         match node {
-            Decl::ConstDecl(const_decl) => todo!(),
-            Decl::EnumDecl(enum_decl) => todo!(),
-            Decl::ExternFnDecl(extern_fn_decl) => todo!(),
-            Decl::ExternTypeDecl(extern_type_decl) => todo!(),
-            Decl::FnDecl(fn_decl) => todo!(),
-            Decl::ModDecl(mod_decl) => todo!(),
-            Decl::StructDecl(struct_decl) => todo!(),
+            Decl::UseDecl(use_decl) => self.visit_use_decl(use_decl),
+            Decl::ModDecl(mod_decl) => self.visit_mod_decl(mod_decl),
+            Decl::ConstDecl(const_decl) => self.visit_const_decl(const_decl),
+            Decl::FnDecl(fn_decl) => self.visit_fn_decl(fn_decl),
+            Decl::ExternFnDecl(extern_fn_decl) => {
+                self.visit_extern_fn_decl(extern_fn_decl)
+            }
+            Decl::EnumDecl(enum_decl) => self.visit_enum_decl(enum_decl),
+            Decl::StructDecl(struct_decl) => {
+                self.visit_struct_decl(struct_decl)
+            }
             Decl::TypeDecl(type_decl) => self.visit_type_decl(type_decl),
-            Decl::UseDecl(use_decl) => todo!(),
+            Decl::ExternTypeDecl(extern_type_decl) => {
+                self.visit_extern_type_decl(extern_type_decl)
+            }
         }
+    }
+
+    fn visit_use_decl(
+        &self,
+        node: UseDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        todo!()
+    }
+
+    fn visit_mod_decl(
+        &self,
+        node: ModDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        todo!()
+    }
+
+    fn visit_const_decl(
+        &self,
+        node: ConstDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        // common decl components
+        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
+        let attributes =
+            self.visit_attributes_opt(node.attributes().transpose()?)?;
+        let visibility =
+            self.visit_access_spec_opt(node.visibility().transpose()?);
+
+        // const decl components
+        let name = self.visit_ident(node.name()?);
+        let ty = self.visit_type(node.r#type()?)?;
+        let value = self.visit_expr(node.value()?)?;
+
+        let span = node_span(node);
+        Ok(span.with(ast::Decl {
+            doc_comment,
+            attributes,
+            visibility,
+            kind: ast::DeclKind::Const { name, ty, value },
+        }))
+    }
+
+    fn visit_fn_decl(
+        &self,
+        node: FnDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        todo!()
+    }
+
+    fn visit_extern_fn_decl(
+        &self,
+        node: ExternFnDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        todo!()
+    }
+
+    fn visit_enum_decl(
+        &self,
+        node: EnumDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        todo!()
+    }
+
+    fn visit_struct_decl(
+        &self,
+        node: StructDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        todo!()
     }
 
     fn visit_type_decl(
@@ -216,6 +358,13 @@ impl<'a> CstVisitor<'a> {
             visibility,
             kind: ast::DeclKind::Type { name, params, ty },
         }))
+    }
+
+    fn visit_extern_type_decl(
+        &self,
+        node: ExternTypeDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::Decl>> {
+        todo!()
     }
 
     fn visit_generic_params_opt(
@@ -1001,7 +1150,7 @@ fn node_span<'a>(node: impl Node<'a>) -> Span {
 
 #[cfg(test)]
 mod tests {
-    use crate::file::File;
+    use crate::{cst::ParseError, file::File};
 
     use super::{ast, Parser};
 
@@ -1045,5 +1194,34 @@ mod tests {
             ast::Name::Ident => panic!(),
             ast::Name::Path(path) => assert_eq!(path.len(), 2),
         }
+    }
+
+    #[test]
+    fn missing_node_parse_error() {
+        let source = File::fake(
+            r#"
+            //! Some module comment
+            
+            
+            const FOO: int = 3 +
+            "#,
+        );
+
+        let mut parser = Parser::new().unwrap();
+        let cst = parser.parse(&source).unwrap();
+        let errors = ast::Ast::try_from(cst).unwrap_err();
+        eprintln!("{}", errors[0]);
+        panic!();
+        assert_eq!(errors.len(), 1);
+
+        let (parent_kind, name) = match errors[0] {
+            ParseError::Error { .. } => panic!(),
+            ParseError::Missing {
+                parent_kind, name, ..
+            } => (parent_kind, name),
+        };
+
+        assert_eq!(parent_kind, "binary_expr");
+        assert_eq!(name, Some("rhs"));
     }
 }
