@@ -115,13 +115,13 @@ pub enum DeclKind {
     Fn {
         name: Spanned<Ident>,
         params: Spanned<SpanSeq<Parameter>>,
-        ret_ty: Option<Spanned<Ty>>,
+        return_ty: Option<Spanned<Ty>>,
         body: SpanBox<FnBody>,
     },
     ExternFn {
         name: Spanned<Ident>,
-        params: SpanSeq<Parameter>,
-        ret_ty: Option<Spanned<Ty>>,
+        params: Spanned<SpanSeq<Parameter>>,
+        return_ty: Option<Spanned<Ty>>,
     },
     Const {
         name: Spanned<Ident>,
@@ -132,16 +132,16 @@ pub enum DeclKind {
 
 #[derive(Debug, Clone)]
 pub enum UseItem {
-    Name(Spanned<Name>),
+    Name(Name),
     Glob {
-        root: Spanned<Name>,
+        root: Option<Spanned<Name>>,
     },
     Alias {
         item: Spanned<Name>,
         alias: Spanned<Ident>,
     },
     Tree {
-        root: Spanned<Name>,
+        root: Option<Spanned<Name>>,
         items: SpanSeq<Self>,
     },
 }
@@ -179,8 +179,8 @@ pub struct Parameter {
 
 #[derive(Debug, Clone)]
 pub enum FnBody {
-    EqExpr(Spanned<Expr>),
-    Block(Spanned<Block>),
+    EqExpr(Expr),
+    Block(Block),
 }
 
 // ATTRIBUTES
