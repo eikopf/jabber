@@ -1472,8 +1472,6 @@ mod tests {
         let mut parser = Parser::new().unwrap();
         let cst = parser.parse(&source).unwrap();
         let errors = ast::Ast::try_from(cst).unwrap_err();
-        eprintln!("{}", errors[0]);
-        panic!();
         assert_eq!(errors.len(), 1);
 
         let (parent_kind, name) = match errors[0] {
@@ -1485,5 +1483,47 @@ mod tests {
 
         assert_eq!(parent_kind, "binary_expr");
         assert_eq!(name, Some("rhs"));
+    }
+
+    #[test]
+    fn large_example_ast_construction() {
+        let source = File::fake(
+            r#"
+            //! Mutable reference cells
+
+            /// A mutable reference cell.
+            @core.lang_item
+            pub struct Ref[T] {
+                /// The actual contents of the cell.
+                mutable contents : T,
+            }
+
+            /// Constructs a new `Ref[T]` with the given `contents`.
+            pub fn ref(contents: T) -> Ref[T] = Ref { contents }
+
+            /// Returns the value stored in `ref`.
+            ///
+            /// This function is equivalent to the prefix `*` operator.
+            @core.lang_item
+            @core.operator.deref
+            pub fn deref(ref: Ref[T]) -> T = ref.contents
+
+            /// Replaces the contents of `ref` with the given `value`.
+            ///
+            /// This function is equivalent to the infix `:=` operator.
+            @core.lang_item
+            @core.operator.walrus
+            pub fn update(ref: Ref[T], value: T) {
+                ref.contents <- value;
+            }
+            "#,
+        );
+
+        let mut parser = Parser::new().unwrap();
+        let cst = parser.parse(&source).unwrap();
+        let ast = ast::Ast::try_from(cst).unwrap();
+
+        assert!(ast.shebang().is_none());
+        assert!(ast.module_comment().is_some());
     }
 }
