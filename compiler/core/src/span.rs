@@ -42,6 +42,10 @@ impl<T> Spanned<T> {
         }
     }
 
+    pub fn unwrap(self) -> T {
+        self.item
+    }
+
     pub fn item(&self) -> &T {
         &self.item
     }

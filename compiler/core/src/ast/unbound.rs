@@ -114,7 +114,7 @@ pub enum DeclKind {
     },
     Fn {
         name: Spanned<Ident>,
-        params: SpanSeq<Parameter>,
+        params: Spanned<SpanSeq<Parameter>>,
         ret_ty: Option<Spanned<Ty>>,
         body: SpanBox<FnBody>,
     },
@@ -235,7 +235,7 @@ pub enum Expr {
     },
     Match {
         scrutinee: SpanBox<Self>,
-        arms: SpanSeq<MatchArm>,
+        arms: Spanned<SpanSeq<MatchArm>>,
     },
     IfElse {
         condition: SpanBox<Self>,
@@ -260,7 +260,7 @@ pub enum LiteralExpr {
 #[derive(Debug, Clone)]
 pub struct StructExprField {
     pub name: Spanned<Ident>,
-    pub value: Option<Expr>,
+    pub value: Option<Spanned<Expr>>,
 }
 
 #[derive(Debug, Clone)]
@@ -326,7 +326,7 @@ pub struct MatchArm {
 #[derive(Debug, Clone)]
 pub struct Block {
     pub statements: SpanSeq<Stmt>,
-    pub ret_expr: Option<Spanned<Expr>>,
+    pub return_expr: Option<Spanned<Expr>>,
 }
 
 #[derive(Debug, Clone)]

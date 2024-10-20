@@ -15,18 +15,20 @@ pub(crate) mod queries {
 use crate::{
     ast::unbound as ast,
     file::File,
-    span::{Span, SpanSeq, Spanned},
+    span::{Span, SpanBox, SpanSeq, Spanned},
 };
 
 use nodes::{
     anon_unions::{
+        EmptyStmt_ExprStmt_LetStmt as EsEsLs, Ident_Parameters,
         Ident_TupleField as ITf, RestPattern_StructPatternField as RpSpf,
+        StructExprField_StructUpdateBase as SefSub,
         TypeExpr_FnTypeArgs as TeFta,
     },
     AccessSpec, Attribute, AttributeArgument, Attributes, BinaryOperator,
     Block, Decl, DocComments, Expr, FnType, GenericParams, GenericType, Ident,
-    LiteralExpr, Name, Path, Pattern, PrefixOperator, PrimitiveType,
-    SourceFile, TupleType, TypeDecl, TypeExpr,
+    LiteralExpr, MatchArms, Name, Parameters, Path, Pattern, PrefixOperator,
+    PrimitiveType, SourceFile, StructExprFields, TupleType, TypeDecl, TypeExpr,
 };
 
 use thiserror::Error;
@@ -234,6 +236,29 @@ impl<'a> CstVisitor<'a> {
         Ok(params.into_boxed_slice())
     }
 
+    fn visit_parameters(
+        &self,
+        node: Parameters<'a>,
+    ) -> CstResult<'a, Spanned<SpanSeq<ast::Parameter>>> {
+        let span = node_span(node);
+        let mut params = Vec::new();
+        let mut cursor = node.walk();
+
+        for param in node.parameters(&mut cursor) {
+            let span = node_span(param);
+            let pattern = self.visit_pattern(param?.pattern()?)?;
+            let ty = param?
+                .r#type()
+                .transpose()?
+                .map(|ty| self.visit_type(ty))
+                .transpose()?;
+
+            params.push(span.with(ast::Parameter { pattern, ty }))
+        }
+
+        Ok(span.with(params.into_boxed_slice()))
+    }
+
     fn visit_doc_comment_opt(
         &self,
         node: Option<DocComments<'a>>,
@@ -406,11 +431,68 @@ impl<'a> CstVisitor<'a> {
                     alternative,
                 }))
             }
-            Expr::LambdaExpr(lambda_expr) => todo!(),
-            Expr::MatchExpr(match_expr) => todo!(),
-            Expr::StructExpr(struct_expr) => todo!(),
-            Expr::TupleExpr(tuple_expr) => todo!(),
-            Expr::ListExpr(list_expr) => todo!(),
+            Expr::LambdaExpr(lambda_expr) => {
+                let params = {
+                    let span = node_span(lambda_expr.parameters());
+                    span.with(match lambda_expr.parameters()? {
+                        Ident_Parameters::Ident(_) => ast::LambdaParams::Ident,
+                        Ident_Parameters::Parameters(parameters) => self
+                            .visit_parameters(parameters)
+                            .map(Spanned::unwrap)
+                            .map(ast::LambdaParams::Parameters)?,
+                    })
+                };
+
+                let body =
+                    self.visit_expr(lambda_expr.body()?).map(Box::new)?;
+
+                Ok(span.with(ast::Expr::Lambda { params, body }))
+            }
+            Expr::MatchExpr(match_expr) => {
+                let arms = self.visit_match_arms(match_expr.arms()?)?;
+                let scrutinee =
+                    self.visit_expr(match_expr.scrutinee()?).map(Box::new)?;
+
+                Ok(span.with(ast::Expr::Match { scrutinee, arms }))
+            }
+            Expr::StructExpr(struct_expr) => {
+                let name = {
+                    let span = node_span(struct_expr.name());
+                    let name = self.visit_name(struct_expr.name()?)?;
+                    span.with(name)
+                };
+
+                let (fields, base) = struct_expr
+                    .fields()
+                    .transpose()?
+                    .map(|fields| self.visit_struct_expr_fields(fields))
+                    .transpose()?
+                    .unwrap_or_else(|| (Box::new([]), None));
+
+                Ok(span.with(ast::Expr::Struct { name, fields, base }))
+            }
+            Expr::TupleExpr(tuple_expr) => {
+                let mut exprs = Vec::new();
+                let mut cursor = tuple_expr.walk();
+
+                for expr in tuple_expr.exprs(&mut cursor) {
+                    let expr = self.visit_expr(expr?)?;
+                    exprs.push(expr);
+                }
+
+                Ok(span.with(ast::Expr::Tuple(exprs.into_boxed_slice())))
+            }
+            Expr::ListExpr(list_expr) => {
+                let mut exprs = Vec::new();
+                let mut cursor = list_expr.walk();
+
+                for expr in list_expr.exprs(&mut cursor) {
+                    let expr = self.visit_expr(expr?)?;
+                    exprs.push(expr);
+                }
+
+                Ok(span.with(ast::Expr::List(exprs.into_boxed_slice())))
+            }
             Expr::ParenthesizedExpr(paren_expr) => {
                 let inner =
                     self.visit_expr(paren_expr.inner()?).map(Box::new)?;
@@ -439,11 +521,122 @@ impl<'a> CstVisitor<'a> {
         }
     }
 
+    fn visit_match_arms(
+        &self,
+        node: MatchArms<'a>,
+    ) -> CstResult<'a, Spanned<SpanSeq<ast::MatchArm>>> {
+        let span = node_span(node);
+        let mut arms = Vec::new();
+
+        let mut cursor = node.walk();
+        for arm in node.match_arms(&mut cursor) {
+            let span = node_span(arm);
+            let pattern = self.visit_pattern(arm?.pattern()?)?;
+            let body = self.visit_expr(arm?.body()?)?;
+
+            let guard = arm?
+                .guard()
+                .transpose()?
+                .map(|guard| guard.expr())
+                .transpose()?
+                .map(|expr| self.visit_expr(expr))
+                .transpose()?;
+
+            arms.push(span.with(ast::MatchArm {
+                pattern,
+                guard,
+                body,
+            }))
+        }
+
+        Ok(span.with(arms.into_boxed_slice()))
+    }
+
+    fn visit_struct_expr_fields(
+        &self,
+        node: StructExprFields<'a>,
+    ) -> CstResult<
+        'a,
+        (SpanSeq<ast::StructExprField>, Option<SpanBox<ast::Expr>>),
+    > {
+        let mut fields = Vec::new();
+        let mut base = None;
+
+        let mut cursor = node.walk();
+        for field in node.children(&mut cursor) {
+            match field? {
+                SefSub::StructUpdateBase(struct_update_base) => {
+                    // this is fine because the "..base" field can only
+                    // appear once
+                    let expr = self.visit_expr(struct_update_base.expr()?)?;
+                    base = Some(Box::new(expr));
+                }
+                SefSub::StructExprField(struct_expr_field) => {
+                    let span = node_span(struct_expr_field);
+                    let name = self.visit_ident(struct_expr_field.name()?);
+                    let value = struct_expr_field
+                        .value()
+                        .transpose()?
+                        .map(|expr| self.visit_expr(expr))
+                        .transpose()?;
+
+                    fields
+                        .push(span.with(ast::StructExprField { name, value }));
+                }
+            }
+        }
+
+        Ok((fields.into_boxed_slice(), base))
+    }
+
     fn visit_block(
         &self,
         node: Block<'a>,
     ) -> CstResult<'a, Spanned<ast::Block>> {
-        todo!()
+        let span = node_span(node);
+
+        let statements = {
+            let mut statements = Vec::new();
+            let mut cursor = node.walk();
+
+            for stmt in node.others(&mut cursor) {
+                let span = node_span(stmt);
+                let stmt = match stmt? {
+                    EsEsLs::EmptyStmt(_) => ast::Stmt::Empty,
+                    EsEsLs::ExprStmt(expr_stmt) => {
+                        let expr = self.visit_expr(expr_stmt.expr()?)?;
+                        ast::Stmt::Expr(expr)
+                    }
+                    EsEsLs::LetStmt(let_stmt) => {
+                        let pattern =
+                            self.visit_pattern(let_stmt.pattern()?)?;
+                        let ty = let_stmt
+                            .r#type()
+                            .transpose()?
+                            .map(|ty| self.visit_type(ty))
+                            .transpose()?;
+                        let value = self.visit_expr(let_stmt.value()?)?;
+
+                        ast::Stmt::Let { pattern, ty, value }
+                    }
+                };
+
+                statements.push(span.with(stmt));
+            }
+
+            statements.into_boxed_slice()
+        };
+
+        let return_expr = node
+            .return_expr()
+            .transpose()?
+            .map(|expr| self.visit_expr(expr))
+            .transpose()?;
+
+        Ok(span.with(ast::Block {
+            statements,
+            return_expr,
+        }))
     }
 
     fn visit_prefix_operator(
