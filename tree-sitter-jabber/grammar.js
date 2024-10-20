@@ -204,8 +204,11 @@ module.exports = grammar({
         "fn",
         field("name", $.ident),
         field("parameters", $.parameters),
-        field("return_type", optional(seq("->", $._type_expr))),
-        field("body", choice(seq("=", $._expr), $.block)),
+        optional(seq("->", field("return_type", $._type_expr))),
+        choice(
+          seq("=", field("eq_body", $._expr)),
+          field("block_body", $.block),
+        ),
       ),
 
     extern_fn_decl: ($) =>
@@ -215,9 +218,9 @@ module.exports = grammar({
         optional(field("visibility", $.access_spec)),
         "extern",
         "fn",
-        field("name", $._name),
+        field("name", $.ident),
         field("parameters", $.parameters),
-        field("return_type", optional(seq("->", $._type_expr))),
+        optional(seq("->", field("return_type", $._type_expr))),
       ),
 
     parameters: ($) => seq("(", comma_list0($.parameter), ")"),

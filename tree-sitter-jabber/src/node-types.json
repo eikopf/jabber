@@ -819,7 +819,7 @@
         "required": true,
         "types": [
           {
-            "type": "_name",
+            "type": "ident",
             "named": true
           }
         ]
@@ -835,13 +835,9 @@
         ]
       },
       "return_type": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
-          {
-            "type": "->",
-            "named": false
-          },
           {
             "type": "_type_expr",
             "named": true
@@ -960,16 +956,12 @@
           }
         ]
       },
-      "body": {
-        "multiple": true,
-        "required": true,
+      "block_body": {
+        "multiple": false,
+        "required": false,
         "types": [
           {
-            "type": "=",
-            "named": false
-          },
-          {
-            "type": "_expr",
+            "type": "block",
             "named": true
           }
         ]
@@ -980,6 +972,16 @@
         "types": [
           {
             "type": "doc_comments",
+            "named": true
+          }
+        ]
+      },
+      "eq_body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "_expr",
             "named": true
           }
         ]
@@ -1005,13 +1007,9 @@
         ]
       },
       "return_type": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
-          {
-            "type": "->",
-            "named": false
-          },
           {
             "type": "_type_expr",
             "named": true
