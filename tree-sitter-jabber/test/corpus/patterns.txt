@@ -10,10 +10,10 @@ fn main() {
 --------------------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (block
+    block_body: (block
       (let_stmt
         pattern: (ident)
         value: (unit_literal))
@@ -35,10 +35,10 @@ fn main() {
 ------------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (block
+    block_body: (block
       (let_stmt
         pattern: (unit_literal)
         value: (unit_literal))
@@ -57,10 +57,10 @@ fn main() {
 -------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (block
+    block_body: (block
       (let_stmt
         pattern: (wildcard_pattern)
         value: (unit_literal)))))
@@ -78,10 +78,10 @@ fn foo() = match tup {
 -------------------------------------------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (match_expr
+    eq_body: (match_expr
       scrutinee: (ident)
       arms: (match_arms
         (match_arm
@@ -115,10 +115,10 @@ fn bar() = match list {
 ---------------------------------------------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (match_expr
+    eq_body: (match_expr
       scrutinee: (ident)
       arms: (match_arms
         (match_arm
@@ -156,10 +156,10 @@ fn cons() = match list {
 -----------------------------------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (match_expr
+    eq_body: (match_expr
       scrutinee: (ident)
       arms: (match_arms
         (match_arm
@@ -202,10 +202,10 @@ fn baz() = match something {
 ------------------------------------------------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (match_expr
+    eq_body: (match_expr
       scrutinee: (ident)
       arms: (match_arms
         (match_arm
@@ -247,10 +247,10 @@ fn qux() = match thing {
 ------------------------------------
 
 (source_file
-  (fn_decl
+  decl: (fn_decl
     name: (ident)
     parameters: (parameters)
-    body: (match_expr
+    eq_body: (match_expr
       scrutinee: (ident)
       arms: (match_arms
         (match_arm

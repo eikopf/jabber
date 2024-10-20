@@ -7,7 +7,7 @@ pub struct Singleton {}
 -------------------------
 
 (source_file
-  (struct_decl
+  decl: (struct_decl
     visibility: (access_spec)
     name: (ident)
     fields: (struct_fields)))
@@ -27,7 +27,7 @@ struct Int4 {
 ----------------------------
 
 (source_file
-  (struct_decl
+  decl: (struct_decl
     name: (ident)
     fields: (struct_fields
       (struct_field
@@ -60,7 +60,7 @@ struct Triplet[A, B, C] {
 ---------------------------------
 
 (source_file
-  (struct_decl
+  decl: (struct_decl
     name: (ident)
     params: (generic_params
       (ident)
@@ -89,7 +89,7 @@ struct Mut {
 ------------------------
 
 (source_file
-  (struct_decl
+  decl: (struct_decl
     name: (ident)
     fields: (struct_fields
       (struct_field

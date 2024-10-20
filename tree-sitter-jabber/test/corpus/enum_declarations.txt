@@ -7,7 +7,7 @@ pub enum Uninhabited {}
 -------------------------------
 
 (source_file
-  (enum_decl
+  decl: (enum_decl
     visibility: (access_spec)
     name: (ident)
     variants: (enum_variants)))
@@ -26,7 +26,7 @@ enum Direction {
 ----------------------------
 
 (source_file
-  (enum_decl
+  decl: (enum_decl
     name: (ident)
     variants: (enum_variants
       (enum_variant
@@ -55,7 +55,7 @@ enum Option[T] {
 ----------------------------------
 
 (source_file
-  (enum_decl
+  decl: (enum_decl
     name: (ident)
     params: (generic_params
       (ident)
@@ -69,7 +69,7 @@ enum Option[T] {
         name: (ident)
         payload: (enum_payload
           (ident)))))
-  (enum_decl
+  decl: (enum_decl
     name: (ident)
     params: (generic_params
       (ident))

@@ -8,7 +8,7 @@ pub mod foobar
 -----------------------
 
 (source_file
-  (mod_decl
+  decl: (mod_decl
     docs: (doc_comments)
     visibility: (access_spec)
     name: (ident)))
@@ -25,7 +25,7 @@ pub mod multi
 --------------------------------------
 
 (source_file
-  (mod_decl
+  decl: (mod_decl
     docs: (doc_comments)
     visibility: (access_spec)
     name: (ident)))
@@ -41,7 +41,7 @@ const zero: float = 0.0000
 
 (source_file
   (comment)
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (float_literal)))

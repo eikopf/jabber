@@ -39,10 +39,14 @@
           ]
         },
         {
-          "type": "REPEAT",
+          "type": "FIELD",
+          "name": "decl",
           "content": {
-            "type": "SYMBOL",
-            "name": "_decl"
+            "type": "REPEAT",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_decl"
+            }
           }
         }
       ]

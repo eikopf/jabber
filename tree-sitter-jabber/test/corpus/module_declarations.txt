@@ -8,9 +8,9 @@ mod __dunder
 -------------------------------
 
 (source_file
-  (mod_decl
+  decl: (mod_decl
     name: (ident))
-  (mod_decl
+  decl: (mod_decl
     name: (ident)))
 
 ==========================
@@ -23,9 +23,9 @@ pub mod __dunder
 ------------------------------
 
 (source_file
-  (mod_decl
+  decl: (mod_decl
     visibility: (access_spec)
     name: (ident))
-  (mod_decl
+  decl: (mod_decl
     visibility: (access_spec)
     name: (ident)))

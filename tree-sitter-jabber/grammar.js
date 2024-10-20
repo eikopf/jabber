@@ -67,7 +67,7 @@ module.exports = grammar({
       seq(
         optional(field("shebang", $.shebang)),
         optional(field("module_comment", $.module_comments)),
-        repeat($._decl),
+        field("decl", repeat($._decl)),
       ),
 
     shebang: (_) => /#![^\n]*/,

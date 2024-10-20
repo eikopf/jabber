@@ -10,14 +10,14 @@ const foobar: _ = (S).foo.bar
 
 (source_file
   (comment)
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (field_expr
       item: (parenthesized_expr
         inner: (ident))
       field: (ident)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (field_expr
@@ -38,19 +38,19 @@ const firstfirst: _ = xs.1.1
 ------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (field_expr
       item: (ident)
       field: (tuple_field)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (field_expr
       item: (ident)
       field: (tuple_field)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (field_expr

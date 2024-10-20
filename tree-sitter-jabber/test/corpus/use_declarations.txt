@@ -7,7 +7,7 @@ use std.foo.bar
 ----------------------------
 
 (source_file
-  (use_decl
+  decl: (use_decl
     (path
       root: (path
         root: (ident)
@@ -23,7 +23,7 @@ use std.baz as _alias
 ----------------------------
 
 (source_file
-  (use_decl
+  decl: (use_decl
     (alias_item
       item: (path
         root: (ident)
@@ -39,7 +39,7 @@ use *
 --------------------------
 
 (source_file
-  (use_decl
+  decl: (use_decl
     (glob_item)))
 
 =====================
@@ -51,7 +51,7 @@ use std.option.Option.*
 ----------------------------
 
 (source_file
-  (use_decl
+  decl: (use_decl
     (glob_item
       root: (path
         root: (path
@@ -72,7 +72,7 @@ use std.tree.{
 ----------------------------
 
 (source_file
-  (use_decl
+  decl: (use_decl
     (tree_item
       root: (path
         root: (ident)
@@ -93,7 +93,7 @@ pub use foo.Foo
 ---------------------------------
 
 (source_file
-  (use_decl
+  decl: (use_decl
     visibility: (access_spec)
     (path
       root: (ident)

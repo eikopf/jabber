@@ -1586,6 +1586,16 @@
     "named": true,
     "root": true,
     "fields": {
+      "decl": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "_decl",
+            "named": true
+          }
+        ]
+      },
       "module_comment": {
         "multiple": false,
         "required": false,
@@ -1606,16 +1616,6 @@
           }
         ]
       }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "_decl",
-          "named": true
-        }
-      ]
     }
   },
   {

@@ -9,7 +9,7 @@ const A: B = C
 ------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     attributes: (attributes
       (attribute
         name: (ident))
@@ -33,7 +33,7 @@ const foo: bar = baz
 ---------------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     attributes: (attributes
       (attribute
         name: (ident)

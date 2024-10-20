@@ -8,13 +8,13 @@ const notnot: _ = !!x
 ----------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (prefix_expr
       operator: (prefix_operator)
       operand: (ident)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (prefix_expr
@@ -33,14 +33,14 @@ const floats: _ = 7.0 +. 8.0
 --------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
       lhs: (dec_literal)
       operator: (binary_operator)
       rhs: (dec_literal)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -59,20 +59,20 @@ const eight: _ = 6 - -2
 --------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (prefix_expr
       operator: (prefix_operator)
       operand: (float_literal)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
       lhs: (dec_literal)
       operator: (binary_operator)
       rhs: (dec_literal)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -92,7 +92,7 @@ const right: _ = x * y ^ z
 -------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -102,7 +102,7 @@ const right: _ = x * y ^ z
         rhs: (ident))
       operator: (binary_operator)
       rhs: (ident)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -123,14 +123,14 @@ const undef: _ = 0 ^ 0 ^ 0
 ----------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
       lhs: (dec_literal)
       operator: (binary_operator)
       rhs: (dec_literal)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -152,7 +152,7 @@ const  both: _ = f <| x |> g
 ------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -162,7 +162,7 @@ const  both: _ = f <| x |> g
         rhs: (ident))
       operator: (binary_operator)
       rhs: (ident)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -172,7 +172,7 @@ const  both: _ = f <| x |> g
         lhs: (ident)
         operator: (binary_operator)
         rhs: (ident))))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -191,7 +191,7 @@ const cmp: _ = x >= y
 
 -----------------------
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -208,7 +208,7 @@ const zeros: _ = 0 :: 0 :: 0 :: []
 ------------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -231,7 +231,7 @@ const _123: _ = [1] ++ [2] ++ [3]
 ----------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -253,7 +253,7 @@ const both: _ = x && y || z
 ----------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -263,7 +263,7 @@ const both: _ = x && y || z
         lhs: (ident)
         operator: (binary_operator)
         rhs: (ident))))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -273,7 +273,7 @@ const both: _ = x && y || z
         lhs: (ident)
         operator: (binary_operator)
         rhs: (ident))))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
@@ -294,14 +294,14 @@ const rec: _ = rec.mut_field <- 3
 -----------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr
       lhs: (ident)
       operator: (binary_operator)
       rhs: (dec_literal)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (binary_expr

@@ -10,13 +10,13 @@ const thrice: _
 ---------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (lambda_expr
       parameters: (parameters)
       body: (dec_literal)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (lambda_expr
@@ -24,7 +24,7 @@ const thrice: _
       body: (lambda_expr
         parameters: (parameters)
         body: (dec_literal))))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (lambda_expr
@@ -45,7 +45,7 @@ const nullary: _ = (() -> ())()
 -----------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (call_expr
@@ -54,7 +54,7 @@ const nullary: _ = (() -> ())()
           parameters: (ident)
           body: (hex_literal)))
       arguments: (arguments (dec_literal))))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (call_expr
@@ -74,7 +74,7 @@ const struct_pat: _ = (Foo {a, b}) -> a * b
 ---------------------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (lambda_expr
@@ -82,7 +82,7 @@ const struct_pat: _ = (Foo {a, b}) -> a * b
         (parameter
           pattern: (unit_literal)))
       body: (unit_literal)))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (lambda_expr

@@ -7,7 +7,7 @@ const unit: () = ()
 -------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name:  (ident)
     type:  (unit_type)
     value: (unit_literal)))
@@ -22,11 +22,11 @@ const FALSE: bool = false
 ------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name:  (ident)
     type:  (primitive_type)
     value: (bool_literal_true))
-  (const_decl
+  decl: (const_decl
     name:  (ident)
     type:  (primitive_type)
     value: (bool_literal_false)))
@@ -43,19 +43,19 @@ const utf8: char = '\u{7FFF}'
 ----------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (char_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (char_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (char_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (char_literal)))
@@ -70,11 +70,11 @@ const escaped_quote: string = "\""
 ------------------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (string_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (string_literal)))
@@ -90,15 +90,15 @@ const hex_zero: int = 0x00
 -----------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (bin_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (oct_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (hex_literal)))
@@ -113,11 +113,11 @@ const  one: int = 1
 ---------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (dec_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (dec_literal)))
@@ -133,15 +133,15 @@ const     mu: float = 1E-6
 ------------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (float_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (float_literal))
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (primitive_type)
     value: (float_literal)))

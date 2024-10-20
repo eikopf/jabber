@@ -7,7 +7,7 @@ const S: _ = Foo { }
 ---------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (struct_expr
@@ -26,7 +26,7 @@ const S: _ = Something {
 ---------------------------
 
 (source_file
-  (const_decl
+  decl: (const_decl
     name: (ident)
     type: (inferred_type)
     value: (struct_expr
