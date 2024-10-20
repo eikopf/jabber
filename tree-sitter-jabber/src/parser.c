@@ -1501,113 +1501,113 @@ static const TSFieldMapSlice ts_field_map_slices[PRODUCTION_ID_COUNT] = {
   [83] = {.index = 219, .length = 3},
   [84] = {.index = 222, .length = 3},
   [85] = {.index = 225, .length = 3},
-  [86] = {.index = 228, .length = 3},
-  [87] = {.index = 231, .length = 2},
-  [88] = {.index = 233, .length = 1},
-  [89] = {.index = 234, .length = 1},
-  [90] = {.index = 235, .length = 2},
-  [91] = {.index = 237, .length = 2},
-  [92] = {.index = 239, .length = 5},
-  [93] = {.index = 244, .length = 3},
-  [94] = {.index = 247, .length = 4},
-  [95] = {.index = 251, .length = 4},
-  [96] = {.index = 255, .length = 4},
-  [97] = {.index = 259, .length = 5},
-  [98] = {.index = 264, .length = 5},
-  [99] = {.index = 269, .length = 5},
-  [100] = {.index = 274, .length = 4},
-  [101] = {.index = 278, .length = 5},
-  [102] = {.index = 283, .length = 4},
-  [103] = {.index = 287, .length = 4},
-  [104] = {.index = 291, .length = 4},
-  [105] = {.index = 295, .length = 5},
-  [106] = {.index = 300, .length = 5},
-  [107] = {.index = 305, .length = 5},
-  [108] = {.index = 310, .length = 4},
-  [109] = {.index = 314, .length = 5},
-  [110] = {.index = 319, .length = 4},
-  [111] = {.index = 323, .length = 5},
-  [112] = {.index = 328, .length = 5},
-  [113] = {.index = 333, .length = 4},
-  [114] = {.index = 337, .length = 4},
-  [115] = {.index = 341, .length = 4},
-  [116] = {.index = 345, .length = 5},
-  [117] = {.index = 350, .length = 5},
-  [118] = {.index = 355, .length = 5},
-  [119] = {.index = 360, .length = 5},
-  [120] = {.index = 365, .length = 6},
-  [121] = {.index = 371, .length = 4},
-  [122] = {.index = 375, .length = 3},
-  [123] = {.index = 378, .length = 3},
-  [124] = {.index = 381, .length = 3},
-  [125] = {.index = 384, .length = 3},
-  [126] = {.index = 387, .length = 4},
-  [127] = {.index = 391, .length = 2},
-  [128] = {.index = 393, .length = 2},
-  [129] = {.index = 395, .length = 2},
-  [130] = {.index = 397, .length = 2},
-  [131] = {.index = 399, .length = 3},
-  [132] = {.index = 402, .length = 2},
-  [133] = {.index = 404, .length = 1},
-  [134] = {.index = 405, .length = 6},
-  [135] = {.index = 411, .length = 5},
-  [136] = {.index = 416, .length = 6},
-  [137] = {.index = 422, .length = 5},
-  [138] = {.index = 427, .length = 6},
-  [139] = {.index = 433, .length = 4},
-  [140] = {.index = 437, .length = 5},
-  [141] = {.index = 442, .length = 6},
-  [142] = {.index = 448, .length = 5},
-  [143] = {.index = 453, .length = 6},
-  [144] = {.index = 459, .length = 4},
-  [145] = {.index = 463, .length = 5},
-  [146] = {.index = 468, .length = 5},
-  [147] = {.index = 473, .length = 5},
-  [148] = {.index = 478, .length = 6},
-  [149] = {.index = 484, .length = 6},
-  [150] = {.index = 490, .length = 6},
-  [151] = {.index = 496, .length = 5},
-  [152] = {.index = 501, .length = 6},
-  [153] = {.index = 507, .length = 7},
-  [154] = {.index = 514, .length = 4},
-  [155] = {.index = 518, .length = 4},
-  [156] = {.index = 522, .length = 4},
-  [157] = {.index = 526, .length = 4},
-  [158] = {.index = 530, .length = 4},
-  [159] = {.index = 534, .length = 4},
-  [160] = {.index = 538, .length = 2},
-  [161] = {.index = 540, .length = 3},
-  [162] = {.index = 543, .length = 6},
-  [163] = {.index = 549, .length = 7},
-  [164] = {.index = 556, .length = 5},
-  [165] = {.index = 561, .length = 7},
-  [166] = {.index = 568, .length = 6},
-  [167] = {.index = 574, .length = 7},
-  [168] = {.index = 581, .length = 5},
-  [169] = {.index = 586, .length = 7},
-  [170] = {.index = 593, .length = 6},
-  [171] = {.index = 599, .length = 7},
-  [172] = {.index = 606, .length = 6},
-  [173] = {.index = 612, .length = 7},
-  [174] = {.index = 619, .length = 5},
-  [175] = {.index = 624, .length = 5},
-  [176] = {.index = 629, .length = 5},
-  [177] = {.index = 634, .length = 5},
-  [178] = {.index = 639, .length = 5},
-  [179] = {.index = 644, .length = 1},
-  [180] = {.index = 645, .length = 2},
-  [181] = {.index = 647, .length = 2},
-  [182] = {.index = 649, .length = 8},
-  [183] = {.index = 657, .length = 8},
-  [184] = {.index = 665, .length = 7},
-  [185] = {.index = 672, .length = 8},
-  [186] = {.index = 680, .length = 6},
-  [187] = {.index = 686, .length = 8},
-  [188] = {.index = 694, .length = 6},
-  [189] = {.index = 700, .length = 2},
-  [190] = {.index = 702, .length = 9},
-  [191] = {.index = 711, .length = 3},
-  [192] = {.index = 714, .length = 3},
+  [86] = {.index = 228, .length = 2},
+  [87] = {.index = 230, .length = 2},
+  [88] = {.index = 232, .length = 1},
+  [89] = {.index = 233, .length = 1},
+  [90] = {.index = 234, .length = 2},
+  [91] = {.index = 236, .length = 2},
+  [92] = {.index = 238, .length = 5},
+  [93] = {.index = 243, .length = 3},
+  [94] = {.index = 246, .length = 4},
+  [95] = {.index = 250, .length = 4},
+  [96] = {.index = 254, .length = 4},
+  [97] = {.index = 258, .length = 5},
+  [98] = {.index = 263, .length = 5},
+  [99] = {.index = 268, .length = 5},
+  [100] = {.index = 273, .length = 4},
+  [101] = {.index = 277, .length = 5},
+  [102] = {.index = 282, .length = 4},
+  [103] = {.index = 286, .length = 4},
+  [104] = {.index = 290, .length = 4},
+  [105] = {.index = 294, .length = 5},
+  [106] = {.index = 299, .length = 5},
+  [107] = {.index = 304, .length = 5},
+  [108] = {.index = 309, .length = 4},
+  [109] = {.index = 313, .length = 5},
+  [110] = {.index = 318, .length = 4},
+  [111] = {.index = 322, .length = 5},
+  [112] = {.index = 327, .length = 5},
+  [113] = {.index = 332, .length = 4},
+  [114] = {.index = 336, .length = 4},
+  [115] = {.index = 340, .length = 4},
+  [116] = {.index = 344, .length = 5},
+  [117] = {.index = 349, .length = 5},
+  [118] = {.index = 354, .length = 5},
+  [119] = {.index = 359, .length = 5},
+  [120] = {.index = 364, .length = 6},
+  [121] = {.index = 370, .length = 4},
+  [122] = {.index = 374, .length = 3},
+  [123] = {.index = 377, .length = 3},
+  [124] = {.index = 380, .length = 3},
+  [125] = {.index = 383, .length = 3},
+  [126] = {.index = 386, .length = 4},
+  [127] = {.index = 390, .length = 2},
+  [128] = {.index = 392, .length = 2},
+  [129] = {.index = 394, .length = 2},
+  [130] = {.index = 396, .length = 2},
+  [131] = {.index = 398, .length = 3},
+  [132] = {.index = 401, .length = 2},
+  [133] = {.index = 403, .length = 1},
+  [134] = {.index = 404, .length = 6},
+  [135] = {.index = 410, .length = 5},
+  [136] = {.index = 415, .length = 6},
+  [137] = {.index = 421, .length = 5},
+  [138] = {.index = 426, .length = 6},
+  [139] = {.index = 432, .length = 4},
+  [140] = {.index = 436, .length = 5},
+  [141] = {.index = 441, .length = 6},
+  [142] = {.index = 447, .length = 5},
+  [143] = {.index = 452, .length = 6},
+  [144] = {.index = 458, .length = 4},
+  [145] = {.index = 462, .length = 5},
+  [146] = {.index = 467, .length = 5},
+  [147] = {.index = 472, .length = 5},
+  [148] = {.index = 477, .length = 6},
+  [149] = {.index = 483, .length = 6},
+  [150] = {.index = 489, .length = 6},
+  [151] = {.index = 495, .length = 5},
+  [152] = {.index = 500, .length = 6},
+  [153] = {.index = 506, .length = 7},
+  [154] = {.index = 513, .length = 4},
+  [155] = {.index = 517, .length = 4},
+  [156] = {.index = 521, .length = 4},
+  [157] = {.index = 525, .length = 4},
+  [158] = {.index = 529, .length = 4},
+  [159] = {.index = 533, .length = 4},
+  [160] = {.index = 537, .length = 2},
+  [161] = {.index = 539, .length = 3},
+  [162] = {.index = 542, .length = 6},
+  [163] = {.index = 548, .length = 7},
+  [164] = {.index = 555, .length = 5},
+  [165] = {.index = 560, .length = 7},
+  [166] = {.index = 567, .length = 6},
+  [167] = {.index = 573, .length = 7},
+  [168] = {.index = 580, .length = 5},
+  [169] = {.index = 585, .length = 7},
+  [170] = {.index = 592, .length = 6},
+  [171] = {.index = 598, .length = 7},
+  [172] = {.index = 605, .length = 6},
+  [173] = {.index = 611, .length = 7},
+  [174] = {.index = 618, .length = 5},
+  [175] = {.index = 623, .length = 5},
+  [176] = {.index = 628, .length = 5},
+  [177] = {.index = 633, .length = 5},
+  [178] = {.index = 638, .length = 5},
+  [179] = {.index = 643, .length = 1},
+  [180] = {.index = 644, .length = 2},
+  [181] = {.index = 646, .length = 2},
+  [182] = {.index = 648, .length = 8},
+  [183] = {.index = 656, .length = 8},
+  [184] = {.index = 664, .length = 7},
+  [185] = {.index = 671, .length = 8},
+  [186] = {.index = 679, .length = 6},
+  [187] = {.index = 685, .length = 8},
+  [188] = {.index = 693, .length = 6},
+  [189] = {.index = 699, .length = 2},
+  [190] = {.index = 701, .length = 9},
+  [191] = {.index = 710, .length = 3},
+  [192] = {.index = 713, .length = 3},
 };
 
 static const TSFieldMapEntry ts_field_map_entries[] = {
@@ -1926,351 +1926,350 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_name, 2},
   [228] =
     {field_pattern, 0},
-    {field_type, 1},
     {field_type, 2},
-  [231] =
+  [230] =
     {field_head, 0},
     {field_tail, 2},
-  [233] =
+  [232] =
     {field_field, 0},
-  [234] =
+  [233] =
     {field_return_expr, 1},
-  [235] =
+  [234] =
     {field_arguments, 1},
     {field_callee, 0},
-  [237] =
+  [236] =
     {field_operand, 1},
     {field_operator, 0},
-  [239] =
+  [238] =
     {field_body, 5},
     {field_name, 1},
     {field_parameters, 2},
     {field_return_type, 3},
     {field_return_type, 4},
-  [244] =
+  [243] =
     {field_name, 1},
     {field_type, 3},
     {field_value, 5},
-  [247] =
+  [246] =
     {field_attributes, 0},
     {field_name, 3},
     {field_type, 5},
     {field_visibility, 1},
-  [251] =
+  [250] =
     {field_attributes, 0},
     {field_name, 4},
     {field_params, 5},
     {field_visibility, 1},
-  [255] =
+  [254] =
     {field_attributes, 0},
     {field_name, 4},
     {field_parameters, 5},
     {field_visibility, 1},
-  [259] =
+  [258] =
     {field_attributes, 0},
     {field_fields, 5},
     {field_name, 3},
     {field_params, 4},
     {field_visibility, 1},
-  [264] =
+  [263] =
     {field_attributes, 0},
     {field_name, 3},
     {field_params, 4},
     {field_variants, 5},
     {field_visibility, 1},
-  [269] =
+  [268] =
     {field_attributes, 0},
     {field_body, 5},
     {field_name, 3},
     {field_parameters, 4},
     {field_visibility, 1},
-  [274] =
+  [273] =
     {field_attributes, 0},
     {field_name, 2},
     {field_params, 3},
     {field_type, 5},
-  [278] =
+  [277] =
     {field_attributes, 0},
     {field_body, 4},
     {field_body, 5},
     {field_name, 2},
     {field_parameters, 3},
-  [283] =
+  [282] =
     {field_docs, 0},
     {field_name, 3},
     {field_type, 5},
     {field_visibility, 1},
-  [287] =
+  [286] =
     {field_docs, 0},
     {field_name, 4},
     {field_params, 5},
     {field_visibility, 1},
-  [291] =
+  [290] =
     {field_docs, 0},
     {field_name, 4},
     {field_parameters, 5},
     {field_visibility, 1},
-  [295] =
+  [294] =
     {field_docs, 0},
     {field_fields, 5},
     {field_name, 3},
     {field_params, 4},
     {field_visibility, 1},
-  [300] =
+  [299] =
     {field_docs, 0},
     {field_name, 3},
     {field_params, 4},
     {field_variants, 5},
     {field_visibility, 1},
-  [305] =
+  [304] =
     {field_body, 5},
     {field_docs, 0},
     {field_name, 3},
     {field_parameters, 4},
     {field_visibility, 1},
-  [310] =
+  [309] =
     {field_docs, 0},
     {field_name, 2},
     {field_params, 3},
     {field_type, 5},
-  [314] =
+  [313] =
     {field_body, 4},
     {field_body, 5},
     {field_docs, 0},
     {field_name, 2},
     {field_parameters, 3},
-  [319] =
+  [318] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 5},
     {field_visibility, 2},
-  [323] =
+  [322] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_fields, 5},
     {field_name, 4},
     {field_visibility, 2},
-  [328] =
+  [327] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_variants, 5},
     {field_visibility, 2},
-  [333] =
+  [332] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 3},
     {field_type, 5},
-  [337] =
+  [336] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_params, 5},
-  [341] =
+  [340] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_parameters, 5},
-  [345] =
+  [344] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_fields, 5},
     {field_name, 3},
     {field_params, 4},
-  [350] =
+  [349] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 3},
     {field_params, 4},
     {field_variants, 5},
-  [355] =
+  [354] =
     {field_attributes, 1},
     {field_body, 5},
     {field_docs, 0},
     {field_name, 3},
     {field_parameters, 4},
-  [360] =
+  [359] =
     {field_name, 3},
     {field_parameters, 4},
     {field_return_type, 5},
     {field_return_type, 6},
     {field_visibility, 0},
-  [365] =
+  [364] =
     {field_body, 6},
     {field_name, 2},
     {field_parameters, 3},
     {field_return_type, 4},
     {field_return_type, 5},
     {field_visibility, 0},
-  [371] =
+  [370] =
     {field_name, 2},
     {field_type, 4},
     {field_value, 6},
     {field_visibility, 0},
-  [375] =
+  [374] =
     {field_name, 1},
     {field_type, 3},
     {field_visibility, 0},
-  [378] =
+  [377] =
     {field_mutable, 0},
     {field_name, 1},
     {field_type, 3},
-  [381] =
+  [380] =
     {field_attributes, 0},
     {field_name, 1},
     {field_type, 3},
-  [384] =
+  [383] =
     {field_docs, 0},
     {field_name, 1},
     {field_type, 3},
-  [387] =
+  [386] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 2},
     {field_payload, 3},
-  [391] =
+  [390] =
     {field_fields, 2},
     {field_name, 0},
-  [393] =
+  [392] =
     {field_arms, 2},
     {field_scrutinee, 1},
-  [395] =
+  [394] =
     {field_condition, 1},
     {field_consequence, 2},
-  [397] =
+  [396] =
     {field_field, 2},
     {field_item, 0},
-  [399] =
+  [398] =
     {field_lhs, 0},
     {field_operator, 1},
     {field_rhs, 2},
-  [402] =
+  [401] =
     {field_body, 2},
     {field_parameters, 0},
-  [404] =
+  [403] =
     {field_return_expr, 2},
-  [405] =
+  [404] =
     {field_body, 5},
     {field_body, 6},
     {field_name, 1},
     {field_parameters, 2},
     {field_return_type, 3},
     {field_return_type, 4},
-  [411] =
+  [410] =
     {field_attributes, 0},
     {field_name, 3},
     {field_params, 4},
     {field_type, 6},
     {field_visibility, 1},
-  [416] =
+  [415] =
     {field_attributes, 0},
     {field_body, 5},
     {field_body, 6},
     {field_name, 3},
     {field_parameters, 4},
     {field_visibility, 1},
-  [422] =
+  [421] =
     {field_attributes, 0},
     {field_name, 3},
     {field_parameters, 4},
     {field_return_type, 5},
     {field_return_type, 6},
-  [427] =
+  [426] =
     {field_attributes, 0},
     {field_body, 6},
     {field_name, 2},
     {field_parameters, 3},
     {field_return_type, 4},
     {field_return_type, 5},
-  [433] =
+  [432] =
     {field_attributes, 0},
     {field_name, 2},
     {field_type, 4},
     {field_value, 6},
-  [437] =
+  [436] =
     {field_docs, 0},
     {field_name, 3},
     {field_params, 4},
     {field_type, 6},
     {field_visibility, 1},
-  [442] =
+  [441] =
     {field_body, 5},
     {field_body, 6},
     {field_docs, 0},
     {field_name, 3},
     {field_parameters, 4},
     {field_visibility, 1},
-  [448] =
+  [447] =
     {field_docs, 0},
     {field_name, 3},
     {field_parameters, 4},
     {field_return_type, 5},
     {field_return_type, 6},
-  [453] =
+  [452] =
     {field_body, 6},
     {field_docs, 0},
     {field_name, 2},
     {field_parameters, 3},
     {field_return_type, 4},
     {field_return_type, 5},
-  [459] =
+  [458] =
     {field_docs, 0},
     {field_name, 2},
     {field_type, 4},
     {field_value, 6},
-  [463] =
+  [462] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_type, 6},
     {field_visibility, 2},
-  [468] =
+  [467] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 5},
     {field_params, 6},
     {field_visibility, 2},
-  [473] =
+  [472] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 5},
     {field_parameters, 6},
     {field_visibility, 2},
-  [478] =
+  [477] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_fields, 6},
     {field_name, 4},
     {field_params, 5},
     {field_visibility, 2},
-  [484] =
+  [483] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_params, 5},
     {field_variants, 6},
     {field_visibility, 2},
-  [490] =
+  [489] =
     {field_attributes, 1},
     {field_body, 6},
     {field_docs, 0},
     {field_name, 4},
     {field_parameters, 5},
     {field_visibility, 2},
-  [496] =
+  [495] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 3},
     {field_params, 4},
     {field_type, 6},
-  [501] =
+  [500] =
     {field_attributes, 1},
     {field_body, 5},
     {field_body, 6},
     {field_docs, 0},
     {field_name, 3},
     {field_parameters, 4},
-  [507] =
+  [506] =
     {field_body, 6},
     {field_body, 7},
     {field_name, 2},
@@ -2278,51 +2277,51 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 4},
     {field_return_type, 5},
     {field_visibility, 0},
-  [514] =
+  [513] =
     {field_mutable, 1},
     {field_name, 2},
     {field_type, 4},
     {field_visibility, 0},
-  [518] =
+  [517] =
     {field_attributes, 0},
     {field_name, 2},
     {field_type, 4},
     {field_visibility, 1},
-  [522] =
+  [521] =
     {field_attributes, 0},
     {field_mutable, 1},
     {field_name, 2},
     {field_type, 4},
-  [526] =
+  [525] =
     {field_docs, 0},
     {field_name, 2},
     {field_type, 4},
     {field_visibility, 1},
-  [530] =
+  [529] =
     {field_docs, 0},
     {field_mutable, 1},
     {field_name, 2},
     {field_type, 4},
-  [534] =
+  [533] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 2},
     {field_type, 4},
-  [538] =
+  [537] =
     {field_field, 0},
     {field_pattern, 2},
-  [540] =
+  [539] =
     {field_alternative, 3},
     {field_condition, 1},
     {field_consequence, 2},
-  [543] =
+  [542] =
     {field_attributes, 0},
     {field_name, 4},
     {field_parameters, 5},
     {field_return_type, 6},
     {field_return_type, 7},
     {field_visibility, 1},
-  [549] =
+  [548] =
     {field_attributes, 0},
     {field_body, 7},
     {field_name, 3},
@@ -2330,13 +2329,13 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 5},
     {field_return_type, 6},
     {field_visibility, 1},
-  [556] =
+  [555] =
     {field_attributes, 0},
     {field_name, 3},
     {field_type, 5},
     {field_value, 7},
     {field_visibility, 1},
-  [561] =
+  [560] =
     {field_attributes, 0},
     {field_body, 6},
     {field_body, 7},
@@ -2344,14 +2343,14 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_parameters, 3},
     {field_return_type, 4},
     {field_return_type, 5},
-  [568] =
+  [567] =
     {field_docs, 0},
     {field_name, 4},
     {field_parameters, 5},
     {field_return_type, 6},
     {field_return_type, 7},
     {field_visibility, 1},
-  [574] =
+  [573] =
     {field_body, 7},
     {field_docs, 0},
     {field_name, 3},
@@ -2359,13 +2358,13 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 5},
     {field_return_type, 6},
     {field_visibility, 1},
-  [581] =
+  [580] =
     {field_docs, 0},
     {field_name, 3},
     {field_type, 5},
     {field_value, 7},
     {field_visibility, 1},
-  [586] =
+  [585] =
     {field_body, 6},
     {field_body, 7},
     {field_docs, 0},
@@ -2373,14 +2372,14 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_parameters, 3},
     {field_return_type, 4},
     {field_return_type, 5},
-  [593] =
+  [592] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_params, 5},
     {field_type, 7},
     {field_visibility, 2},
-  [599] =
+  [598] =
     {field_attributes, 1},
     {field_body, 6},
     {field_body, 7},
@@ -2388,14 +2387,14 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_name, 4},
     {field_parameters, 5},
     {field_visibility, 2},
-  [606] =
+  [605] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_parameters, 5},
     {field_return_type, 6},
     {field_return_type, 7},
-  [612] =
+  [611] =
     {field_attributes, 1},
     {field_body, 7},
     {field_docs, 0},
@@ -2403,45 +2402,45 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_parameters, 4},
     {field_return_type, 5},
     {field_return_type, 6},
-  [619] =
+  [618] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 3},
     {field_type, 5},
     {field_value, 7},
-  [624] =
+  [623] =
     {field_attributes, 0},
     {field_mutable, 2},
     {field_name, 3},
     {field_type, 5},
     {field_visibility, 1},
-  [629] =
+  [628] =
     {field_docs, 0},
     {field_mutable, 2},
     {field_name, 3},
     {field_type, 5},
     {field_visibility, 1},
-  [634] =
+  [633] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 3},
     {field_type, 5},
     {field_visibility, 2},
-  [639] =
+  [638] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_mutable, 2},
     {field_name, 3},
     {field_type, 5},
-  [644] =
+  [643] =
     {field_body, 1},
-  [645] =
+  [644] =
     {field_pattern, 1},
     {field_value, 3},
-  [647] =
+  [646] =
     {field_name, 0},
     {field_value, 2},
-  [649] =
+  [648] =
     {field_attributes, 0},
     {field_body, 7},
     {field_body, 8},
@@ -2450,7 +2449,7 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 5},
     {field_return_type, 6},
     {field_visibility, 1},
-  [657] =
+  [656] =
     {field_body, 7},
     {field_body, 8},
     {field_docs, 0},
@@ -2459,7 +2458,7 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 5},
     {field_return_type, 6},
     {field_visibility, 1},
-  [665] =
+  [664] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 5},
@@ -2467,7 +2466,7 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 7},
     {field_return_type, 8},
     {field_visibility, 2},
-  [672] =
+  [671] =
     {field_attributes, 1},
     {field_body, 8},
     {field_docs, 0},
@@ -2476,14 +2475,14 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 6},
     {field_return_type, 7},
     {field_visibility, 2},
-  [680] =
+  [679] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_name, 4},
     {field_type, 6},
     {field_value, 8},
     {field_visibility, 2},
-  [686] =
+  [685] =
     {field_attributes, 1},
     {field_body, 7},
     {field_body, 8},
@@ -2492,17 +2491,17 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_parameters, 4},
     {field_return_type, 5},
     {field_return_type, 6},
-  [694] =
+  [693] =
     {field_attributes, 1},
     {field_docs, 0},
     {field_mutable, 3},
     {field_name, 4},
     {field_type, 6},
     {field_visibility, 2},
-  [700] =
+  [699] =
     {field_body, 2},
     {field_pattern, 0},
-  [702] =
+  [701] =
     {field_attributes, 1},
     {field_body, 8},
     {field_body, 9},
@@ -2512,11 +2511,11 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_return_type, 6},
     {field_return_type, 7},
     {field_visibility, 2},
-  [711] =
+  [710] =
     {field_body, 3},
     {field_guard, 1},
     {field_pattern, 0},
-  [714] =
+  [713] =
     {field_pattern, 1},
     {field_type, 3},
     {field_value, 5},

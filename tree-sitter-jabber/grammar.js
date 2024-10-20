@@ -225,7 +225,7 @@ module.exports = grammar({
       prec.left(
         seq(
           field("pattern", $._pattern),
-          optional(field("type", seq(":", $._type_expr))),
+          optional(seq(":", field("type", $._type_expr))),
         ),
       ),
 
