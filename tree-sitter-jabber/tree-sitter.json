@@ -10,7 +10,9 @@
         "jabber",
         "jab"
       ],
-      "injection-regex": "^jabber$"
+      "injection-regex": "^jabber$",
+      "highlights": "queries/highlights.scm",
+      "locals": "queries/locals.scm"
     }
   ],
   "metadata": {
@@ -22,10 +24,7 @@
         "name": "Oliver Wooding",
         "email": "oliverwooding@icloud.com"
       }
-    ],
-    "links": {
-      "repository": "https://github.com/tree-sitter/tree-sitter-jabber"
-    }
+    ]
   },
   "bindings": {
     "c": true,
