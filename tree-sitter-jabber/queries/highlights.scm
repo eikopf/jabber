@@ -7,6 +7,10 @@
 
 (primitive_type) @type.builtin
 
+;; SCREAMCASE names are assumed to be constants
+((ident) @constant
+  (#match? @constant "[A-Z]+"))
+
 ;; PascalCase names have extra assumptions attached
 ((ident) @constructor
   (#match? @constructor "^[A-Z]"))
@@ -26,16 +30,6 @@
 ;; functions
 (fn_decl name: (ident) @function)
 (extern_fn_decl name: (ident) @function)
-
-;; HACK: this is a hack to deal with very nested parameter patterns
-;; the `(_ (_ (ident)))` query means "anything that contains
-;; anything that contains an ident," so this can only work up
-;; to a finite depth
-(parameter pattern:             (ident) @variable.parameter)
-(parameter pattern:          (_ (ident) @variable.parameter))
-(parameter pattern:       (_ (_ (ident) @variable.parameter)))
-(parameter pattern:    (_ (_ (_ (ident) @variable.parameter))))
-(parameter pattern: (_ (_ (_ (_ (ident) @variable.parameter)))))
 
 ;; const decls
 (const_decl name: (ident) @constant)

@@ -9,6 +9,8 @@ use std.list.List
 
 use std.foo.bar.baz.SomeType
 
+pub const PI: float = 3.14159263
+
 /// A dynamically-sized buffer of bytes.
 extern type ByteBuffer
 
