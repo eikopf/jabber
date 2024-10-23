@@ -178,7 +178,7 @@ struct pattern fields = "{", [struct pattern field, {",", struct pattern field},
                                                     [",", rest pattern],
                                                     [","]], "}" ;
 
-rest pattern = ".."
+rest pattern = ".." ;
 
 parenthesized pattern = "(", pattern, ")" ;
 
