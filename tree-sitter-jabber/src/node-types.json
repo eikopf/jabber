@@ -1799,6 +1799,16 @@
     "type": "type_decl",
     "named": true,
     "fields": {
+      "constructors": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_constructors",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": true,
@@ -1815,16 +1825,6 @@
         "types": [
           {
             "type": "generic_params",
-            "named": true
-          }
-        ]
-      },
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "type_constructors",
             "named": true
           }
         ]

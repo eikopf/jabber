@@ -477,7 +477,7 @@
         },
         {
           "type": "FIELD",
-          "name": "type",
+          "name": "constructors",
           "content": {
             "type": "SYMBOL",
             "name": "type_constructors"
@@ -530,10 +530,10 @@
           "members": [
             {
               "type": "FIELD",
-              "name": "docs",
+              "name": "attributes",
               "content": {
                 "type": "SYMBOL",
-                "name": "doc_comments"
+                "name": "attributes"
               }
             },
             {
@@ -546,10 +546,10 @@
           "members": [
             {
               "type": "FIELD",
-              "name": "attributes",
+              "name": "docs",
               "content": {
                 "type": "SYMBOL",
-                "name": "attributes"
+                "name": "doc_comments"
               }
             },
             {

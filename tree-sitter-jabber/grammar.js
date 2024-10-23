@@ -139,7 +139,7 @@ module.exports = grammar({
         field("name", $.ident),
         optional(field("params", $.generic_params)),
         "=",
-        field("type", $.type_constructors),
+        field("constructors", $.type_constructors),
       ),
 
     type_constructors: ($) =>
@@ -151,8 +151,8 @@ module.exports = grammar({
 
     type_constructor: ($) =>
       seq(
-        optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
+        optional(field("docs", $.doc_comments)),
         field("name", $.ident),
         optional(field("payload", $._type_constructor_payload)),
       ),
