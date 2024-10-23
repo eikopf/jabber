@@ -75,7 +75,7 @@ pub struct Decl {
     pub doc_comment: Option<Span>,
     pub attributes: SpanSeq<Attr>,
     pub visibility: Visibility,
-    pub kind: DeclKind,
+    pub kind: Spanned<DeclKind>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -93,24 +93,19 @@ pub enum DeclKind {
     Mod {
         name: Spanned<Ident>,
     },
-    Type {
+    TypeAlias {
         name: Spanned<Ident>,
         params: SpanSeq<Ident>,
         ty: Spanned<Ty>,
     },
+    Type {
+        name: Spanned<Ident>,
+        params: SpanSeq<Ident>,
+        constructors: SpanSeq<TyConstr>,
+    },
     ExternType {
         name: Spanned<Ident>,
         params: SpanSeq<Ident>,
-    },
-    Struct {
-        name: Spanned<Ident>,
-        params: SpanSeq<Ident>,
-        fields: SpanSeq<StructField>,
-    },
-    Enum {
-        name: Spanned<Ident>,
-        params: SpanSeq<Ident>,
-        variants: SpanSeq<EnumVariant>,
     },
     Fn {
         name: Spanned<Ident>,
@@ -147,10 +142,23 @@ pub enum UseItem {
 }
 
 #[derive(Debug, Clone)]
-pub struct StructField {
+pub struct TyConstr {
     pub doc_comment: Option<Span>,
     pub attributes: SpanSeq<Attr>,
-    pub visibility: Visibility,
+    pub name: Spanned<Ident>,
+    pub payload: Option<Spanned<TyConstrPayload>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TyConstrPayload {
+    Tuple(SpanSeq<Ty>),
+    Record(SpanSeq<RecordField>),
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordField {
+    pub doc_comment: Option<Span>,
+    pub attributes: SpanSeq<Attr>,
     pub mutability: Mutability,
     pub name: Spanned<Ident>,
     pub ty: Spanned<Ty>,
@@ -161,14 +169,6 @@ pub enum Mutability {
     Mut(Span),
     #[default]
     Immut,
-}
-
-#[derive(Debug, Clone)]
-pub struct EnumVariant {
-    pub doc_comment: Option<Span>,
-    pub attributes: SpanSeq<Attr>,
-    pub name: Spanned<Ident>,
-    pub payload: SpanSeq<Ty>,
 }
 
 #[derive(Debug, Clone)]
@@ -207,9 +207,9 @@ pub enum Expr {
     Tuple(SpanSeq<Self>),
     Paren(SpanBox<Self>),
     Block(Box<Block>),
-    Struct {
+    Record {
         name: Spanned<Name>,
-        fields: SpanSeq<StructExprField>,
+        fields: SpanSeq<RecordExprField>,
         base: Option<SpanBox<Self>>,
     },
     Field {
@@ -258,7 +258,7 @@ pub enum LiteralExpr {
 }
 
 #[derive(Debug, Clone)]
-pub struct StructExprField {
+pub struct RecordExprField {
     pub name: Spanned<Ident>,
     pub value: Option<Spanned<Expr>>,
 }
@@ -354,19 +354,19 @@ pub enum Pattern {
         head: SpanBox<Self>,
         tail: SpanBox<Self>,
     },
-    Enum {
+    TupleConstr {
         name: Spanned<Name>,
         elems: SpanSeq<Self>,
     },
-    Struct {
+    Record {
         name: Spanned<Name>,
-        fields: SpanSeq<StructPatternField>,
+        fields: SpanSeq<RecordPatternField>,
         rest: Option<Span>,
     },
 }
 
 #[derive(Debug, Clone)]
-pub struct StructPatternField {
+pub struct RecordPatternField {
     pub field: Spanned<Ident>,
     pub pattern: Option<Spanned<Pattern>>,
 }

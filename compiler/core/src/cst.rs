@@ -24,16 +24,13 @@ use nodes::{
     anon_unions::{
         EmptyStmt_ExprStmt_LetStmt as EsEsLs, Ident_Parameters,
         Ident_TupleField as ITf, Name_AliasItem_GlobItem_TreeItem as UseItem,
-        RestPattern_StructPatternField as RpSpf,
-        StructExprField_StructUpdateBase as SefSub,
         TypeExpr_FnTypeArgs as TeFta,
     },
     AccessSpec, Attribute, AttributeArgument, Attributes, BinaryOperator,
-    Block, ConstDecl, Decl, DocComments, EnumDecl, Expr, ExternFnDecl,
-    ExternTypeDecl, FnDecl, FnType, GenericParams, GenericType, Ident,
-    LiteralExpr, MatchArms, ModDecl, Name, Parameters, Path, Pattern,
-    PrefixOperator, PrimitiveType, SourceFile, StructDecl, StructExprFields,
-    StructField, TupleType, TypeDecl, TypeExpr, UseDecl,
+    Block, ConstDecl, Decl, DocComments, Expr, ExternFnDecl, ExternTypeDecl,
+    FnDecl, FnType, GenericParams, GenericType, Ident, LiteralExpr, MatchArms,
+    ModDecl, Name, Parameters, Path, Pattern, PrefixOperator, PrimitiveType,
+    SourceFile, TupleType, TypeAliasDecl, TypeDecl, TypeExpr, UseDecl,
 };
 
 use thiserror::Error;
@@ -232,9 +229,22 @@ impl<'a> CstVisitor<'a> {
             let mut decls = Vec::new();
             let mut cursor = node.walk();
 
-            for decl in node.decls(&mut cursor) {
-                let decl = self.visit_decl(decl?)?;
-                decls.push(decl);
+            for decl in node.declarations(&mut cursor) {
+                let span = node_span(decl);
+                let doc_comment =
+                    self.visit_doc_comment_opt(decl?.docs().transpose()?);
+                let attributes =
+                    self.visit_attributes_opt(decl?.attributes().transpose()?)?;
+                let visibility =
+                    self.visit_access_spec_opt(decl?.visibility().transpose()?);
+                let kind = self.visit_decl(decl?.body()?)?;
+
+                decls.push(span.with(ast::Decl {
+                    doc_comment,
+                    attributes,
+                    visibility,
+                    kind,
+                }));
             }
 
             decls.into_boxed_slice()
@@ -244,7 +254,10 @@ impl<'a> CstVisitor<'a> {
     }
 
     // DECLS
-    fn visit_decl(&self, node: Decl<'a>) -> CstResult<'a, Spanned<ast::Decl>> {
+    fn visit_decl(
+        &self,
+        node: Decl<'a>,
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         match node {
             Decl::UseDecl(use_decl) => self.visit_use_decl(use_decl),
             Decl::ModDecl(mod_decl) => self.visit_mod_decl(mod_decl),
@@ -253,11 +266,8 @@ impl<'a> CstVisitor<'a> {
             Decl::ExternFnDecl(extern_fn_decl) => {
                 self.visit_extern_fn_decl(extern_fn_decl)
             }
-            Decl::EnumDecl(enum_decl) => self.visit_enum_decl(enum_decl),
-            Decl::StructDecl(struct_decl) => {
-                self.visit_struct_decl(struct_decl)
-            }
-            Decl::TypeDecl(type_decl) => self.visit_type_decl(type_decl),
+            Decl::TypeDecl(type_decl) => todo!(),
+            Decl::TypeAliasDecl(type_alias_decl) => todo!(),
             Decl::ExternTypeDecl(extern_type_decl) => {
                 self.visit_extern_type_decl(extern_type_decl)
             }
@@ -267,86 +277,39 @@ impl<'a> CstVisitor<'a> {
     fn visit_use_decl(
         &self,
         node: UseDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // use decl components
-        let item = self.visit_use_item(node.other()?)?;
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
+        let item = self.visit_use_item(node.item()?)?;
 
         let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::Use { item },
-        }))
+        Ok(span.with(ast::DeclKind::Use { item }))
     }
 
     fn visit_mod_decl(
         &self,
         node: ModDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // mod decl components
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         let name = self.visit_ident(node.name()?);
 
         let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::Mod { name },
-        }))
+        Ok(span.with(ast::DeclKind::Mod { name }))
     }
 
     fn visit_const_decl(
         &self,
         node: ConstDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // const decl components
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         let name = self.visit_ident(node.name()?);
         let ty = self.visit_type(node.r#type()?)?;
         let value = self.visit_expr(node.value()?)?;
 
         let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::Const { name, ty, value },
-        }))
+        Ok(span.with(ast::DeclKind::Const { name, ty, value }))
     }
 
     fn visit_fn_decl(
         &self,
         node: FnDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // fn decl components
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         let name = self.visit_ident(node.name()?);
         let params = self.visit_parameters(node.parameters()?)?;
         let return_ty = node
@@ -366,31 +329,18 @@ impl<'a> CstVisitor<'a> {
         });
 
         let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::Fn {
-                name,
-                params,
-                return_ty,
-                body,
-            },
+        Ok(span.with(ast::DeclKind::Fn {
+            name,
+            params,
+            return_ty,
+            body,
         }))
     }
 
     fn visit_extern_fn_decl(
         &self,
         node: ExternFnDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // extern fn decl components
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         let name = self.visit_ident(node.name()?);
         let params = self.visit_parameters(node.parameters()?)?;
         let return_ty = node
@@ -400,175 +350,37 @@ impl<'a> CstVisitor<'a> {
             .transpose()?;
 
         let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::ExternFn {
-                name,
-                params,
-                return_ty,
-            },
+        Ok(span.with(ast::DeclKind::ExternFn {
+            name,
+            params,
+            return_ty,
         }))
     }
 
-    fn visit_enum_decl(
+    fn visit_type_alias(
         &self,
-        node: EnumDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // enum decl components
-        let name = self.visit_ident(node.name()?);
-        let params =
-            self.visit_generic_params_opt(node.params().transpose()?)?;
-        let variants = {
-            let mut variants = Vec::new();
-            let mut cursor = node.walk();
-
-            for variant in node.variants()?.enum_variants(&mut cursor) {
-                let span = node_span(variant);
-
-                let doc_comment =
-                    self.visit_doc_comment_opt(variant?.docs().transpose()?);
-                let attributes = self
-                    .visit_attributes_opt(variant?.attributes().transpose()?)?;
-
-                let name = self.visit_ident(variant?.name()?);
-                let payload = {
-                    let mut payload = Vec::new();
-
-                    if let Some(Ok(payload_node)) = variant?.payload() {
-                        let mut cursor = node.walk();
-
-                        for ty in payload_node.type_exprs(&mut cursor) {
-                            let ty = self.visit_type(ty?)?;
-                            payload.push(ty);
-                        }
-                    }
-
-                    payload.into_boxed_slice()
-                };
-
-                variants.push(span.with(ast::EnumVariant {
-                    doc_comment,
-                    attributes,
-                    name,
-                    payload,
-                }));
-            }
-
-            variants.into_boxed_slice()
-        };
-
-        let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::Enum {
-                name,
-                params,
-                variants,
-            },
-        }))
-    }
-
-    fn visit_struct_decl(
-        &self,
-        node: StructDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // struct decl components
-        let name = self.visit_ident(node.name()?);
-        let params =
-            self.visit_generic_params_opt(node.params().transpose()?)?;
-
-        let fields = {
-            let mut fields = Vec::new();
-            let mut cursor = node.walk();
-
-            for field in node.fields()?.struct_fields(&mut cursor) {
-                let field = self.visit_struct_field(field?)?;
-                fields.push(field);
-            }
-
-            fields.into_boxed_slice()
-        };
-
-        let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::Struct {
-                name,
-                params,
-                fields,
-            },
-        }))
+        node: TypeAliasDecl<'a>,
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
+        todo!()
     }
 
     fn visit_type_decl(
         &self,
         node: TypeDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // type decl components
-        let name = self.visit_ident(node.name()?);
-        let params =
-            self.visit_generic_params_opt(node.params().transpose()?)?;
-        let ty = self.visit_type(node.r#type()?)?;
-
-        let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::Type { name, params, ty },
-        }))
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
+        todo!()
     }
 
     fn visit_extern_type_decl(
         &self,
         node: ExternTypeDecl<'a>,
-    ) -> CstResult<'a, Spanned<ast::Decl>> {
-        // common decl components
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        // type decl components
+    ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         let name = self.visit_ident(node.name()?);
         let params =
             self.visit_generic_params_opt(node.params().transpose()?)?;
 
         let span = node_span(node);
-        Ok(span.with(ast::Decl {
-            doc_comment,
-            attributes,
-            visibility,
-            kind: ast::DeclKind::ExternType { name, params },
-        }))
+        Ok(span.with(ast::DeclKind::ExternType { name, params }))
     }
 
     fn visit_use_item(
@@ -620,35 +432,6 @@ impl<'a> CstVisitor<'a> {
             }
         }
         .map(|use_item| span.with(use_item))
-    }
-
-    fn visit_struct_field(
-        &self,
-        node: StructField<'a>,
-    ) -> CstResult<'a, Spanned<ast::StructField>> {
-        let doc_comment = self.visit_doc_comment_opt(node.docs().transpose()?);
-        let attributes =
-            self.visit_attributes_opt(node.attributes().transpose()?)?;
-        let visibility =
-            self.visit_access_spec_opt(node.visibility().transpose()?);
-
-        let mutability = match node.mutable().transpose()? {
-            Some(_) => ast::Mutability::Mut(node_span(node.mutable().unwrap())),
-            None => ast::Mutability::Immut,
-        };
-
-        let name = self.visit_ident(node.name()?);
-        let ty = self.visit_type(node.r#type()?)?;
-
-        let span = node_span(node);
-        Ok(span.with(ast::StructField {
-            doc_comment,
-            attributes,
-            visibility,
-            mutability,
-            name,
-            ty,
-        }))
     }
 
     fn visit_generic_params_opt(
@@ -881,18 +664,7 @@ impl<'a> CstVisitor<'a> {
 
                 Ok(ast::Expr::Match { scrutinee, arms })
             }
-            Expr::StructExpr(struct_expr) => {
-                let name = self.visit_name(struct_expr.name()?)?;
-
-                let (fields, base) = struct_expr
-                    .fields()
-                    .transpose()?
-                    .map(|fields| self.visit_struct_expr_fields(fields))
-                    .transpose()?
-                    .unwrap_or_else(|| (Box::new([]), None));
-
-                Ok(ast::Expr::Struct { name, fields, base })
-            }
+            Expr::RecordExpr(struct_expr) => todo!(),
             Expr::TupleExpr(tuple_expr) => {
                 let mut exprs = Vec::new();
                 let mut cursor = tuple_expr.walk();
@@ -972,43 +744,6 @@ impl<'a> CstVisitor<'a> {
         }
 
         Ok(span.with(arms.into_boxed_slice()))
-    }
-
-    fn visit_struct_expr_fields(
-        &self,
-        node: StructExprFields<'a>,
-    ) -> CstResult<
-        'a,
-        (SpanSeq<ast::StructExprField>, Option<SpanBox<ast::Expr>>),
-    > {
-        let mut fields = Vec::new();
-        let mut base = None;
-
-        let mut cursor = node.walk();
-        for field in node.children(&mut cursor) {
-            match field? {
-                SefSub::StructUpdateBase(struct_update_base) => {
-                    // this is fine because the "..base" field can only
-                    // appear once
-                    let expr = self.visit_expr(struct_update_base.expr()?)?;
-                    base = Some(Box::new(expr));
-                }
-                SefSub::StructExprField(struct_expr_field) => {
-                    let span = node_span(struct_expr_field);
-                    let name = self.visit_ident(struct_expr_field.name()?);
-                    let value = struct_expr_field
-                        .value()
-                        .transpose()?
-                        .map(|expr| self.visit_expr(expr))
-                        .transpose()?;
-
-                    fields
-                        .push(span.with(ast::StructExprField { name, value }));
-                }
-            }
-        }
-
-        Ok((fields.into_boxed_slice(), base))
     }
 
     fn visit_block(
@@ -1140,23 +875,7 @@ impl<'a> CstVisitor<'a> {
 
                 Ok(ast::Pattern::Cons { head, tail })
             }
-            Pattern::EnumPattern(enum_pattern) => {
-                let name = self.visit_name(enum_pattern.name()?)?;
-
-                let elems = {
-                    let mut elems = Vec::new();
-                    let mut cursor = node.walk();
-
-                    for pat in enum_pattern.payload()?.patterns(&mut cursor) {
-                        let pat = self.visit_pattern(pat?)?;
-                        elems.push(pat);
-                    }
-
-                    elems.into_boxed_slice()
-                };
-
-                Ok(ast::Pattern::Enum { name, elems })
-            }
+            Pattern::TupleConstructorPattern(tuple_constr_pattern) => todo!(),
             Pattern::ListPattern(list_pattern) => {
                 let mut pats = Vec::new();
                 let mut cursor = node.walk();
@@ -1183,52 +902,7 @@ impl<'a> CstVisitor<'a> {
                 .visit_pattern(paren_pattern.inner()?)
                 .map(Box::new)
                 .map(ast::Pattern::Paren),
-            Pattern::StructPattern(struct_pattern) => {
-                let name = self.visit_name(struct_pattern.name()?)?;
-
-                // yes, this is hideous.
-                let (fields, rest) = {
-                    let mut fields = Vec::new();
-                    let mut rest = None;
-
-                    if let Some(pat_fields) =
-                        struct_pattern.fields().transpose()?
-                    {
-                        let mut cursor = node.walk();
-
-                        for field in pat_fields.children(&mut cursor) {
-                            match field? {
-                                RpSpf::RestPattern(rest_pattern) => {
-                                    // this is fine, since the rest_pattern
-                                    // can only appear once
-                                    rest = Some(node_span(rest_pattern))
-                                }
-                                RpSpf::StructPatternField(sp_field) => {
-                                    let span = node_span(sp_field);
-                                    let field =
-                                        self.visit_ident(sp_field.field()?);
-                                    let pattern = sp_field
-                                        .pattern()
-                                        .transpose()?
-                                        .map(|pat| self.visit_pattern(pat))
-                                        .transpose()?;
-
-                                    fields.push(span.with(
-                                        ast::StructPatternField {
-                                            field,
-                                            pattern,
-                                        },
-                                    ))
-                                }
-                            }
-                        }
-                    }
-
-                    (fields.into_boxed_slice(), rest)
-                };
-
-                Ok(ast::Pattern::Struct { name, fields, rest })
-            }
+            Pattern::RecordPattern(struct_pattern) => todo!(),
             Pattern::WildcardPattern(_) => Ok(ast::Pattern::Wildcard),
         }
         .map(|pattern| span.with(pattern))
@@ -1415,48 +1089,6 @@ mod tests {
     use crate::{cst::ParseError, file::File};
 
     use super::{ast, Parser};
-
-    #[test]
-    fn type_decl_full_file() {
-        let source = File::fake(
-            r#"
-            #! a shebang line
-
-            // random comment
-
-            //! module comment
-
-            // second random comment
-            // including this second line
-
-            /// some documentation for Always
-            @an.attribute(true, 0xFAFD, "hello, world")
-            pub type Always[T] = std.Result[T, !]
-
-            // third random comment
-            "#,
-        );
-
-        let mut parser = Parser::new().unwrap();
-        let cst = parser.parse(&source).unwrap();
-        let ast = ast::Ast::try_from(cst).unwrap();
-
-        assert!(ast.shebang().is_some());
-        assert!(ast.module_comment().is_some());
-        assert_eq!(ast.comments().len(), 3);
-        assert_eq!(ast.decls().len(), 1);
-
-        let type_decl = ast.decls().first().unwrap();
-        assert!(matches!(type_decl.item.kind, ast::DeclKind::Type { .. }));
-        assert!(type_decl.item.doc_comment.is_some());
-        assert_eq!(type_decl.item.attributes.len(), 1);
-
-        let attr = type_decl.item.attributes.first().unwrap().item();
-        match attr.name.item() {
-            ast::Name::Ident => panic!(),
-            ast::Name::Path(path) => assert_eq!(path.len(), 2),
-        }
-    }
 
     #[test]
     fn missing_node_parse_error() {
