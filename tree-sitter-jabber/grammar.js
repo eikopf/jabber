@@ -57,8 +57,8 @@ module.exports = grammar({
     [$._expr, $._pattern],
     [$._expr, $._name],
     [$.list_expr, $.list_pattern],
-    [$.struct_expr, $.struct_pattern],
-    [$.struct_expr_field, $.struct_pattern_field],
+    [$.record_expr, $.record_pattern],
+    [$.record_expr_field, $.record_pattern_field],
   ],
 
   rules: {
@@ -67,7 +67,7 @@ module.exports = grammar({
       seq(
         optional(field("shebang", $.shebang)),
         optional(field("module_comment", $.module_comments)),
-        field("decl", repeat($._decl)),
+        field("declaration", repeat($.declaration)),
       ),
 
     shebang: (_) => /#![^\n]*/,
@@ -76,36 +76,29 @@ module.exports = grammar({
 
     access_spec: (_) => "pub",
 
+    declaration: ($) =>
+      seq(
+        optional(field("docs", $.doc_comments)),
+        optional(field("attributes", $.attributes)),
+        optional(field("visibility", $.access_spec)),
+        field("body", $._decl),
+      ),
+
     _decl: ($) =>
       choice(
         $.mod_decl,
         $.use_decl,
         $.type_decl,
+        $.type_alias_decl,
         $.extern_type_decl,
-        $.struct_decl,
-        $.enum_decl,
         $.fn_decl,
         $.extern_fn_decl,
         $.const_decl,
       ),
 
-    mod_decl: ($) =>
-      seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
-        "mod",
-        field("name", $.ident),
-      ),
+    mod_decl: ($) => seq("mod", field("name", $.ident)),
 
-    use_decl: ($) =>
-      seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
-        "use",
-        $._use_item,
-      ),
+    use_decl: ($) => seq("use", field("item", $._use_item)),
 
     _use_item: ($) => choice($._name, $.glob_item, $.alias_item, $.tree_item),
 
@@ -122,47 +115,57 @@ module.exports = grammar({
         "}",
       ),
 
-    type_decl: ($) =>
-      seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
-        "type",
-        field("name", $.ident),
-        optional(field("params", $.generic_params)),
-        "=",
-        field("type", $._type_expr),
-      ),
-
     extern_type_decl: ($) =>
       seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
         "extern",
         "type",
         field("name", $.ident),
         optional(field("params", $.generic_params)),
       ),
 
-    struct_decl: ($) =>
+    type_alias_decl: ($) =>
       seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
-        "struct",
+        "type",
+        "alias",
         field("name", $.ident),
-        field("params", optional($.generic_params)),
-        field("fields", $.struct_fields),
+        optional(field("params", $.generic_params)),
+        "=",
+        field("type", $._type_expr),
       ),
 
-    struct_fields: ($) => seq("{", comma_list0($.struct_field), "}"),
+    type_decl: ($) =>
+      seq(
+        "type",
+        field("name", $.ident),
+        optional(field("params", $.generic_params)),
+        "=",
+        field("type", $.type_constructors),
+      ),
 
-    struct_field: ($) =>
+    type_constructors: ($) =>
+      seq(
+        optional("|"),
+        $.type_constructor,
+        repeat(seq("|", $.type_constructor)),
+      ),
+
+    type_constructor: ($) =>
       seq(
         optional(field("docs", $.doc_comments)),
         optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
+        field("name", $.ident),
+        optional(field("payload", $._type_constructor_payload)),
+      ),
+
+    _type_constructor_payload: ($) => choice($.tuple_payload, $.record_payload),
+
+    tuple_payload: ($) => seq("(", comma_list1($._type_expr), ")"),
+    record_payload: ($) => seq("{", comma_list1($.record_field), "}"),
+
+    record_field: ($) =>
+      seq(
+        optional(field("docs", $.doc_comments)),
+        optional(field("attributes", $.attributes)),
         optional(field("mutable", $.mutable)),
         field("name", $.ident),
         ":",
@@ -171,36 +174,10 @@ module.exports = grammar({
 
     mutable: (_) => "mutable",
 
-    enum_decl: ($) =>
-      seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
-        "enum",
-        field("name", $.ident),
-        field("params", optional($.generic_params)),
-        field("variants", $.enum_variants),
-      ),
-
-    enum_variants: ($) => seq("{", comma_list0($.enum_variant), "}"),
-
-    enum_variant: ($) =>
-      seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        field("name", $.ident),
-        field("payload", optional($.enum_payload)),
-      ),
-
-    enum_payload: ($) => seq("(", comma_list1($._type_expr), ")"),
-
     generic_params: ($) => seq("[", comma_list1($.ident), "]"),
 
     fn_decl: ($) =>
       seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
         "fn",
         field("name", $.ident),
         field("parameters", $.parameters),
@@ -213,9 +190,6 @@ module.exports = grammar({
 
     extern_fn_decl: ($) =>
       seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
         "extern",
         "fn",
         field("name", $.ident),
@@ -234,9 +208,6 @@ module.exports = grammar({
 
     const_decl: ($) =>
       seq(
-        optional(field("docs", $.doc_comments)),
-        optional(field("attributes", $.attributes)),
-        optional(field("visibility", $.access_spec)),
         "const",
         field("name", $.ident),
         ":",
@@ -267,7 +238,7 @@ module.exports = grammar({
         $._literal_expr,
         $.list_expr,
         $.tuple_expr,
-        $.struct_expr,
+        $.record_expr,
         $.field_expr,
         $.lambda_expr,
         $.call_expr,
@@ -298,24 +269,25 @@ module.exports = grammar({
     list_expr: ($) => seq("[", comma_list0($._expr), "]"),
     tuple_expr: ($) => seq("(", comma_list2($._expr), ")"),
 
-    struct_expr: ($) =>
+    record_expr: ($) =>
       seq(
         field("name", $._name),
         "{",
-        optional(field("fields", $.struct_expr_fields)),
+        optional(field("fields", $.record_expr_fields)),
         "}",
       ),
 
-    struct_expr_fields: ($) =>
+    record_expr_fields: ($) =>
       seq(
-        $.struct_expr_field,
-        repeat(seq(",", $.struct_expr_field)),
-        optional(seq(",", $.struct_update_base)),
+        $.record_expr_field,
+        repeat(seq(",", $.record_expr_field)),
+        optional(seq(",", $.record_update_base)),
         optional(","),
       ),
-    struct_expr_field: ($) =>
+
+    record_expr_field: ($) =>
       seq(field("name", $.ident), optional(seq(":", field("value", $._expr)))),
-    struct_update_base: ($) => seq("..", $._expr),
+    record_update_base: ($) => seq("..", $._expr),
 
     field_expr: ($) =>
       seq(
@@ -471,7 +443,7 @@ module.exports = grammar({
         $.list_pattern,
         $.cons_pattern,
         $.enum_pattern,
-        $.struct_pattern,
+        $.record_pattern,
         $.parenthesized_pattern,
       ),
 
@@ -490,23 +462,23 @@ module.exports = grammar({
       seq(field("name", $._name), field("payload", $.enum_pattern_payload)),
     enum_pattern_payload: ($) => seq("(", comma_list1($._pattern), ")"),
 
-    struct_pattern: ($) =>
+    record_pattern: ($) =>
       seq(
         field("name", $._name),
         "{",
-        optional(field("fields", $.struct_pattern_fields)),
+        optional(field("fields", $.record_pattern_fields)),
         "}",
       ),
 
-    struct_pattern_fields: ($) =>
+    record_pattern_fields: ($) =>
       seq(
-        $.struct_pattern_field,
-        repeat(seq(",", $.struct_pattern_field)),
+        $.record_pattern_field,
+        repeat(seq(",", $.record_pattern_field)),
         optional(seq(",", $.rest_pattern)),
         optional(","),
       ),
 
-    struct_pattern_field: ($) =>
+    record_pattern_field: ($) =>
       seq(
         field("field", $.ident),
         optional(seq(":", field("pattern", $._pattern))),
