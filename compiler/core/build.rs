@@ -22,7 +22,7 @@ fn main() {
     fs::write(
         out_dir.join("queries.rs"),
         generate_queries(
-            "../../tree-sitter-jabber/queries",
+            "./queries",
             "../../tree-sitter-jabber",
             &super_nodes(),
             false,
