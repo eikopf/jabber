@@ -27,6 +27,7 @@ impl File {
         &self.path
     }
 
+    #[allow(unused)]
     pub(crate) fn fake(contents: impl Into<Box<str>>) -> Self {
         let id = Uid::fresh();
         let path = std::path::PathBuf::default().into_boxed_path();

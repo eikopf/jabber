@@ -259,7 +259,7 @@ pub enum LiteralExpr {
 
 #[derive(Debug, Clone)]
 pub struct RecordExprField {
-    pub name: Spanned<Ident>,
+    pub field: Spanned<Ident>,
     pub value: Option<Spanned<Expr>>,
 }
 
