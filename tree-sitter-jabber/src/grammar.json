@@ -2800,7 +2800,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "enum_pattern"
+          "name": "tuple_constructor_pattern"
         },
         {
           "type": "SYMBOL",
@@ -2953,7 +2953,7 @@
         ]
       }
     },
-    "enum_pattern": {
+    "tuple_constructor_pattern": {
       "type": "SEQ",
       "members": [
         {
@@ -2969,12 +2969,12 @@
           "name": "payload",
           "content": {
             "type": "SYMBOL",
-            "name": "enum_pattern_payload"
+            "name": "tuple_constructor_pattern_payload"
           }
         }
       ]
     },
-    "enum_pattern_payload": {
+    "tuple_constructor_pattern_payload": {
       "type": "SEQ",
       "members": [
         {

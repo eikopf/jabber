@@ -442,7 +442,7 @@ module.exports = grammar({
         $.tuple_pattern,
         $.list_pattern,
         $.cons_pattern,
-        $.enum_pattern,
+        $.tuple_constructor_pattern,
         $.record_pattern,
         $.parenthesized_pattern,
       ),
@@ -458,9 +458,13 @@ module.exports = grammar({
         seq(field("head", $._pattern), "::", field("tail", $._pattern)),
       ),
 
-    enum_pattern: ($) =>
-      seq(field("name", $._name), field("payload", $.enum_pattern_payload)),
-    enum_pattern_payload: ($) => seq("(", comma_list1($._pattern), ")"),
+    tuple_constructor_pattern: ($) =>
+      seq(
+        field("name", $._name),
+        field("payload", $.tuple_constructor_pattern_payload),
+      ),
+    tuple_constructor_pattern_payload: ($) =>
+      seq("(", comma_list1($._pattern), ")"),
 
     record_pattern: ($) =>
       seq(

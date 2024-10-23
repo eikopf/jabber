@@ -194,10 +194,6 @@
         "named": true
       },
       {
-        "type": "enum_pattern",
-        "named": true
-      },
-      {
         "type": "list_pattern",
         "named": true
       },
@@ -207,6 +203,10 @@
       },
       {
         "type": "record_pattern",
+        "named": true
+      },
+      {
+        "type": "tuple_constructor_pattern",
         "named": true
       },
       {
@@ -603,47 +603,6 @@
     "type": "empty_stmt",
     "named": true,
     "fields": {}
-  },
-  {
-    "type": "enum_pattern",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "_name",
-            "named": true
-          }
-        ]
-      },
-      "payload": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "enum_pattern_payload",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "enum_pattern_payload",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "_pattern",
-          "named": true
-        }
-      ]
-    }
   },
   {
     "type": "expr_stmt",
@@ -1629,6 +1588,47 @@
         },
         {
           "type": "tree_item",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "tuple_constructor_pattern",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_name",
+            "named": true
+          }
+        ]
+      },
+      "payload": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "tuple_constructor_pattern_payload",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "tuple_constructor_pattern_payload",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "_pattern",
           "named": true
         }
       ]
