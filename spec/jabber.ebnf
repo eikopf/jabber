@@ -6,11 +6,6 @@
   the ./extras.ebnf file.
 *)
 
-(*
-  TODO: add pragma/annotation syntax for compiler metadata
-  TODO: add functional record update syntax
-*)
-
 START = {decl} ;
 
 (* DECLARATIONS *)
@@ -42,7 +37,7 @@ tree item  = [name, "."], "{", [use item, {",", use item}, [","]], "}" ;
 
 type decl        = [visibility],           "type", type alias, "=", type ;
 extern type decl = [visibility], "extern", "type", type alias ;
-type alias = ident | generic type ;
+type alias = ident, [generic parameters] ;
 
 struct decl = [visibility], "struct", ident, [generic parameters], struct fields ;
 enum decl   = [visibility], "enum",   ident, [generic parameters], enum variants ;
@@ -66,6 +61,12 @@ fn body = ("=", expr) | block ;
 const decl  = [visibility], "const", ident, ":", type, "=", expr ;
 
 visibility = "pub" ;
+
+(* ATTRIBUTES *)
+
+attributes = { attribute } ;
+attribute = "@", name, ["(", {attribute argument}, ")"] ;
+attribute argument = name | literal expr ;
 
 (* EXPRESSIONS *)
 
@@ -109,8 +110,9 @@ list expr  = "[", [expr, {",", expr}, [","]], "]" ;
 tuple expr = "(",  expr, {",", expr}, [","],  ")" ;
 
 struct expr = name, "{", struct expr fields, "}" ;
-struct expr fields = [struct expr field, {",", struct expr field}, [","]] ;
+struct expr fields = [struct expr field, {",", struct expr field}, [",", struct expr base], [","]] ;
 struct expr field = ident, [":", expr] ;
+struct expr base = "..", expr ; (* functional record update syntax *)
 
 field expr = expr, ".", ident ;
 
@@ -149,7 +151,6 @@ stmt = ";" | expr stmt | let stmt ;
 expr stmt = expr, ";" ;
 let stmt = "let", pattern, [":", type], "=", expr, ";" ;
 
-(* this rule conflicts with the tuple expr rule without precedence annotations *)
 parenthesized expr = "(", expr, ")" ;
 
 (* PATTERNS *)

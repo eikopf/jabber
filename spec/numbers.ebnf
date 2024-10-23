@@ -4,7 +4,7 @@
   but this file exists to be clearer than opaque regexes
 
   NOTE: whereas the full grammar admits arbitrary whitespace between all
-        ordinary rules, this subgrammar does not.
+  ordinary rules, this subgrammar does not.
 *)
 
 number literal = float literal 
