@@ -449,7 +449,7 @@ impl<'a> CstVisitor<'a> {
                     let mut items = Vec::new();
                     let mut cursor = tree_item.walk();
 
-                    for item in tree_item.others(&mut cursor) {
+                    for item in tree_item.items()?.children(&mut cursor) {
                         let item = self.visit_use_item(item?)?;
                         items.push(item);
                     }
@@ -672,7 +672,7 @@ impl<'a> CstVisitor<'a> {
             Expr::Ident(_) => Ok(ast::Expr::Name(ast::Name::Ident)),
             Expr::Path(path) => self
                 .visit_path(path)
-                .map(ast::Name::Path)
+                .map(Spanned::unwrap)
                 .map(ast::Expr::Name),
             Expr::LiteralExpr(literal_expr) => {
                 Ok(ast::Expr::Literal(self.visit_literal_expr(literal_expr)))
@@ -1244,29 +1244,52 @@ impl<'a> CstVisitor<'a> {
     fn visit_name(&self, node: Name<'a>) -> CstResult<'a, Spanned<ast::Name>> {
         let span = node_span(node);
         match node {
-            Name::Ident(_) => Ok(ast::Name::Ident),
-            Name::Path(path) => self.visit_path(path).map(ast::Name::Path),
+            Name::Ident(_) => Ok(span.with(ast::Name::Ident)),
+            Name::Path(path) => self.visit_path(path),
+            Name::Self_(_) => Ok(span.with(ast::Name::Path(
+                Some(span.with(ast::Qualifier::Self_)),
+                [].into(),
+            ))),
+            Name::Super(_) => Ok(span.with(ast::Name::Path(
+                Some(span.with(ast::Qualifier::Super)),
+                [].into(),
+            ))),
+            Name::Package(_) => Ok(span.with(ast::Name::Path(
+                Some(span.with(ast::Qualifier::Package)),
+                [].into(),
+            ))),
         }
-        .map(|name| span.with(name))
     }
 
-    fn visit_path(&self, node: Path<'a>) -> CstResult<'a, SpanSeq<ast::Ident>> {
+    fn visit_path(&self, node: Path<'a>) -> CstResult<'a, Spanned<ast::Name>> {
         fn path_rec<'a>(
             visitor: &CstVisitor<'a>,
             node: Name<'a>,
             elems: &mut Vec<Spanned<ast::Ident>>,
-        ) -> CstResult<'a, ()> {
+        ) -> CstResult<'a, Option<Spanned<ast::Qualifier>>> {
             match node {
                 Name::Ident(ident) => {
                     elems.push(visitor.visit_ident(ident));
-                    Ok(())
+                    Ok(None)
                 }
                 Name::Path(path) => {
                     let root = path.root()?;
                     let name = path.name()?;
-                    path_rec(visitor, root, elems)?;
+                    let qual = path_rec(visitor, root, elems)?;
                     elems.push(visitor.visit_ident(name));
-                    Ok(())
+                    Ok(qual)
+                }
+                Name::Self_(self_) => {
+                    let span = node_span(self_);
+                    Ok(Some(span.with(ast::Qualifier::Self_)))
+                }
+                Name::Super(super_) => {
+                    let span = node_span(super_);
+                    Ok(Some(span.with(ast::Qualifier::Super)))
+                }
+                Name::Package(package) => {
+                    let span = node_span(package);
+                    Ok(Some(span.with(ast::Qualifier::Package)))
                 }
             }
         }
@@ -1275,9 +1298,11 @@ impl<'a> CstVisitor<'a> {
         let name = node.name()?;
 
         let mut elems = Vec::new();
-        path_rec(self, root, &mut elems)?;
+        let qual = path_rec(self, root, &mut elems)?;
         elems.push(self.visit_ident(name));
-        Ok(elems.into_boxed_slice())
+
+        let span = node_span(node);
+        Ok(span.with(ast::Name::Path(qual, elems.into_boxed_slice())))
     }
 
     fn visit_ident(&self, node: Ident) -> Spanned<ast::Ident> {

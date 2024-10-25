@@ -403,8 +403,15 @@ pub enum FnTyArgs {
 
 #[derive(Debug, Clone)]
 pub enum Name {
-    Path(SpanSeq<Ident>),
+    Path(Option<Spanned<Qualifier>>, SpanSeq<Ident>),
     Ident,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Qualifier {
+    Super,
+    Self_,
+    Package,
 }
 
 #[derive(Debug, Clone, Copy)]

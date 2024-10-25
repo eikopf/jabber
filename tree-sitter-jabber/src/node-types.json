@@ -172,7 +172,19 @@
         "named": true
       },
       {
+        "type": "package",
+        "named": true
+      },
+      {
         "type": "path",
+        "named": true
+      },
+      {
+        "type": "self",
+        "named": true
+      },
+      {
+        "type": "super",
         "named": true
       }
     ]
@@ -1559,6 +1571,16 @@
     "type": "tree_item",
     "named": true,
     "fields": {
+      "items": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "tree_item_children",
+            "named": true
+          }
+        ]
+      },
       "root": {
         "multiple": false,
         "required": false,
@@ -1569,7 +1591,12 @@
           }
         ]
       }
-    },
+    }
+  },
+  {
+    "type": "tree_item_children",
+    "named": true,
+    "fields": {},
     "children": {
       "multiple": true,
       "required": false,
@@ -2075,6 +2102,14 @@
     "named": true
   },
   {
+    "type": "package",
+    "named": true
+  },
+  {
+    "type": "self",
+    "named": true
+  },
+  {
     "type": "shebang",
     "named": true
   },
@@ -2084,6 +2119,10 @@
   },
   {
     "type": "string_literal",
+    "named": true
+  },
+  {
+    "type": "super",
     "named": true
   },
   {

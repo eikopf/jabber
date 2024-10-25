@@ -110,10 +110,10 @@ module.exports = grammar({
     tree_item: ($) =>
       seq(
         optional(seq(field("root", $._name), ".")),
-        "{",
-        comma_list0($._use_item),
-        "}",
+        field("items", $.tree_item_children),
       ),
+
+    tree_item_children: ($) => seq("{", comma_list0($._use_item), "}"),
 
     extern_type_decl: ($) =>
       seq(
@@ -550,9 +550,13 @@ module.exports = grammar({
 
     /// IDENTIFIERS
 
-    _name: ($) => choice($.path, $.ident),
+    _name: ($) => choice($.package, $.self, $.super, $.path, $.ident),
 
     path: ($) => seq(field("root", $._name), ".", field("name", $.ident)),
+
+    package: (_) => "package",
+    self: (_) => "self",
+    super: (_) => "super",
 
     ident: (_) => /(_+[a-zA-Z0-9]|[a-zA-Z])[_a-zA-Z0-9]*/,
 
