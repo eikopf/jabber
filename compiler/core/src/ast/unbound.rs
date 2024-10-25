@@ -16,39 +16,29 @@
 //! variants, their spanning information is exactly the same as the [`Span`]
 //! represented in a [`Spanned<Ty>`].
 
-use crate::{
-    file::File,
-    span::{Span, SpanBox, SpanSeq, Spanned},
-};
+use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 
 #[derive(Debug, Clone)]
-pub struct Ast<'a> {
-    pub(super) file: &'a File,
+pub struct Ast {
     pub(super) shebang: Option<Span>,
     pub(super) module_comment: Option<Span>,
     pub(super) comments: Box<[Span]>,
     pub(super) decls: SpanSeq<Decl>,
 }
 
-impl<'a> Ast<'a> {
+impl Ast {
     pub fn new(
-        file: &'a File,
         shebang: Option<Span>,
         module_comment: Option<Span>,
         comments: Box<[Span]>,
         decls: SpanSeq<Decl>,
     ) -> Self {
         Self {
-            file,
             shebang,
             module_comment,
             comments,
             decls,
         }
-    }
-
-    pub fn file(&self) -> &File {
-        self.file
     }
 
     pub fn shebang(&self) -> Option<Span> {

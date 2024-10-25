@@ -89,7 +89,7 @@ pub enum ParseError {
     },
 }
 
-impl<'a> TryFrom<Cst<'a>> for ast::Ast<'a> {
+impl<'a> TryFrom<Cst<'a>> for ast::Ast {
     type Error = Box<[ParseError]>;
 
     fn try_from(value: Cst<'a>) -> Result<Self, Self::Error> {
@@ -98,7 +98,7 @@ impl<'a> TryFrom<Cst<'a>> for ast::Ast<'a> {
 }
 
 impl<'a> Cst<'a> {
-    fn build_ast(self) -> Result<ast::Ast<'a>, Box<[ParseError]>> {
+    fn build_ast(self) -> Result<ast::Ast, Box<[ParseError]>> {
         let errors = self.collect_errors();
         if !errors.is_empty() {
             return Err(errors);
@@ -107,18 +107,12 @@ impl<'a> Cst<'a> {
         // beyond this point, self.tree contains no errors
 
         let visitor = self.visitor();
-        let Cst { tree, file } = self;
+        let Cst { tree, .. } = self;
         let root = tree.root_node().unwrap();
         let (shebang, module_comment, comments, decls) =
             visitor.visit_source_file(root).unwrap();
 
-        Ok(ast::Ast::new(
-            file,
-            shebang,
-            module_comment,
-            comments,
-            decls,
-        ))
+        Ok(ast::Ast::new(shebang, module_comment, comments, decls))
     }
 
     fn visitor(&self) -> CstVisitor<'a> {
