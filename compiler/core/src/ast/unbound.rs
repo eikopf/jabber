@@ -18,11 +18,11 @@
 
 use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 
+use super::SpannedModuleTrivia;
+
 #[derive(Debug, Clone)]
 pub struct Ast {
-    pub(super) shebang: Option<Span>,
-    pub(super) module_comment: Option<Span>,
-    pub(super) comments: Box<[Span]>,
+    pub(super) trivia: SpannedModuleTrivia,
     pub(super) decls: SpanSeq<Decl>,
 }
 
@@ -34,23 +34,25 @@ impl Ast {
         decls: SpanSeq<Decl>,
     ) -> Self {
         Self {
-            shebang,
-            module_comment,
-            comments,
+            trivia: SpannedModuleTrivia {
+                shebang,
+                module_comment,
+                comments,
+            },
             decls,
         }
     }
 
     pub fn shebang(&self) -> Option<Span> {
-        self.shebang
+        self.trivia.shebang
     }
 
     pub fn module_comment(&self) -> Option<Span> {
-        self.module_comment
+        self.trivia.module_comment
     }
 
     pub fn comments(&self) -> &[Span] {
-        &self.comments
+        &self.trivia.comments
     }
 
     pub fn decls(&self) -> &[Spanned<Decl>] {
