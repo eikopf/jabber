@@ -1318,7 +1318,7 @@ fn node_span<'a>(node: impl Node<'a>) -> Span {
 
 #[cfg(test)]
 mod tests {
-    use crate::file::File;
+    use crate::{file::File, span::Spanned};
 
     use super::{ast, Parser};
 
@@ -1419,5 +1419,78 @@ mod tests {
 
         let decls = ast.decls();
         assert_eq!(decls.len(), 6);
+    }
+
+    #[test]
+    fn keyword_qualified_paths() {
+        let source = File::fake(
+            r#"
+            use package.foo.bar
+            use super.baz.qux
+            use self.Option.{Some, None}
+            "#,
+        );
+
+        let mut parser = Parser::new().unwrap();
+        let cst = parser.parse(&source).unwrap();
+        let ast = cst.build_ast().unwrap();
+
+        let pkg_path = ast.decls()[0].kind.item();
+        let super_path = ast.decls()[1].kind.item();
+        let self_path = ast.decls()[2].kind.item();
+
+        assert!(matches!(
+            pkg_path,
+            ast::DeclKind::Use {
+                item: Spanned {
+                    item: ast::UseItem::Name(ast::Name::Path(
+                        Some(Spanned {
+                            item: ast::Qualifier::Package,
+                            ..
+                        }),
+                        _
+                    )),
+                    ..
+                }
+            }
+        ));
+
+        assert!(matches!(
+            super_path,
+            ast::DeclKind::Use {
+                item: Spanned {
+                    item: ast::UseItem::Name(ast::Name::Path(
+                        Some(Spanned {
+                            item: ast::Qualifier::Super,
+                            ..
+                        }),
+                        _
+                    )),
+                    ..
+                }
+            }
+        ));
+
+        assert!(matches!(
+            self_path,
+            ast::DeclKind::Use {
+                item: Spanned {
+                    item: ast::UseItem::Tree {
+                        root: Some(Spanned {
+                            item: ast::Name::Path(
+                                Some(Spanned {
+                                    item: ast::Qualifier::Self_,
+                                    ..
+                                }),
+                                _
+                            ),
+                            ..
+                        }),
+                        ..
+                    },
+                    ..
+                }
+            }
+        ));
     }
 }
