@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.5.0"
+string-interner = "0.17.0"
 thiserror = "1.0.64"
 tree-sitter-jabber = { path = "../../tree-sitter-jabber"}
 type-sitter = { version = "0.5.0", default-features = false }
