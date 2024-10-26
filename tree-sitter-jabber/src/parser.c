@@ -8,7 +8,7 @@
 #define STATE_COUNT 648
 #define LARGE_STATE_COUNT 2
 #define SYMBOL_COUNT 190
-#define ALIAS_COUNT 0
+#define ALIAS_COUNT 1
 #define TOKEN_COUNT 88
 #define EXTERNAL_TOKEN_COUNT 0
 #define FIELD_COUNT 44
@@ -205,6 +205,7 @@ enum ts_symbol_identifiers {
   aux_sym_record_pattern_fields_repeat1 = 187,
   aux_sym_module_comments_repeat1 = 188,
   aux_sym_doc_comments_repeat1 = 189,
+  alias_sym_binary_operator = 190,
 };
 
 static const char * const ts_symbol_names[] = {
@@ -237,34 +238,34 @@ static const char * const ts_symbol_names[] = {
   [anon_sym_AT] = "@",
   [anon_sym_DOT_DOT] = "..",
   [sym_tuple_field] = "tuple_field",
-  [anon_sym_CARET] = "binary_operator",
-  [anon_sym_CARET_DOT] = "binary_operator",
-  [anon_sym_LT_PIPE] = "binary_operator",
-  [anon_sym_PIPE_GT] = "binary_operator",
-  [anon_sym_EQ_EQ] = "binary_operator",
-  [anon_sym_BANG_EQ] = "binary_operator",
-  [anon_sym_GT] = "binary_operator",
-  [anon_sym_GT_DOT] = "binary_operator",
-  [anon_sym_LT] = "binary_operator",
-  [anon_sym_LT_DOT] = "binary_operator",
-  [anon_sym_GT_EQ] = "binary_operator",
-  [anon_sym_GT_EQ_DOT] = "binary_operator",
-  [anon_sym_LT_EQ] = "binary_operator",
-  [anon_sym_LT_EQ_DOT] = "binary_operator",
-  [anon_sym_PLUS] = "binary_operator",
-  [anon_sym_PLUS_DOT] = "binary_operator",
+  [anon_sym_CARET] = "^",
+  [anon_sym_CARET_DOT] = "^.",
+  [anon_sym_LT_PIPE] = "<|",
+  [anon_sym_PIPE_GT] = "|>",
+  [anon_sym_EQ_EQ] = "==",
+  [anon_sym_BANG_EQ] = "!=",
+  [anon_sym_GT] = ">",
+  [anon_sym_GT_DOT] = ">.",
+  [anon_sym_LT] = "<",
+  [anon_sym_LT_DOT] = "<.",
+  [anon_sym_GT_EQ] = ">=",
+  [anon_sym_GT_EQ_DOT] = ">=.",
+  [anon_sym_LT_EQ] = "<=",
+  [anon_sym_LT_EQ_DOT] = "<=.",
+  [anon_sym_PLUS] = "+",
+  [anon_sym_PLUS_DOT] = "+.",
   [anon_sym_DASH] = "-",
   [anon_sym_DASH_DOT] = "-.",
-  [anon_sym_STAR_DOT] = "binary_operator",
-  [anon_sym_SLASH] = "binary_operator",
-  [anon_sym_SLASH_DOT] = "binary_operator",
-  [anon_sym_PERCENT] = "binary_operator",
+  [anon_sym_STAR_DOT] = "*.",
+  [anon_sym_SLASH] = "/",
+  [anon_sym_SLASH_DOT] = "/.",
+  [anon_sym_PERCENT] = "%",
   [anon_sym_COLON_COLON] = "::",
-  [anon_sym_PLUS_PLUS] = "binary_operator",
-  [anon_sym_AMP_AMP] = "binary_operator",
-  [anon_sym_PIPE_PIPE] = "binary_operator",
-  [anon_sym_COLON_EQ] = "binary_operator",
-  [anon_sym_LT_DASH] = "binary_operator",
+  [anon_sym_PLUS_PLUS] = "++",
+  [anon_sym_AMP_AMP] = "&&",
+  [anon_sym_PIPE_PIPE] = "||",
+  [anon_sym_COLON_EQ] = ":=",
+  [anon_sym_LT_DASH] = "<-",
   [anon_sym_BANG] = "!",
   [anon_sym_match] = "match",
   [anon_sym_EQ_GT] = "=>",
@@ -398,6 +399,7 @@ static const char * const ts_symbol_names[] = {
   [aux_sym_record_pattern_fields_repeat1] = "record_pattern_fields_repeat1",
   [aux_sym_module_comments_repeat1] = "module_comments_repeat1",
   [aux_sym_doc_comments_repeat1] = "doc_comments_repeat1",
+  [alias_sym_binary_operator] = "binary_operator",
 };
 
 static const TSSymbol ts_symbol_map[] = {
@@ -431,33 +433,33 @@ static const TSSymbol ts_symbol_map[] = {
   [anon_sym_DOT_DOT] = anon_sym_DOT_DOT,
   [sym_tuple_field] = sym_tuple_field,
   [anon_sym_CARET] = anon_sym_CARET,
-  [anon_sym_CARET_DOT] = anon_sym_CARET,
-  [anon_sym_LT_PIPE] = anon_sym_CARET,
-  [anon_sym_PIPE_GT] = anon_sym_CARET,
-  [anon_sym_EQ_EQ] = anon_sym_CARET,
-  [anon_sym_BANG_EQ] = anon_sym_CARET,
-  [anon_sym_GT] = anon_sym_CARET,
-  [anon_sym_GT_DOT] = anon_sym_CARET,
-  [anon_sym_LT] = anon_sym_CARET,
-  [anon_sym_LT_DOT] = anon_sym_CARET,
-  [anon_sym_GT_EQ] = anon_sym_CARET,
-  [anon_sym_GT_EQ_DOT] = anon_sym_CARET,
-  [anon_sym_LT_EQ] = anon_sym_CARET,
-  [anon_sym_LT_EQ_DOT] = anon_sym_CARET,
-  [anon_sym_PLUS] = anon_sym_CARET,
-  [anon_sym_PLUS_DOT] = anon_sym_CARET,
+  [anon_sym_CARET_DOT] = anon_sym_CARET_DOT,
+  [anon_sym_LT_PIPE] = anon_sym_LT_PIPE,
+  [anon_sym_PIPE_GT] = anon_sym_PIPE_GT,
+  [anon_sym_EQ_EQ] = anon_sym_EQ_EQ,
+  [anon_sym_BANG_EQ] = anon_sym_BANG_EQ,
+  [anon_sym_GT] = anon_sym_GT,
+  [anon_sym_GT_DOT] = anon_sym_GT_DOT,
+  [anon_sym_LT] = anon_sym_LT,
+  [anon_sym_LT_DOT] = anon_sym_LT_DOT,
+  [anon_sym_GT_EQ] = anon_sym_GT_EQ,
+  [anon_sym_GT_EQ_DOT] = anon_sym_GT_EQ_DOT,
+  [anon_sym_LT_EQ] = anon_sym_LT_EQ,
+  [anon_sym_LT_EQ_DOT] = anon_sym_LT_EQ_DOT,
+  [anon_sym_PLUS] = anon_sym_PLUS,
+  [anon_sym_PLUS_DOT] = anon_sym_PLUS_DOT,
   [anon_sym_DASH] = anon_sym_DASH,
   [anon_sym_DASH_DOT] = anon_sym_DASH_DOT,
-  [anon_sym_STAR_DOT] = anon_sym_CARET,
-  [anon_sym_SLASH] = anon_sym_CARET,
-  [anon_sym_SLASH_DOT] = anon_sym_CARET,
-  [anon_sym_PERCENT] = anon_sym_CARET,
+  [anon_sym_STAR_DOT] = anon_sym_STAR_DOT,
+  [anon_sym_SLASH] = anon_sym_SLASH,
+  [anon_sym_SLASH_DOT] = anon_sym_SLASH_DOT,
+  [anon_sym_PERCENT] = anon_sym_PERCENT,
   [anon_sym_COLON_COLON] = anon_sym_COLON_COLON,
-  [anon_sym_PLUS_PLUS] = anon_sym_CARET,
-  [anon_sym_AMP_AMP] = anon_sym_CARET,
-  [anon_sym_PIPE_PIPE] = anon_sym_CARET,
-  [anon_sym_COLON_EQ] = anon_sym_CARET,
-  [anon_sym_LT_DASH] = anon_sym_CARET,
+  [anon_sym_PLUS_PLUS] = anon_sym_PLUS_PLUS,
+  [anon_sym_AMP_AMP] = anon_sym_AMP_AMP,
+  [anon_sym_PIPE_PIPE] = anon_sym_PIPE_PIPE,
+  [anon_sym_COLON_EQ] = anon_sym_COLON_EQ,
+  [anon_sym_LT_DASH] = anon_sym_LT_DASH,
   [anon_sym_BANG] = anon_sym_BANG,
   [anon_sym_match] = anon_sym_match,
   [anon_sym_EQ_GT] = anon_sym_EQ_GT,
@@ -591,6 +593,7 @@ static const TSSymbol ts_symbol_map[] = {
   [aux_sym_record_pattern_fields_repeat1] = aux_sym_record_pattern_fields_repeat1,
   [aux_sym_module_comments_repeat1] = aux_sym_module_comments_repeat1,
   [aux_sym_doc_comments_repeat1] = aux_sym_doc_comments_repeat1,
+  [alias_sym_binary_operator] = alias_sym_binary_operator,
 };
 
 static const TSSymbolMetadata ts_symbol_metadata[] = {
@@ -712,67 +715,67 @@ static const TSSymbolMetadata ts_symbol_metadata[] = {
   },
   [anon_sym_CARET] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_CARET_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_LT_PIPE] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_PIPE_GT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_EQ_EQ] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_BANG_EQ] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_GT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_GT_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_LT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_LT_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_GT_EQ] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_GT_EQ_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_LT_EQ] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_LT_EQ_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_PLUS] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_PLUS_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_DASH] = {
     .visible = true,
@@ -784,19 +787,19 @@ static const TSSymbolMetadata ts_symbol_metadata[] = {
   },
   [anon_sym_STAR_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_SLASH] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_SLASH_DOT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_PERCENT] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_COLON_COLON] = {
     .visible = true,
@@ -804,23 +807,23 @@ static const TSSymbolMetadata ts_symbol_metadata[] = {
   },
   [anon_sym_PLUS_PLUS] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_AMP_AMP] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_PIPE_PIPE] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_COLON_EQ] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_LT_DASH] = {
     .visible = true,
-    .named = true,
+    .named = false,
   },
   [anon_sym_BANG] = {
     .visible = true,
@@ -1361,6 +1364,10 @@ static const TSSymbolMetadata ts_symbol_metadata[] = {
     .visible = false,
     .named = false,
   },
+  [alias_sym_binary_operator] = {
+    .visible = true,
+    .named = true,
+  },
 };
 
 enum ts_field_identifiers {
@@ -1799,7 +1806,7 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
 static const TSSymbol ts_alias_sequences[PRODUCTION_ID_COUNT][MAX_ALIAS_SEQUENCE_LENGTH] = {
   [0] = {0},
   [59] = {
-    [1] = anon_sym_CARET,
+    [1] = alias_sym_binary_operator,
   },
 };
 

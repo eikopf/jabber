@@ -7,12 +7,22 @@
 use std.list
 use std.list.List
 
+const BLAH: _ = Some(Foo(f()))
+
 use std.foo.bar.baz.SomeType
 
 pub const PI: float = 3.14159263
 
 /// A dynamically-sized buffer of bytes.
 extern type ByteBuffer
+
+type alias Unit   = ()
+type alias Never  = !
+type alias Bool   = bool
+type alias Char   = char
+type alias String = string
+
+type alias Absurd = ! -> A
 
 @name.scheme("bytevector->list")
 extern fn byte_buffer_to_list(buf: ByteBuffer) -> List[int]
@@ -29,14 +39,9 @@ fn id(x) = x
 pub fn callcall(f: A -> B -> C) = f(0, 1, 2)
 fn constant(x: A) -> B -> A = (_: B) -> x
 
-fn    head0(x :: _    : List[T]) -> T = x
-fn   head1((x :: _)   : List[T]) -> T = x
-fn  head2(((x :: _))  : List[T]) -> T = x
-fn head3((((x :: _))) : List[T]) -> T = x
+pub type Ref[T] = Ref { mutable contents : T }
 
-pub struct Ref[T] {
-  mutable contents : T,
-}
+pub fn head((x :: _): List[T]) -> T = x
 
 pub fn ref(contents: T) -> Ref[T] = Ref { contents }
 pub fn deref(ref: Ref[T]) -> T = ref.contents
@@ -66,17 +71,12 @@ pub fn foo() -> () {
 
 /// A value which may be `Ok(T)` or `Err(E)`.
 @core.lang_item
-pub enum Result[T, E] {
-  /// A value denoting a successful outcome.
-  @core.lang_item
-  Ok(T),
-  /// A value denoting a failiure state.
-  @core.lang_item
-  Err(E),
-}
+pub type Result[T, E] =
+    | @core.lang_item Ok(T)
+    | @core.lang_item Err(E)
 
-pub type Always[T]    = Result[T, !]
-pub type AlwaysErr[E] = Result[!, E]
+pub type alias Always[T]    = Result[T, !]
+pub type alias AlwaysErr[E] = Result[!, E]
 
 fn nybl(value: int) -> std.option.Option[Nibble] {
     if value <= 0xFF {
@@ -93,13 +93,10 @@ fn pats(list: List[T]) = match list {
   a :: b :: c :: [] => todo(),
 }
 
-type Never = !
-type Absurd[T] = ! -> T
+type alias Never     = !
+type alias Absurd[T] = ! -> T
 
-pub enum Option[T] {
-  Some(T),
-  None
-}
+pub type Option[T] = Some(T) | None
 
 pub fn unwrap(opt: Option[T]) -> T = match opt {
   Option.None => panic("Tried to unwrap an Option.None"),
@@ -110,16 +107,4 @@ pub fn map(opt: Option[T], f: T -> U) -> Option[U] = match opt {
   Option.None => Option.None,
   Option.Some(x) => Option.Some(f(x))
 }
-
-fn foo() = option.map(Some(3), x -> x^2)
-
-fn foo_piped()
-  = Some(3)
-    |> (opt -> option.map(x -> x^2, opt))
-    |> option.unwrap
-
-fn foo_piped_pascal()
-  = Some(3)
-    |> (opt -> Option.map(x -> x^2, opt))
-    |> Option.unwrap
 
