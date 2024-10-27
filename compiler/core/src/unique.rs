@@ -36,7 +36,7 @@ lazy_static! {
 }
 
 /// A unique-by-construction numeric identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Uid(u64);
 
