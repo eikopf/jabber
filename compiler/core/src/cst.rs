@@ -16,7 +16,7 @@ pub(crate) mod queries {
 
 use crate::{
     ast::unbound as ast,
-    file::File,
+    source_file,
     span::{Span, SpanSeq, Spanned},
 };
 
@@ -59,7 +59,7 @@ impl Parser {
 
     pub fn parse<'a>(
         &'a mut self,
-        file: &'a File,
+        file: &'a source_file::SourceFile,
     ) -> Result<Cst, CstParseError<'a>> {
         self.0
             .parse(file.contents(), None)
@@ -70,7 +70,7 @@ impl Parser {
 
 pub struct Cst<'a> {
     tree: Tree<SourceFile<'static>>,
-    file: &'a File,
+    file: &'a source_file::SourceFile,
 }
 
 #[derive(Debug, Clone, Copy, Error)]
@@ -1318,13 +1318,13 @@ fn node_span<'a>(node: impl Node<'a>) -> Span {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::File, span::Spanned};
+    use crate::{source_file, span::Spanned};
 
     use super::{ast, Parser};
 
     #[test]
     fn fake_ref_module() {
-        let source = File::fake(
+        let source = source_file::SourceFile::fake(
             r#"
             //! Mutable reference cells
 
@@ -1374,7 +1374,7 @@ mod tests {
 
     #[test]
     fn fake_result_module() {
-        let source = File::fake(
+        let source = source_file::SourceFile::fake(
             r#"
     //! Results representing fallible computations
 
@@ -1423,7 +1423,7 @@ mod tests {
 
     #[test]
     fn keyword_qualified_paths() {
-        let source = File::fake(
+        let source = source_file::SourceFile::fake(
             r#"
             use package.foo.bar
             use super.baz.qux

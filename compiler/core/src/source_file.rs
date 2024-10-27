@@ -5,13 +5,13 @@ use std::{fs, io, path::Path};
 use crate::unique::Uid;
 
 #[derive(Clone)]
-pub struct File {
+pub struct SourceFile {
     path: Box<Path>,
     contents: Box<str>,
     id: Uid,
 }
 
-impl File {
+impl SourceFile {
     pub fn new(path: impl Into<Box<Path>>) -> io::Result<Self> {
         let id = Uid::fresh();
         let path = path.into();
@@ -37,7 +37,7 @@ impl File {
     }
 }
 
-impl std::fmt::Debug for File {
+impl std::fmt::Debug for SourceFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let contents = format!(
             "... {{{:.3}KiB}}",
