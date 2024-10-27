@@ -11,6 +11,12 @@
 ((ident) @constant
   (#match? @constant "^[A-Z][A-Z]+$"))
 
+;; a path of two PascalCase identifiers is probably a type-enum pair
+((path
+  root: (ident) @type
+  name: (ident) @constructor)
+  (#match? @type "^[A-Z]")
+  (#match? @constructor "^[A-Z]"))
 ;; modules
 (mod_decl name: (ident) @module)
 
@@ -28,12 +34,19 @@
 (type_constructor
   name: (ident) @constructor)
 
+(tuple_payload (_) @type)
+
 (record_field
-  name: (ident) @variable.member)
+  name: (ident) @variable.member
+  type: (_) @type)
+
+(generic_params (_) @type)
 
 ;; functions
 (fn_decl name: (ident) @function)
 (extern_fn_decl name: (ident) @function)
+
+(fn_decl return_type: (_) @type)
 
 ;; parameters
 (parameter type: (_) @type)
