@@ -1,0 +1,25 @@
+//! Optional values
+
+use package.panic.panic_with_msg
+
+pub type Option[T] = Some(T) | None
+
+pub fn map(opt: Option[A], f: A -> B) -> Option[B] = match opt {
+    Option.Some(x) => Option.Some(f(x)),
+    Option.None    => Option.None,
+}
+
+pub fn unwrap(opt: Option[T]) -> T = match opt {
+    Option.Some(x) => x,
+    Option.None    => panic_with_msg("Tried to unwrap a None value.")
+}
+
+pub fn is_some(opt: Option[T]) -> bool = match opt {
+    Option.Some(_) => true,
+    Option.None    => false,
+}
+
+pub fn is_none(opt: Option[T]) -> bool = match opt {
+    Option.Some(_) => false,
+    Option.None    => true,
+}

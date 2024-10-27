@@ -1,0 +1,7 @@
+//! Lists as an inductive datatype.
+
+pub type List[T] = 
+    | @core.operator.cons 
+      Cons(T, List[T]) 
+    | @core.empty_list
+      Nil

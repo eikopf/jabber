@@ -1,0 +1,23 @@
+//! Utilities for the `bool` primitive type
+
+pub type alias Bool = bool
+
+@core.operator.not
+pub fn not(b: bool) -> bool = __prim_bool_not(b)
+pub fn and(lhs: bool, rhs: bool) -> bool = __prim_bool_and(lhs, rhs)
+pub fn or(lhs: bool, rhs: bool) -> bool = __prim_bool_or(lhs, rhs)
+pub fn xor(lhs: bool, rhs: bool) -> bool = __prim_bool_xor(lhs, rhs)
+
+// PRIMITIVES
+
+@external.scheme("__jabber_bool_not")
+extern fn __prim_bool_not(b: bool) -> bool
+
+@external.scheme("__jabber_bool_and")
+extern fn __prim_bool_and(lhs: bool, rhs: bool) -> bool
+
+@external.scheme("__jabber_bool_or")
+extern fn  __prim_bool_or(lhs: bool, rhs: bool) -> bool
+
+@external.scheme("__jabber_bool_xor")
+extern fn __prim_bool_xor(lhs: bool, rhs: bool) -> bool

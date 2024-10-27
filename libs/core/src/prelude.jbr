@@ -1,0 +1,9 @@
+//! The prelude imported by all Jabber modules
+
+pub use package.{
+    fun.{id, constant},
+    option.{Option, Option.Some, Option.None},
+    panic.{panic, panic_with_msg, unreachable, todo},
+    ref.{ref, Ref},
+    result.{Result, Result.Ok, Result.Err},
+}

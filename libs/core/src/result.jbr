@@ -1,0 +1,35 @@
+//! Results modelling fallible computations
+
+use package.panic.panic_with_msg
+
+pub type Result[T, E] = Ok(T) | Err(E)
+
+pub fn map(res: Result[A, E], f: A -> B) -> Result[B, E] = match res {
+    Result.Ok(x)  => Result.Ok(f(x)),
+    Result.Err(e) => Result.Err(e),
+}
+
+pub fn map_err(res: Result[T, A], f: A -> B) -> Result[T, B] = match res {
+    Result.Ok(x) => Result.Ok(x),
+    Result.Err(e) => Result.Err(f(e)),
+}
+
+pub fn unwrap(res: Result[T, E]) -> T = match res {
+    Result.Ok(x)  => x,
+    Result.Err(_) => panic_with_msg("Tried to unwrap an Err value."),
+}
+
+pub fn unwrap_err(res: Result[T, E]) -> E = match res {
+    Result.Err(e) => e,
+    Result.Ok(_)  => panic_with_msg("Expected an Err value but got an Ok value."),
+}
+
+pub fn is_ok(res: Result[T, E]) -> bool = match res {
+    Result.Ok(_)  => true,
+    Result.Err(_) => false,
+}
+
+pub fn is_err(res: Result[T, E]) -> bool = match res {
+    Result.Ok(_)  => false,
+    Result.Err(_) => true,
+}

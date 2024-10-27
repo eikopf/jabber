@@ -1,0 +1,61 @@
+//! Utilities for the `int` primitive type.
+
+pub type alias Int = int
+
+pub const ZERO: int = 0
+pub const ONE:  int = 1
+
+pub fn intmin() -> int = __prim_intmin()
+pub fn intmax() -> int = __prim_intmax()
+
+@core.operator.add_int
+pub fn add(lhs: int, rhs: int) -> int = __prim_int_add(lhs, rhs)
+@core.operator.sub_int
+pub fn sub(lhs: int, rhs: int) -> int = __prim_int_sub(lhs, rhs)
+@core.operator.mul_int
+pub fn mul(lhs: int, rhs: int) -> int = __prim_int_mul(lhs, rhs)
+@core.operator.div_int
+pub fn div(lhs: int, rhs: int) -> int = __prim_int_div(lhs, rhs)
+@core.operator.pow_int
+pub fn pow(lhs: int, rhs: int) -> int = __prim_int_pow(lhs, rhs)
+@core.operator.mod_int
+pub fn mod(lhs: int, rhs: int) -> int = __prim_int_mod(lhs, rhs)
+
+@core.operator.lt_int
+pub fn lt(lhs: int, rhs: int) -> int = __prim_int_lt(lhs, rhs)
+@core.operator.gt_int
+pub fn gt(lhs: int, rhs: int) -> int = __prim_int_gt(lhs, rhs)
+@core.operator.leq_int
+pub fn leq(lhs: int, rhs: int) -> int = __prim_int_leq(lhs, rhs)
+@core.operator.geq_int
+pub fn geq(lhs: int, rhs: int) -> int = __prim_int_geq(lhs, rhs)
+
+
+// EXTERNALS
+
+@external.scheme("__jabber_intmin")
+extern fn __prim_intmin() -> int
+@external.scheme("__jabber_intmax")
+extern fn __prim_intmax() -> int
+
+@external.scheme("__jabber_int_add")
+extern fn __prim_int_add(lhs: int, rhs: int) -> int
+@external.scheme("__jabber_int_sub")
+extern fn __prim_int_sub(lhs: int, rhs: int) -> int
+@external.scheme("__jabber_int_mul")
+extern fn __prim_int_mul(lhs: int, rhs: int) -> int
+@external.scheme("__jabber_int_div")
+extern fn __prim_int_div(lhs: int, rhs: int) -> int
+@external.scheme("__jabber_int_pow")
+extern fn __prim_int_pow(lhs: int, rhs: int) -> int
+@external.scheme("__jabber_int_mod")
+extern fn __prim_int_mod(lhs: int, rhs: int) -> int
+
+@external.scheme("__jabber_int_lt")
+extern fn __prim_int_lt(lhs: int, rhs: int) -> bool
+@external.scheme("__jabber_int_gt")
+extern fn __prim_int_gt(lhs: int, rhs: int) -> bool
+@external.scheme("__jabber_int_leq")
+extern fn __prim_int_leq(lhs: int, rhs: int) -> bool
+@external.scheme("__jabber_int_geq")
+extern fn __prim_int_geq(lhs: int, rhs: int) -> bool

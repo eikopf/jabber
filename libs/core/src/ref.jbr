@@ -1,0 +1,14 @@
+//! Mutable reference cells
+
+pub type Ref[T] = Ref { mutable contents: T }
+
+pub fn ref(contents: T) -> Ref[T] = Ref { contents }
+
+@core.operator.deref
+pub fn deref(ref: Ref[T]) -> T = ref.contents
+
+@core.operator.update
+pub fn update(ref: Ref[T], value: T) = ref.contents <- value
+
+pub fn increment(ref: Ref[int]) = ref := *ref + 1
+pub fn decrement(ref: Ref[int]) = ref := *ref - 1
