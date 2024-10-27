@@ -46,8 +46,8 @@ use type_sitter::{
 pub struct Parser(type_sitter::Parser<SourceFile<'static>>);
 
 #[derive(Debug, Clone, Copy, Error)]
-#[error("Failed to parse {0}, probably because the parser timed out.")]
-pub struct CstParseError<'a>(&'a std::path::Path);
+#[error("Failed to parse {0:?}, probably because the parser timed out.")]
+pub struct CstParseError<'a>(Option<&'a std::path::Path>);
 
 impl Parser {
     pub fn new() -> Result<Self, raw::LanguageError> {
@@ -1318,13 +1318,13 @@ fn node_span<'a>(node: impl Node<'a>) -> Span {
 
 #[cfg(test)]
 mod tests {
-    use crate::{source_file, span::Spanned};
+    use crate::{fake_file, span::Spanned};
 
     use super::{ast, Parser};
 
     #[test]
     fn fake_ref_module() {
-        let source = source_file::SourceFile::fake(
+        let source = fake_file!(
             r#"
             //! Mutable reference cells
 
@@ -1350,7 +1350,7 @@ mod tests {
             pub fn update(ref: Ref[T], value: T) {
                 ref.contents <- value;
             }
-            "#,
+            "#
         );
 
         let mut parser = Parser::new().unwrap();
@@ -1374,7 +1374,7 @@ mod tests {
 
     #[test]
     fn fake_result_module() {
-        let source = source_file::SourceFile::fake(
+        let source = fake_file!(
             r#"
     //! Results representing fallible computations
 
@@ -1407,7 +1407,7 @@ mod tests {
         Result.Ok(x) => x,
         _ => panic(),
     }
-            "#,
+            "#
         );
 
         let mut parser = Parser::new().unwrap();
@@ -1423,12 +1423,12 @@ mod tests {
 
     #[test]
     fn keyword_qualified_paths() {
-        let source = source_file::SourceFile::fake(
+        let source = fake_file!(
             r#"
             use package.foo.bar
             use super.baz.qux
             use self.Option.{Some, None}
-            "#,
+            "#
         );
 
         let mut parser = Parser::new().unwrap();
