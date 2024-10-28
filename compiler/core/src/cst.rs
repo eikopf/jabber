@@ -20,6 +20,7 @@ use crate::{
     span::{Span, SpanSeq, Spanned},
 };
 
+use ecow::EcoString;
 use nodes::{
     anon_unions::{
         EmptyStmt_ExprStmt_LetStmt as EsEsLs, Ident_Parameters,
@@ -669,7 +670,10 @@ impl<'a> CstVisitor<'a> {
         let span = node_span(node);
 
         match node {
-            Expr::Ident(_) => Ok(ast::Expr::Name(ast::Name::Ident)),
+            Expr::Ident(ident) => {
+                let ident = ast::Name::Ident(self.visit_ident(ident).unwrap());
+                Ok(ast::Expr::Name(ident))
+            }
             Expr::Path(path) => self
                 .visit_path(path)
                 .map(Spanned::unwrap)
@@ -717,8 +721,16 @@ impl<'a> CstVisitor<'a> {
                     let span = node_span(field_expr.field());
 
                     let field = match field_expr.field()? {
-                        ITf::Ident(_) => ast::FieldExprField::Ident,
-                        ITf::TupleField(_) => ast::FieldExprField::TupleIndex,
+                        ITf::Ident(ident) => ast::FieldExprField::Ident(
+                            self.visit_ident(ident).unwrap(),
+                        ),
+                        ITf::TupleField(nth) => {
+                            ast::FieldExprField::TupleIndex(EcoString::from(
+                                nth.utf8_text(self.source.as_bytes()).expect(
+                                    "Valid tuple index by construction.",
+                                ),
+                            ))
+                        }
                     };
 
                     span.with(field)
@@ -753,7 +765,11 @@ impl<'a> CstVisitor<'a> {
                 let params = {
                     let span = node_span(lambda_expr.parameters());
                     span.with(match lambda_expr.parameters()? {
-                        Ident_Parameters::Ident(_) => ast::LambdaParams::Ident,
+                        Ident_Parameters::Ident(ident) => {
+                            ast::LambdaParams::Ident(
+                                self.visit_ident(ident).unwrap(),
+                            )
+                        }
                         Ident_Parameters::Parameters(parameters) => self
                             .visit_parameters(parameters)
                             .map(Spanned::unwrap)
@@ -838,17 +854,41 @@ impl<'a> CstVisitor<'a> {
     }
 
     fn visit_literal_expr(&self, node: LiteralExpr<'a>) -> ast::LiteralExpr {
+        /// Quick helper function, since most literal expr nodes need to
+        /// extract some text in the same way.
+        fn node_text<'a>(source: &'a str, node: impl Node<'a>) -> EcoString {
+            EcoString::from(
+                node.utf8_text(source.as_bytes()).expect(
+                    "Valid literal_expr nodes contain valid UTF8 text.",
+                ),
+            )
+        }
+
         match node {
-            LiteralExpr::BinLiteral(_) => ast::LiteralExpr::BinInt,
+            LiteralExpr::UnitLiteral(_) => ast::LiteralExpr::Unit,
             LiteralExpr::BoolLiteralFalse(_) => ast::LiteralExpr::Bool(false),
             LiteralExpr::BoolLiteralTrue(_) => ast::LiteralExpr::Bool(true),
-            LiteralExpr::CharLiteral(_) => ast::LiteralExpr::Char,
-            LiteralExpr::DecLiteral(_) => ast::LiteralExpr::DecInt,
-            LiteralExpr::FloatLiteral(_) => ast::LiteralExpr::Float,
-            LiteralExpr::HexLiteral(_) => ast::LiteralExpr::HexInt,
-            LiteralExpr::OctLiteral(_) => ast::LiteralExpr::OctInt,
-            LiteralExpr::StringLiteral(_) => ast::LiteralExpr::String,
-            LiteralExpr::UnitLiteral(_) => ast::LiteralExpr::Unit,
+            LiteralExpr::CharLiteral(node) => {
+                ast::LiteralExpr::Char(node_text(self.source, node))
+            }
+            LiteralExpr::StringLiteral(node) => {
+                ast::LiteralExpr::String(node_text(self.source, node))
+            }
+            LiteralExpr::BinLiteral(node) => {
+                ast::LiteralExpr::BinInt(node_text(self.source, node))
+            }
+            LiteralExpr::OctLiteral(node) => {
+                ast::LiteralExpr::OctInt(node_text(self.source, node))
+            }
+            LiteralExpr::DecLiteral(node) => {
+                ast::LiteralExpr::DecInt(node_text(self.source, node))
+            }
+            LiteralExpr::HexLiteral(node) => {
+                ast::LiteralExpr::HexInt(node_text(self.source, node))
+            }
+            LiteralExpr::FloatLiteral(node) => {
+                ast::LiteralExpr::Float(node_text(self.source, node))
+            }
         }
     }
 
@@ -1244,7 +1284,9 @@ impl<'a> CstVisitor<'a> {
     fn visit_name(&self, node: Name<'a>) -> CstResult<'a, Spanned<ast::Name>> {
         let span = node_span(node);
         match node {
-            Name::Ident(_) => Ok(span.with(ast::Name::Ident)),
+            Name::Ident(ident) => {
+                Ok(self.visit_ident(ident).map(ast::Name::Ident))
+            }
             Name::Path(path) => self.visit_path(path),
             Name::Self_(_) => Ok(span.with(ast::Name::Path(
                 Some(span.with(ast::Qualifier::Self_)),
@@ -1307,7 +1349,12 @@ impl<'a> CstVisitor<'a> {
 
     fn visit_ident(&self, node: Ident) -> Spanned<ast::Ident> {
         let span = node_span(node);
-        span.with(ast::Ident)
+        let ident =
+            EcoString::from(node.utf8_text(self.source.as_bytes()).expect(
+                "This must be a valid &str by construction of the CST.",
+            ));
+
+        span.with(ast::Ident(ident))
     }
 }
 
