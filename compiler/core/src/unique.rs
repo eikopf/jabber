@@ -29,11 +29,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use lazy_static::lazy_static;
-
-lazy_static! {
-    static ref COUNTER: AtomicU64 = AtomicU64::new(0);
-}
+static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// A unique-by-construction numeric identifier.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]

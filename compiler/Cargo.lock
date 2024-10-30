@@ -140,7 +140,6 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "ecow",
- "lazy_static",
  "semver",
  "serde",
  "string-interner",
