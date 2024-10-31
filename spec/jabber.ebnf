@@ -37,9 +37,9 @@ glob item  = [name, "."], "*" ;
 alias item = name, "as", ident ;
 tree item  = [name, "."], "{", [use item, {",", use item}, [","]], "}" ;
 
-type decl        =           "type", type name, "=", type constructors ;
-extern type decl = "extern", "type", type name ;
-type alias decl  = "type",  "alias", type name, "=", type ;
+type decl        = ["opaque"], "type", type name, "=", type constructors ;
+extern type decl = "extern",   "type", type name ;
+type alias decl  = "type",    "alias", type name, "=", type ;
 
 type name = ident, [generic parameters] ;
 generic parameters = "[", ident, {",", ident}, [","], "]" ;
