@@ -1,5 +1,6 @@
 //! Binary and library packages.
 
+pub mod interface;
 pub mod loader;
 pub mod metadata;
 
