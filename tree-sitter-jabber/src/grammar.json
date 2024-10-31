@@ -1,4 +1,5 @@
 {
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/grammar.schema.json",
   "name": "jabber",
   "word": "ident",
   "rules": {
@@ -456,6 +457,18 @@
       "type": "SEQ",
       "members": [
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "opaque"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "STRING",
           "value": "type"
         },
@@ -496,6 +509,10 @@
           }
         }
       ]
+    },
+    "opaque": {
+      "type": "STRING",
+      "value": "opaque"
     },
     "type_constructors": {
       "type": "SEQ",

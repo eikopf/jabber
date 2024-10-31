@@ -1533,6 +1533,7 @@
   {
     "type": "source_file",
     "named": true,
+    "root": true,
     "fields": {
       "declaration": {
         "multiple": true,
@@ -1855,6 +1856,16 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "opaque",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -1905,18 +1916,6 @@
     "named": false
   },
   {
-    "type": "!=",
-    "named": false
-  },
-  {
-    "type": "%",
-    "named": false
-  },
-  {
-    "type": "&&",
-    "named": false
-  },
-  {
     "type": "(",
     "named": false
   },
@@ -1926,22 +1925,6 @@
   },
   {
     "type": "*",
-    "named": false
-  },
-  {
-    "type": "*.",
-    "named": false
-  },
-  {
-    "type": "+",
-    "named": false
-  },
-  {
-    "type": "++",
-    "named": false
-  },
-  {
-    "type": "+.",
     "named": false
   },
   {
@@ -1969,14 +1952,6 @@
     "named": false
   },
   {
-    "type": "/",
-    "named": false
-  },
-  {
-    "type": "/.",
-    "named": false
-  },
-  {
     "type": "//",
     "named": false
   },
@@ -1997,35 +1972,7 @@
     "named": false
   },
   {
-    "type": ":=",
-    "named": false
-  },
-  {
     "type": ";",
-    "named": false
-  },
-  {
-    "type": "<",
-    "named": false
-  },
-  {
-    "type": "<-",
-    "named": false
-  },
-  {
-    "type": "<.",
-    "named": false
-  },
-  {
-    "type": "<=",
-    "named": false
-  },
-  {
-    "type": "<=.",
-    "named": false
-  },
-  {
-    "type": "<|",
     "named": false
   },
   {
@@ -2033,27 +1980,7 @@
     "named": false
   },
   {
-    "type": "==",
-    "named": false
-  },
-  {
     "type": "=>",
-    "named": false
-  },
-  {
-    "type": ">",
-    "named": false
-  },
-  {
-    "type": ">.",
-    "named": false
-  },
-  {
-    "type": ">=",
-    "named": false
-  },
-  {
-    "type": ">=.",
     "named": false
   },
   {
@@ -2066,14 +1993,6 @@
   },
   {
     "type": "]",
-    "named": false
-  },
-  {
-    "type": "^",
-    "named": false
-  },
-  {
-    "type": "^.",
     "named": false
   },
   {
@@ -2193,6 +2112,10 @@
     "named": true
   },
   {
+    "type": "opaque",
+    "named": true
+  },
+  {
     "type": "package",
     "named": true
   },
@@ -2234,14 +2157,6 @@
   },
   {
     "type": "|",
-    "named": false
-  },
-  {
-    "type": "|>",
-    "named": false
-  },
-  {
-    "type": "||",
     "named": false
   },
   {

@@ -135,12 +135,15 @@ module.exports = grammar({
 
     type_decl: ($) =>
       seq(
+        optional($.opaque),
         "type",
         field("name", $.ident),
         optional(field("params", $.generic_params)),
         "=",
         field("constructors", $.type_constructors),
       ),
+
+    opaque: (_) => "opaque",
 
     type_constructors: ($) =>
       seq(

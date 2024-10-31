@@ -146,6 +146,7 @@
  "match"
  ] @keyword.conditional
 
+"opaque" @keyword.modifier
 "extern" @keyword.modifier
 (access_spec) @keyword.modifier
 (mutable) @keyword.modifier
