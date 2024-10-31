@@ -376,6 +376,7 @@ impl<'a> CstVisitor<'a> {
         node: TypeDecl<'a>,
     ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         let name = self.visit_ident(node.name()?);
+        let opacity = node.opaque().transpose()?.map(node_span);
         let params =
             self.visit_generic_params_opt(node.params().transpose()?)?;
 
@@ -396,6 +397,7 @@ impl<'a> CstVisitor<'a> {
         let span = node_span(node);
         Ok(span.with(ast::DeclKind::Type {
             name,
+            opacity,
             params,
             constructors,
         }))
@@ -1377,7 +1379,7 @@ mod tests {
 
             /// A mutable reference cell.
             @core.lang_item
-            pub type Ref[T] = Ref { mutable contents : T }
+            pub opaque type Ref[T] = Ref { mutable contents : T }
 
             /// Constructs a new `Ref[T]` with the given `contents`.
             pub fn ref(contents: T) -> Ref[T] = Ref { contents }

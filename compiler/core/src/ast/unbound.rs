@@ -95,6 +95,7 @@ pub enum DeclKind {
     },
     Type {
         name: Spanned<Ident>,
+        opacity: Option<Span>,
         params: SpanSeq<Ident>,
         constructors: SpanSeq<TyConstr>,
     },
