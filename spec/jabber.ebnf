@@ -6,29 +6,26 @@
   the ./extras.ebnf file.
 *)
 
-(*
-  TODO: add pragma/annotation syntax for compiler metadata
-  TODO: add functional record update syntax
-*)
-
-START = {decl} ;
+START = {declaration} ;
 
 (* DECLARATIONS *)
 
-declaration = mod decl              (* modules *)
-            | use decl              (* imports *)
-            | type decl             (* type aliases *)
-            | extern type decl      (* foreign types *)
-            | struct decl           (* struct types *)
-            | enum decl             (* enum types *)
-            | fn decl               (* functions *)
-            | extern fn decl        (* foreign functions *)
-            | const decl            (* constants *)
-            ;
+declaration = {attributes}, [visibility], decl_body ;
+visibility = "pub" ;
 
-mod decl = [visibility], "mod", identifier ;
+decl_body = mod decl              (* modules *)
+          | use decl              (* imports *)
+          | type alias decl       (* type aliases *)
+          | type decl             (* custom types *)
+          | extern type decl      (* foreign types *)
+          | fn decl               (* functions *)
+          | extern fn decl        (* foreign functions *)
+          | const decl            (* constants *)
+          ;
 
-use decl = [visibility], "use", use item ;
+mod decl = "mod", identifier ;
+
+use decl = "use", use item ;
 
 use item = name 
          | glob item 
@@ -40,32 +37,36 @@ glob item  = [name, "."], "*" ;
 alias item = name, "as", ident ;
 tree item  = [name, "."], "{", [use item, {",", use item}, [","]], "}" ;
 
-type decl        = [visibility],           "type", type alias, "=", type ;
-extern type decl = [visibility], "extern", "type", type alias ;
-type alias = ident | generic type ;
+type decl        =           "type", type name, "=", type constructors ;
+extern type decl = "extern", "type", type name ;
+type alias decl  = "type",  "alias", type name, "=", type ;
 
-struct decl = [visibility], "struct", ident, [generic parameters], struct fields ;
-enum decl   = [visibility], "enum",   ident, [generic parameters], enum variants ;
-
-struct fields = "{", [struct field, {",", struct field}, [","]], "}" ;
-enum variants = "{", [enum variant, {",", enum variant}, [","]], "}" ;
-
-struct field = [visibility], ident, ":", type ;
-enum variant = ident, ["(", type, {"," type}, [","], ")"] ;
-
+type name = ident, [generic parameters] ;
 generic parameters = "[", ident, {",", ident}, [","], "]" ;
 
-fn decl        = [visibility], "fn", ident, parameters, ["->", type], fn body;
-extern fn decl = [visibility], "extern", "fn", ident, parameters, ["->", type];
+type constructors = {type constructor} ;
+type constructor  = ident, [record payload | tuple payload] ;
+
+record payload = "{" record field, {",", record field}, [","], "}" ;
+tuple payload  = "("         type, {",",         type}, [","], ")" ;
+
+record field = ["mutable"], ident, ":", type ;
+
+fn decl        =           "fn", ident, parameters, ["->", type], fn body;
+extern fn decl = "extern", "fn", ident, parameters, ["->", type];
 
 parameters = "(", [parameter, {"," parameter}, [","]], ")" ;
 parameter  = pattern, [":", type] ;
 
 fn body = ("=", expr) | block ;
 
-const decl  = [visibility], "const", ident, ":", type, "=", expr ;
+const decl  = "const", ident, ":", type, "=", expr ;
 
-visibility = "pub" ;
+(* ATTRIBUTES *)
+
+attributes = { attribute } ;
+attribute = "@", name, ["(", {attribute argument}, ")"] ;
+attribute argument = name | literal expr ;
 
 (* EXPRESSIONS *)
 
@@ -73,7 +74,7 @@ expr = name                     (* items *)
      | literal expr             (* literals *)
      | list expr                (* lists *)
      | tuple expr               (* tuples *)
-     | struct expr              (* struct literals *)
+     | record expr              (* record literals *)
      | field expr               (* projections *)
      | lambda expr              (* function literals *)
      | call expr                (* function calls *)
@@ -102,15 +103,19 @@ string literal = ? regex: '"(\\"|[^"\r])*"' ? ;
 
 (* 
   NOTE: the integer literal and float literal rules are
-        defined in ./numbers.ebnf
+  defined in ./numbers.ebnf
 *)
 
 list expr  = "[", [expr, {",", expr}, [","]], "]" ;
 tuple expr = "(",  expr, {",", expr}, [","],  ")" ;
 
-struct expr = name, "{", struct expr fields, "}" ;
-struct expr fields = [struct expr field, {",", struct expr field}, [","]] ;
-struct expr field = ident, [":", expr] ;
+record expr = name, 
+              "{", record expr field, {",", record expr field},
+             [",", record expr base],
+             [","], "}" ;
+
+record expr field = ident, [":", expr] ;
+record expr base = "..", expr ;
 
 field expr = expr, ".", ident ;
 
@@ -149,7 +154,6 @@ stmt = ";" | expr stmt | let stmt ;
 expr stmt = expr, ";" ;
 let stmt = "let", pattern, [":", type], "=", expr, ";" ;
 
-(* this rule conflicts with the tuple expr rule without precedence annotations *)
 parenthesized expr = "(", expr, ")" ;
 
 (* PATTERNS *)
@@ -161,7 +165,7 @@ pattern = "_"
         | list pattern
         | cons pattern
         | enum pattern
-        | struct pattern
+        | record pattern
         | parenthesized pattern
         ;
 
@@ -172,12 +176,13 @@ cons pattern = pattern, "::", pattern ;
 
 enum pattern = name, "(", pattern, {",", pattern}, [","], ")" ;
 
-struct pattern = name, struct pattern fields ;
-struct pattern fields = "{", [struct pattern field, {",", struct pattern field}, 
-                                                    [",", rest pattern],
-                                                    [","]], "}" ;
+record pattern = name, 
+                "{", record pattern field, {",", record pattern field},
+               [",", rest pattern],
+               [","], "}" ;
 
-rest pattern = ".."
+record pattern field = ident, [":", type] ;
+rest pattern = ".." ;
 
 parenthesized pattern = "(", pattern, ")" ;
 
