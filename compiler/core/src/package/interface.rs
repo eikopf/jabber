@@ -7,23 +7,22 @@
 
 use std::collections::HashMap;
 
-use ecow::EcoString;
 use semver::{Version, VersionReq};
 
 pub struct Package {
-    name: EcoString,
+    name: Box<str>,
     version: Version,
     language_req: Option<VersionReq>,
     /// The modules in this package.
     ///
     /// Note that the names of modules are not broken up by element, so e.g. a
     /// module `core.foo.bar` would use the key `foo.bar` in this map.
-    modules: HashMap<EcoString, Module>,
+    modules: HashMap<Box<str>, Module>,
 }
 
 pub struct Module {
-    types: HashMap<EcoString, TypeDef>,
-    terms: HashMap<EcoString, TermDef>,
+    types: HashMap<Box<str>, TypeDef>,
+    terms: HashMap<Box<str>, TermDef>,
 }
 
 pub enum TypeDef {
@@ -33,7 +32,7 @@ pub enum TypeDef {
 }
 
 pub struct TypeAliasDef {
-    params: Box<[EcoString]>,
+    params: Box<[Box<str>]>,
     ty: Ty,
 }
 
@@ -42,8 +41,8 @@ pub struct TermDef;
 type Ty = ();
 
 pub struct AdtDef {
-    name: EcoString,
-    package: EcoString,
-    module: EcoString,
+    name: Box<str>,
+    package: Box<str>,
+    module: Box<str>,
     parameters: Box<[Ty]>,
 }

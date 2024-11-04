@@ -1,9 +1,8 @@
-use ecow::EcoString;
-
 use crate::source_file::SourceFile;
 
 use crate::ast::bound as ast;
 use crate::span::{Span, Spanned};
+use crate::symbol::{StringInterner, Symbol};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Location {
@@ -48,12 +47,13 @@ pub struct Env {
     packages: Vec<Package>,
     modules: Vec<Module>,
     declarations: Vec<Decl>,
+    symbols: StringInterner,
 }
 
 /// An entry in the `packages` table of an [`Env`].
 pub struct Package {
     /// The name of the package, which is globally unique among all packages.
-    name: EcoString,
+    name: Symbol,
     /// The version of this package.
     version: semver::Version,
     /// The root module in this package's module tree.
@@ -67,7 +67,7 @@ pub struct Module {
     /// The name of this module as it would appear in a `mod` declaration.
     ///
     /// For package root modules, this field will be the empty string.
-    name: EcoString,
+    name: Symbol,
     /// The parent of this module, which may be `None` in the case of package
     /// root modules.
     parent: Option<ModId>,
@@ -82,7 +82,7 @@ pub struct Module {
 /// An entry in the `declarations` table of an [`Env`].
 pub struct Decl {
     /// The unqualified name of this declaration.
-    name: EcoString,
+    name: Symbol,
     /// The module in which this declaration is defined. Note that this may be
     /// different than the module from which this declaration is accessed,
     /// since modules can publicly reexport declarations from one another.
@@ -124,10 +124,6 @@ impl Package {
 }
 
 impl Module {
-    pub fn name(&self) -> &str {
-        self.name.as_ref()
-    }
-
     pub fn items(&self) -> &[(Visibility, ModItemId)] {
         self.items.as_ref()
     }

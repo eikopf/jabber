@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ecow = { version = "0.2.2", features = ["serde"] }
 semver = { version = "1.0.23", features = ["serde"] }
 serde = { version = "1.0.213", features = ["derive"] }
 string-interner = "0.17.0"

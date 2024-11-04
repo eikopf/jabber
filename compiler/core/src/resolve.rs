@@ -22,12 +22,11 @@
 
 use std::collections::HashMap;
 
-use ecow::EcoString;
-
 use crate::{
     ast::{bound, unbound},
     env::{DeclId, Env, FileId, Location, ModId, PkgId},
     span::{Span, SpanSeq, Spanned},
+    symbol::Symbol,
 };
 
 pub struct Resolver<'e> {
@@ -44,15 +43,15 @@ pub enum ResolverError {
     MissingType(unbound::Ident),
     UsedModuleAsExpr { location: Location, id: ModId },
     UsedSuperInRootModule { location: Location },
-    NoSuchModule { location: Location, name: EcoString },
+    NoSuchModule { location: Location, name: Symbol },
 }
 
 // NOTE: the Scope and ScopeKind types borrow from the design of
 // rustc_resolve::late::Rib and rustc_resolve::late::RibKind
 
 struct Scope {
-    terms: HashMap<EcoString, Res>,
-    types: HashMap<EcoString, Res>,
+    terms: HashMap<Symbol, Res>,
+    types: HashMap<Symbol, Res>,
     kind: ScopeKind,
 }
 
