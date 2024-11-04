@@ -140,18 +140,7 @@ impl<'e> Resolver<'e> {
                 todo!()
             }
             unbound::Name::Path(None, elems) => todo!(),
-            unbound::Name::Ident(ident) => {
-                let expr = match self.resolve_ident_as_term(ident)? {
-                    Res::Decl(decl_id) => Ok(bound::Expr::Decl(decl_id)),
-                    Res::Local(ident) => Ok(bound::Expr::Ident(ident)),
-                    Res::Mod(id) => Err(ResolverError::UsedModuleAsExpr {
-                        location: self.locate_span(name.span),
-                        id,
-                    }),
-                }?;
-
-                Ok(name.span.with(expr))
-            }
+            unbound::Name::Ident(ident) => todo!(),
         }
     }
 
@@ -182,24 +171,6 @@ impl<'e> Resolver<'e> {
         // at the first element in `path` and acting appropriately.
 
         todo!()
-    }
-
-    fn resolve_ident_as_term(&mut self, ident: unbound::Ident) -> ResResult {
-        self.scopes
-            .iter()
-            .rev()
-            .find_map(|scope| scope.terms.get(&ident.0))
-            .cloned()
-            .ok_or_else(|| ResolverError::MissingTerm(ident))
-    }
-
-    fn resolve_ident_as_type(&mut self, ident: unbound::Ident) -> ResResult {
-        self.scopes
-            .iter()
-            .rev()
-            .find_map(|scope| scope.types.get(&ident.0))
-            .cloned()
-            .ok_or_else(|| ResolverError::MissingType(ident))
     }
 
     // UTILITY METHODS

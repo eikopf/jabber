@@ -20,7 +20,6 @@ use crate::{
     span::{Span, SpanSeq, Spanned},
 };
 
-use ecow::EcoString;
 use nodes::{
     anon_unions::{
         EmptyStmt_ExprStmt_LetStmt as EsEsLs, Ident_Parameters,
@@ -726,13 +725,7 @@ impl<'a> CstVisitor<'a> {
                         ITf::Ident(ident) => ast::FieldExprField::Ident(
                             self.visit_ident(ident).unwrap(),
                         ),
-                        ITf::TupleField(nth) => {
-                            ast::FieldExprField::TupleIndex(EcoString::from(
-                                nth.utf8_text(self.source.as_bytes()).expect(
-                                    "Valid tuple index by construction.",
-                                ),
-                            ))
-                        }
+                        ITf::TupleField(_) => ast::FieldExprField::TupleIndex,
                     };
 
                     span.with(field)
@@ -856,41 +849,17 @@ impl<'a> CstVisitor<'a> {
     }
 
     fn visit_literal_expr(&self, node: LiteralExpr<'a>) -> ast::LiteralExpr {
-        /// Quick helper function, since most literal expr nodes need to
-        /// extract some text in the same way.
-        fn node_text<'a>(source: &'a str, node: impl Node<'a>) -> EcoString {
-            EcoString::from(
-                node.utf8_text(source.as_bytes()).expect(
-                    "Valid literal_expr nodes contain valid UTF8 text.",
-                ),
-            )
-        }
-
         match node {
             LiteralExpr::UnitLiteral(_) => ast::LiteralExpr::Unit,
             LiteralExpr::BoolLiteralFalse(_) => ast::LiteralExpr::Bool(false),
             LiteralExpr::BoolLiteralTrue(_) => ast::LiteralExpr::Bool(true),
-            LiteralExpr::CharLiteral(node) => {
-                ast::LiteralExpr::Char(node_text(self.source, node))
-            }
-            LiteralExpr::StringLiteral(node) => {
-                ast::LiteralExpr::String(node_text(self.source, node))
-            }
-            LiteralExpr::BinLiteral(node) => {
-                ast::LiteralExpr::BinInt(node_text(self.source, node))
-            }
-            LiteralExpr::OctLiteral(node) => {
-                ast::LiteralExpr::OctInt(node_text(self.source, node))
-            }
-            LiteralExpr::DecLiteral(node) => {
-                ast::LiteralExpr::DecInt(node_text(self.source, node))
-            }
-            LiteralExpr::HexLiteral(node) => {
-                ast::LiteralExpr::HexInt(node_text(self.source, node))
-            }
-            LiteralExpr::FloatLiteral(node) => {
-                ast::LiteralExpr::Float(node_text(self.source, node))
-            }
+            LiteralExpr::CharLiteral(_) => ast::LiteralExpr::Char,
+            LiteralExpr::StringLiteral(_) => ast::LiteralExpr::String,
+            LiteralExpr::BinLiteral(_) => ast::LiteralExpr::BinInt,
+            LiteralExpr::OctLiteral(_) => ast::LiteralExpr::OctInt,
+            LiteralExpr::DecLiteral(_) => ast::LiteralExpr::DecInt,
+            LiteralExpr::HexLiteral(_) => ast::LiteralExpr::HexInt,
+            LiteralExpr::FloatLiteral(_) => ast::LiteralExpr::Float,
         }
     }
 
@@ -1351,12 +1320,7 @@ impl<'a> CstVisitor<'a> {
 
     fn visit_ident(&self, node: Ident) -> Spanned<ast::Ident> {
         let span = node_span(node);
-        let ident =
-            EcoString::from(node.utf8_text(self.source.as_bytes()).expect(
-                "This must be a valid &str by construction of the CST.",
-            ));
-
-        span.with(ast::Ident(ident))
+        span.with(ast::Ident)
     }
 }
 

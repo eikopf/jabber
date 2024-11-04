@@ -1,9 +1,8 @@
 //! Unbound ASTs derived from [`Cst`s](crate::cst::Cst).
 //!
 //! ASTs in this stage store almost everything in terms of [`Span`] data,
-//! but copy enough information from the source text that later stages don't
-//! need to have a reference to the source text (at least directly). Literals
-//! are unprocessed (except for `true` and `false`, which are trivial). No
+//! and avoid copying and allocating as much as is possible. Literals are
+//! unprocessed (except for `true` and `false`, for which it is trivial). No
 //! syntax errors are present: ASTs are syntactically well-formed, but unbound
 //! and untyped.
 //!
@@ -16,8 +15,6 @@
 //! except [`Ty::Infer`], [`Ty::Name`], and [`Ty::Prim`]. For those three
 //! variants, their spanning information is exactly the same as the [`Span`]
 //! represented in a [`Spanned<Ty>`].
-
-use ecow::EcoString;
 
 use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 
@@ -244,13 +241,13 @@ pub enum Expr {
 pub enum LiteralExpr {
     Unit,
     Bool(bool),
-    Char(EcoString),
-    String(EcoString),
-    BinInt(EcoString),
-    OctInt(EcoString),
-    DecInt(EcoString),
-    HexInt(EcoString),
-    Float(EcoString),
+    Char,
+    String,
+    BinInt,
+    OctInt,
+    DecInt,
+    HexInt,
+    Float,
 }
 
 #[derive(Debug, Clone)]
@@ -262,7 +259,7 @@ pub struct RecordExprField {
 #[derive(Debug, Clone)]
 pub enum FieldExprField {
     Ident(Ident),
-    TupleIndex(EcoString),
+    TupleIndex,
 }
 
 #[derive(Debug, Clone)]
@@ -405,55 +402,18 @@ pub enum FnTyArgs {
 
 // NAMES
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Name {
     Path(Option<Spanned<Qualifier>>, SpanSeq<Ident>),
     Ident(Ident),
 }
 
-impl std::fmt::Debug for Name {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Ident(ident) => write!(f, "{:?}", ident),
-            Self::Path(qualifier, idents) => {
-                if let Some(qualifier) = qualifier {
-                    write!(f, "{:?}.", qualifier.item)?
-                }
-
-                let (last, prefix) = idents.split_last().unwrap();
-
-                for ident in prefix {
-                    write!(f, "{:?}.", ident.item)?
-                }
-
-                write!(f, "{:?}", last.item)
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Qualifier {
     Super,
     Self_,
     Package,
 }
 
-impl std::fmt::Debug for Qualifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Super => write!(f, "super"),
-            Self::Self_ => write!(f, "self"),
-            Self::Package => write!(f, "package"),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct Ident(pub EcoString);
-
-impl std::fmt::Debug for Ident {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+#[derive(Debug, Clone, Copy)]
+pub struct Ident;

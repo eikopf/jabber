@@ -1,10 +1,18 @@
 //! Bound ASTs derived from [unbound ASTs](`super::unbound::Ast`).
+//!
+//! ASTs in this stage are slightly desugared relative to those from
+//! [`crate::ast::unbound`], and store identifiers as [`Symbol`] values
+//! referring to the symbol table in the global [`crate::env::Env`]. Literals
+//! have been processed into appropriate values, though their source span
+//! information has been retained.
 
-use ecow::EcoString;
+// TODO: alter Ident to let variables in expressions have both a globally
+// unique ID *and* a Symbol pointing at their source names
 
 use crate::{
     env,
     span::{Span, SpanBox, SpanSeq, Spanned},
+    symbol::Symbol,
 };
 
 // DECLARATIONS
@@ -117,7 +125,7 @@ pub enum LiteralExpr {
     Unit,
     Bool(bool),
     Char(char),
-    String(EcoString),
+    String(Symbol),
     Int(i64),
     Float(f64),
 }
@@ -208,4 +216,4 @@ pub enum Ty {
 // NAMES
 
 #[derive(Debug, Clone)]
-pub struct Ident(pub EcoString);
+pub struct Ident(pub Symbol);
