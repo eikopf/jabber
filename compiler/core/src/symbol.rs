@@ -23,6 +23,11 @@ impl StringInterner {
         Symbol(raw_symbol)
     }
 
+    pub fn intern_static(&mut self, s: &'static str) -> Symbol {
+        let raw_symbol = self.0.intern_static(s);
+        Symbol(raw_symbol)
+    }
+
     pub fn resolve(&self, sym: Symbol) -> Option<&str> {
         self.0.resolve(sym.0)
     }
