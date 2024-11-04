@@ -5,14 +5,22 @@
 //! referring to the symbol table in the global [`crate::env::Env`]. Literals
 //! have been processed into appropriate values, though their source span
 //! information has been retained.
-
-// TODO: alter Ident to let variables in expressions have both a globally
-// unique ID *and* a Symbol pointing at their source names
+//!
+//! # Identifiers
+//! Rather than represent local variables in a tree of possibly-shadowed names,
+//! we instead take the nuclear option and give each identifier a [`Uid`]. This
+//! is sometimes called alpha-renaming, and makes later substitution operations
+//! in the compiler much simpler.
+//!
+//! Top-level identifiers also have [`Uid`] fields, which are largely used as
+//! sanity-checks during resolution. Keep in mind that these IDs aren't stable
+//! across invocations, so they can't be cached.
 
 use crate::{
     env,
     span::{Span, SpanBox, SpanSeq, Spanned},
     symbol::Symbol,
+    unique::Uid,
 };
 
 // DECLARATIONS
@@ -216,4 +224,7 @@ pub enum Ty {
 // NAMES
 
 #[derive(Debug, Clone)]
-pub struct Ident(pub Symbol);
+pub struct Ident {
+    pub symbol: Symbol,
+    pub id: Uid,
+}
