@@ -26,7 +26,7 @@ use crate::{
 // DECLARATIONS
 
 #[derive(Debug, Clone)]
-pub enum Decl {
+pub enum TypeDecl {
     TyAlias {
         name: Spanned<Ident>,
         params: SpanSeq<Ident>,
@@ -42,6 +42,10 @@ pub enum Decl {
         name: Spanned<Ident>,
         params: SpanSeq<Ident>,
     },
+}
+
+#[derive(Debug, Clone)]
+pub enum TermDecl {
     Fn {
         name: Spanned<Ident>,
         params: SpanSeq<Parameter>,
@@ -90,14 +94,14 @@ pub struct Parameter {
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Decl(env::DeclId),
+    Term(env::TermId),
     Ident(Ident),
     Literal(LiteralExpr),
     List(SpanSeq<Self>),
     Tuple(SpanSeq<Self>),
     Block(Block),
     Record {
-        name: Spanned<env::DeclId>,
+        name: Spanned<env::TypeConstrId>,
         fields: SpanSeq<RecordExprField>,
         base: Option<SpanBox<Self>>,
     },
@@ -181,13 +185,13 @@ pub enum Pattern {
         head: SpanBox<Self>,
         tail: SpanBox<Self>,
     },
-    UnitConstr(env::DeclId),
+    UnitConstr(env::TypeConstrId),
     TupleConstr {
-        name: Spanned<env::DeclId>,
+        name: Spanned<env::TypeConstrId>,
         elems: SpanSeq<Self>,
     },
     RecordConstr {
-        name: Spanned<env::DeclId>,
+        name: Spanned<env::TypeConstrId>,
         fields: SpanSeq<RecordPatternField>,
         rest: Option<Span>,
     },
@@ -212,7 +216,7 @@ pub enum Ty {
     Float,
     Var(Ident),
     Adt {
-        name: Spanned<env::DeclId>,
+        name: Spanned<env::TypeId>,
         args: SpanSeq<Self>,
     },
     Fn {

@@ -24,7 +24,7 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{bound, unbound},
-    env::{DeclId, Env, FileId, Location, ModId, PkgId},
+    env::{Env, FileId, Location, ModId, PkgId, TermId, TypeId},
     span::{Span, SpanSeq, Spanned},
     symbol::Symbol,
 };
@@ -67,7 +67,9 @@ enum ScopeKind {
 /// The value produced when a name is successfully resolved.
 #[derive(Debug, Clone)]
 enum Res {
-    Decl(DeclId),
+    Term(TermId),
+    Type(TypeId),
+    TyConstr { ty: TypeId, name: Symbol },
     Mod(ModId),
     Local(bound::Ident),
 }
