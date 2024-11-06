@@ -134,7 +134,5 @@ mod tests {
 
         assert_eq!(name.as_ref(), "");
         assert!(submodules.len() > 4);
-
-        panic!();
     }
 }
