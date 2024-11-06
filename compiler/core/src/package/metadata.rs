@@ -4,6 +4,7 @@ use std::{collections::HashMap, path::Path};
 
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metadata {
@@ -11,6 +12,22 @@ pub struct Metadata {
     pub language: Option<LanguageMetadata>,
     #[serde(default)]
     pub dependencies: HashMap<Box<str>, DepReq>,
+}
+
+#[derive(Debug, Error)]
+pub enum MetadataLoadError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Toml(#[from] toml::de::Error),
+}
+
+impl Metadata {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, MetadataLoadError> {
+        let file_contents = std::fs::read_to_string(&path)?;
+        let metadata = toml::from_str(&file_contents)?;
+        Ok(metadata)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,6 +51,15 @@ pub enum PackageKind {
     #[serde(rename = "lib")]
     #[serde(alias = "library")]
     Library,
+}
+
+impl PackageKind {
+    pub const fn root_file_name(self) -> &'static str {
+        match self {
+            PackageKind::Binary => "bin.jbr",
+            PackageKind::Library => "lib.jbr",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

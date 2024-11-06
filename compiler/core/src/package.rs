@@ -1,5 +1,10 @@
 //! Binary and library packages.
 
+use std::path::Path;
+
+use metadata::PackageKind;
+use semver::Version;
+
 pub mod interface;
 pub mod loader;
 pub mod metadata;
@@ -17,3 +22,19 @@ const PACKAGE_SOURCE_DIR: &str = "src";
 // NOTE: i presume (but do not know for sure) that `core` will be the terminal
 // package for all dependency graphs. since this is probably true, it might be
 // worth explicitly separating the "build core" stage of the compiler.
+
+#[derive(Debug, Clone)]
+pub struct Package<S, T> {
+    name: S,
+    kind: PackageKind,
+    version: Version,
+    source_path: Box<Path>,
+    root_module: Module<S, T>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Module<S, T> {
+    name: S,
+    content: T,
+    submodules: Box<[Self]>,
+}
