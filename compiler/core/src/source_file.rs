@@ -30,7 +30,14 @@ impl SourceFile {
         &self.contents
     }
 
-    pub fn path(&self) -> Option<&Path> {
+    pub fn path(self) -> Option<Box<Path>> {
+        match self.path {
+            FileName::Real(path) => Some(path),
+            FileName::Fake { .. } => None,
+        }
+    }
+
+    pub fn path_ref(&self) -> Option<&Path> {
         match &self.path {
             FileName::Real(path) => Some(path),
             FileName::Fake { .. } => None,

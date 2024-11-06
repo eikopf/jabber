@@ -45,9 +45,9 @@ use type_sitter::{
 
 pub struct Parser(type_sitter::Parser<SourceFile<'static>>);
 
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Clone, Error)]
 #[error("Failed to parse {0:?}, probably because the parser timed out.")]
-pub struct CstParseError<'a>(Option<&'a std::path::Path>);
+pub struct CstParseError(Option<Box<std::path::Path>>);
 
 impl Parser {
     pub fn new() -> Result<Self, raw::LanguageError> {
@@ -57,20 +57,20 @@ impl Parser {
         .map(Self)
     }
 
-    pub fn parse<'a>(
-        &'a mut self,
-        file: &'a source_file::SourceFile,
-    ) -> Result<Cst, CstParseError<'a>> {
-        self.0
-            .parse(file.contents(), None)
-            .map(|tree| Cst { tree, file })
-            .map_err(|()| CstParseError(file.path()))
+    pub fn parse(
+        &mut self,
+        file: source_file::SourceFile,
+    ) -> Result<Cst, CstParseError> {
+        match self.0.parse(file.contents(), None) {
+            Ok(tree) => Ok(Cst { tree, file }),
+            Err(_) => Err(CstParseError(file.path())),
+        }
     }
 }
 
-pub struct Cst<'a> {
+pub struct Cst {
     tree: Tree<SourceFile<'static>>,
-    file: &'a source_file::SourceFile,
+    file: source_file::SourceFile,
 }
 
 #[derive(Debug, Clone, Copy, Error)]
@@ -89,15 +89,15 @@ pub enum ParseError {
     },
 }
 
-impl<'a> TryFrom<Cst<'a>> for ast::Ast {
+impl TryFrom<Cst> for ast::Ast {
     type Error = Box<[ParseError]>;
 
-    fn try_from(value: Cst<'a>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cst) -> Result<Self, Self::Error> {
         value.build_ast()
     }
 }
 
-impl<'a> Cst<'a> {
+impl Cst {
     fn build_ast(self) -> Result<ast::Ast, Box<[ParseError]>> {
         let errors = self.collect_errors();
         if !errors.is_empty() {
@@ -106,19 +106,15 @@ impl<'a> Cst<'a> {
 
         // beyond this point, self.tree contains no errors
 
-        let visitor = self.visitor();
-        let Cst { tree, .. } = self;
+        let Cst { tree, file } = self;
+        let visitor = CstVisitor {
+            source: file.contents(),
+        };
         let root = tree.root_node().unwrap();
         let (shebang, module_comment, comments, decls) =
             visitor.visit_source_file(root).unwrap();
 
         Ok(ast::Ast::new(shebang, module_comment, comments, decls))
-    }
-
-    fn visitor(&self) -> CstVisitor<'a> {
-        CstVisitor {
-            source: self.file.contents(),
-        }
     }
 
     fn collect_errors(&self) -> Box<[ParseError]> {
@@ -1367,7 +1363,7 @@ mod tests {
         );
 
         let mut parser = Parser::new().unwrap();
-        let cst = parser.parse(&source).unwrap();
+        let cst = parser.parse(source).unwrap();
         let ast = ast::Ast::try_from(cst).unwrap();
 
         assert!(ast.shebang().is_none());
@@ -1424,7 +1420,7 @@ mod tests {
         );
 
         let mut parser = Parser::new().unwrap();
-        let cst = parser.parse(&source).unwrap();
+        let cst = parser.parse(source).unwrap();
         let ast = ast::Ast::try_from(cst).unwrap();
 
         assert!(ast.shebang().is_none());
@@ -1445,7 +1441,7 @@ mod tests {
         );
 
         let mut parser = Parser::new().unwrap();
-        let cst = parser.parse(&source).unwrap();
+        let cst = parser.parse(source).unwrap();
         let ast = cst.build_ast().unwrap();
 
         let pkg_path = ast.decls()[0].kind.item();
