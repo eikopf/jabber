@@ -1,7 +1,7 @@
 //! The primary interface for loading packages from files.
 
 use std::{
-    fs::{self, DirEntry, ReadDir},
+    fs::{self, DirEntry},
     path::Path,
 };
 
@@ -11,18 +11,36 @@ use crate::source_file::SourceFile;
 
 use super::{
     metadata::{Metadata, MetadataLoadError},
-    JABBER_FILE_EXTENSION, PACKAGE_METADATA_FILE, PACKAGE_SOURCE_DIR,
+    Module, Package, JABBER_FILE_EXTENSION, PACKAGE_METADATA_FILE,
+    PACKAGE_SOURCE_DIR,
 };
 
-pub type LoadedPackage = super::Package<Box<str>, SourceFile>;
-pub type LoadedModule = super::Module<Box<str>, SourceFile>;
+impl Package<SourceFile> {
+    pub fn load_files(
+        root: impl Into<Box<Path>>,
+    ) -> Result<Self, PackageLoadError> {
+        let paths = Package::load_paths(root)?;
+        let package = paths.map_modules(SourceFile::new);
+        package.transpose().map_err(PackageLoadError::Io)
+    }
+}
 
-impl LoadedPackage {
-    pub fn load(root: impl Into<Box<Path>>) -> Result<Self, PackageLoadError> {
+#[derive(Debug, Error)]
+pub enum PackageLoadError {
+    #[error(transparent)]
+    Path(#[from] PathLoadError),
+    #[error("Failed to load all files in the package.")]
+    Io(Package<Result<SourceFile, std::io::Error>>),
+}
+
+impl Package<Box<Path>> {
+    pub fn load_paths(
+        root: impl Into<Box<Path>>,
+    ) -> Result<Self, PathLoadError> {
         let source_path = root.into();
 
         if !fs::metadata(&source_path)?.is_dir() {
-            return Err(PackageLoadError::PathIsNotDir(source_path));
+            return Err(PathLoadError::PathIsNotDir(source_path));
         }
 
         let metadata = Metadata::load(source_path.join(PACKAGE_METADATA_FILE))?;
@@ -49,10 +67,9 @@ fn load_module(
     name: &str,
     root_file: impl AsRef<Path>,
     parent_dir: impl AsRef<Path>,
-) -> Result<LoadedModule, PackageLoadError> {
+) -> Result<Module<Box<Path>>, PathLoadError> {
     let parent_dir = parent_dir.as_ref();
     let root_file = parent_dir.join(root_file);
-    let content = SourceFile::new(root_file.clone())?;
 
     let mod_dir = parent_dir.join(name);
     let mut submodules = Vec::new();
@@ -74,9 +91,9 @@ fn load_module(
         }
     }
 
-    Ok(super::Module {
+    Ok(Module {
         name: name.to_owned().into_boxed_str(),
-        content,
+        content: root_file.into_boxed_path(),
         submodules: submodules.into_boxed_slice(),
     })
 }
@@ -90,7 +107,7 @@ fn is_jabber_file(entry: &DirEntry) -> bool {
 }
 
 #[derive(Debug, Error)]
-pub enum PackageLoadError {
+pub enum PathLoadError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
@@ -107,13 +124,12 @@ mod tests {
 
     use crate::package::{metadata::PackageKind, Module, Package};
 
-    use super::*;
-
     #[test]
     fn load_jabber_core_lib() {
+        // path loading
         let path = PathBuf::from_str("../../libs/core").unwrap();
-        let loaded_package = LoadedPackage::load(path.clone()).unwrap();
-        dbg!(&loaded_package);
+        let package = Package::load_paths(path.clone()).unwrap();
+        dbg!(&package);
 
         let Package {
             name,
@@ -121,7 +137,7 @@ mod tests {
             version,
             source_path,
             root_module,
-        } = loaded_package;
+        } = package;
 
         assert_eq!(name.as_ref(), "core");
         assert_eq!(kind, PackageKind::Library);
@@ -134,5 +150,9 @@ mod tests {
 
         assert_eq!(name.as_ref(), "");
         assert!(submodules.len() > 4);
+
+        // file loading
+        let package = Package::load_files(path).unwrap();
+        dbg!(&package);
     }
 }
