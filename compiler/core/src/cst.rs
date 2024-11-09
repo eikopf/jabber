@@ -23,7 +23,7 @@ use crate::{
 use nodes::{
     anon_unions::{
         EmptyStmt_ExprStmt_LetStmt as EsEsLs, Ident_Parameters,
-        Ident_TupleField as ITf, Name_AliasItem_GlobItem_TreeItem as UseItem,
+        Ident_TupleField as ITf, Name_AliasItem_TreeItem as UseItem,
         RecordExprField_RecordUpdateBase as RefRub,
         RecordPatternField_RestPattern as RpfRp,
         RecordPayload_TuplePayload as RpTp, TypeExpr_FnTypeArgs as TeFta,
@@ -426,15 +426,6 @@ impl<'a> CstVisitor<'a> {
                 let alias = self.visit_ident(alias_item.alias()?);
 
                 Ok(ast::UseItem::Alias { item, alias })
-            }
-            UseItem::GlobItem(glob_item) => {
-                let root = glob_item
-                    .root()
-                    .transpose()?
-                    .map(|name| self.visit_name(name))
-                    .transpose()?;
-
-                Ok(ast::UseItem::Glob { root })
             }
             UseItem::TreeItem(tree_item) => {
                 let root = tree_item
