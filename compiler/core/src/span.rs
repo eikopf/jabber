@@ -92,6 +92,17 @@ impl Span {
         self.end - self.start
     }
 
+    pub fn in_source(self, source: &[u8]) -> Result<&str, std::str::Utf8Error> {
+        let start = self.start as usize;
+        let end = self.end as usize;
+
+        let bytes = source
+            .get(start..end)
+            .expect("Spans are valid indices into the corresponding source.");
+
+        std::str::from_utf8(bytes)
+    }
+
     pub fn with<T>(self, value: T) -> Spanned<T> {
         Spanned {
             item: value,
