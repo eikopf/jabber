@@ -116,9 +116,6 @@ pub enum DeclKind {
 #[derive(Debug, Clone)]
 pub enum UseItem {
     Name(Name),
-    Glob {
-        root: Option<Spanned<Name>>,
-    },
     Alias {
         item: Spanned<Name>,
         alias: Spanned<Ident>,
