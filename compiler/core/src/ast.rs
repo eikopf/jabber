@@ -3,6 +3,7 @@
 use crate::span::Span;
 
 pub mod bound;
+pub mod common;
 pub mod unbound;
 
 #[derive(Debug, Clone)]

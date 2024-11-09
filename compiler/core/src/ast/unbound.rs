@@ -20,6 +20,8 @@ use crate::span::{Span, SpanBox, SpanSeq, Spanned};
 
 use super::SpannedModuleTrivia;
 
+pub use super::common::{Qualifier, Visibility};
+
 #[derive(Debug, Clone)]
 pub struct Ast {
     pub(super) trivia: SpannedModuleTrivia,
@@ -68,13 +70,6 @@ pub struct Decl {
     pub attributes: SpanSeq<Attr>,
     pub visibility: Visibility,
     pub kind: Spanned<DeclKind>,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub enum Visibility {
-    Pub(Span),
-    #[default]
-    Priv,
 }
 
 #[derive(Debug, Clone)]
@@ -406,13 +401,6 @@ pub enum FnTyArgs {
 pub enum Name {
     Path(Option<Spanned<Qualifier>>, SpanSeq<Ident>),
     Ident(Ident),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Qualifier {
-    Super,
-    Self_,
-    Package,
 }
 
 #[derive(Debug, Clone, Copy)]

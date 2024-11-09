@@ -62,11 +62,14 @@ pub enum TermDecl {
         ty: Spanned<Ty>,
         value: Spanned<Expr>,
     },
+    /// A thunk pointing to a type constructor owned by a [`TypeDecl::Ty`].
+    TyConstr { name: Spanned<Ident>, ty: Uid },
 }
 
 #[derive(Debug, Clone)]
 pub struct TyConstr {
     pub name: Spanned<Ident>,
+    pub ty: Uid,
     pub payload: Spanned<TyConstrPayload>,
 }
 
@@ -111,7 +114,7 @@ pub enum Expr {
     },
     TupleField {
         item: SpanBox<Self>,
-        field: Spanned<u32>,
+        field: Spanned<Symbol>,
     },
     Lambda {
         params: SpanSeq<Parameter>,
@@ -227,7 +230,7 @@ pub enum Ty {
 
 // NAMES
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ident {
     pub symbol: Symbol,
     pub id: Uid,
