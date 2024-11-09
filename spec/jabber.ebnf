@@ -28,12 +28,10 @@ mod decl = "mod", identifier ;
 use decl = "use", use item ;
 
 use item = name 
-         | glob item 
          | alias item 
          | tree item 
          ;
 
-glob item  = [name, "."], "*" ;
 alias item = name, "as", ident ;
 tree item  = [name, "."], "{", [use item, {",", use item}, [","]], "}" ;
 
