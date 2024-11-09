@@ -881,22 +881,6 @@
     }
   },
   {
-    "type": "glob_item",
-    "named": true,
-    "fields": {
-      "root": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "_name",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "guard_expr",
     "named": true,
     "fields": {},
@@ -1610,10 +1594,6 @@
           "named": true
         },
         {
-          "type": "glob_item",
-          "named": true
-        },
-        {
           "type": "tree_item",
           "named": true
         }
@@ -1892,10 +1872,6 @@
           },
           {
             "type": "alias_item",
-            "named": true
-          },
-          {
-            "type": "glob_item",
             "named": true
           },
           {

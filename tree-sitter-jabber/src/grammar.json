@@ -200,49 +200,11 @@
         },
         {
           "type": "SYMBOL",
-          "name": "glob_item"
-        },
-        {
-          "type": "SYMBOL",
           "name": "alias_item"
         },
         {
           "type": "SYMBOL",
           "name": "tree_item"
-        }
-      ]
-    },
-    "glob_item": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "SEQ",
-              "members": [
-                {
-                  "type": "FIELD",
-                  "name": "root",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "_name"
-                  }
-                },
-                {
-                  "type": "STRING",
-                  "value": "."
-                }
-              ]
-            },
-            {
-              "type": "BLANK"
-            }
-          ]
-        },
-        {
-          "type": "STRING",
-          "value": "*"
         }
       ]
     },

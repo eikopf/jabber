@@ -100,9 +100,7 @@ module.exports = grammar({
 
     use_decl: ($) => seq("use", field("item", $._use_item)),
 
-    _use_item: ($) => choice($._name, $.glob_item, $.alias_item, $.tree_item),
-
-    glob_item: ($) => seq(optional(seq(field("root", $._name), ".")), "*"),
+    _use_item: ($) => choice($._name, $.alias_item, $.tree_item),
 
     alias_item: ($) =>
       seq(field("item", $._name), "as", field("alias", $.ident)),
