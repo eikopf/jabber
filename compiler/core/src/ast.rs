@@ -5,16 +5,17 @@ use crate::span::Span;
 pub mod bound;
 pub mod common;
 pub mod unbound;
+pub mod unbound_lowered;
 
 #[derive(Debug, Clone)]
-struct SpannedModuleTrivia {
+pub struct SpannedModuleTrivia {
     pub(self) shebang: Option<Span>,
     pub(self) module_comment: Option<Span>,
     pub(self) comments: Box<[Span]>,
 }
 
 impl SpannedModuleTrivia {
-    pub(self) fn new(
+    pub fn new(
         shebang: Option<Span>,
         module_comment: Option<Span>,
         comments: Box<[Span]>,
