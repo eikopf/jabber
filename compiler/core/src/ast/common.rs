@@ -15,3 +15,32 @@ pub enum Visibility {
     #[default]
     Priv,
 }
+
+impl Visibility {
+    pub fn with<T>(self, item: T) -> Vis<T> {
+        Vis {
+            item,
+            visibility: self,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Vis<T> {
+    pub visibility: Visibility,
+    pub item: T,
+}
+
+impl<T: std::ops::Deref> std::ops::Deref for Vis<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.item
+    }
+}
+
+impl<T> Vis<T> {
+    pub fn unwrap(self) -> T {
+        self.item
+    }
+}
