@@ -139,10 +139,10 @@ pub enum Expr {
 pub enum LiteralExpr {
     Unit,
     Bool(bool),
-    Char(char),
+    Char(Symbol),
     String(Symbol),
-    Int(i64),
-    Float(f64),
+    Int(Symbol),
+    Float(Symbol),
 }
 
 #[derive(Debug, Clone)]
