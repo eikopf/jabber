@@ -5,6 +5,7 @@ use semver::Version;
 use crate::source_file::SourceFile;
 
 use crate::ast::bound as ast;
+use crate::ast::common::{Vis, Visibility};
 use crate::span::{Span, Spanned};
 use crate::symbol::{StringInterner, Symbol};
 
@@ -32,32 +33,6 @@ pub struct PkgId(usize);
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ModId(usize);
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub enum Visibility {
-    Pub,
-    Priv,
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct Vis<T> {
-    item: T,
-    visibility: Visibility,
-}
-
-impl<T: std::ops::Deref> std::ops::Deref for Vis<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.item
-    }
-}
-
-impl<T> Vis<T> {
-    pub fn unwrap(self) -> T {
-        self.item
-    }
-}
-
 // TODO: add support for unloaded files as a precursor
 // to compiled package caching
 
@@ -73,7 +48,7 @@ pub struct Env {
     terms: Vec<Term>,
     types: Vec<Type>,
     type_constructors: Vec<TypeConstr>,
-    symbols: StringInterner,
+    interner: StringInterner,
 }
 
 /// An entry in the `packages` table of an [`Env`].
@@ -173,7 +148,7 @@ impl Env {
         let pkg_id = PkgId(self.packages.len());
 
         // register root module
-        let empty_symbol = self.symbols.intern_static("");
+        let empty_symbol = self.interner.intern_static("");
         let root_module =
             self.register_module(empty_symbol, None, root_file, pkg_id)?;
 
