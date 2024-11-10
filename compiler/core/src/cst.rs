@@ -68,6 +68,7 @@ impl Parser {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Cst {
     tree: Tree<SourceFile<'static>>,
     file: source_file::SourceFile,
@@ -114,7 +115,13 @@ impl Cst {
         let (shebang, module_comment, comments, decls) =
             visitor.visit_source_file(root).unwrap();
 
-        Ok(ast::Ast::new(shebang, module_comment, comments, decls))
+        Ok(ast::Ast::new(
+            shebang,
+            module_comment,
+            comments,
+            decls,
+            file,
+        ))
     }
 
     fn collect_errors(&self) -> Box<[ParseError]> {

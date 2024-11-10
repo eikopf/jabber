@@ -16,7 +16,10 @@
 //! variants, their spanning information is exactly the same as the [`Span`]
 //! represented in a [`Spanned<Ty>`].
 
-use crate::span::{Span, SpanBox, SpanSeq, Spanned};
+use crate::{
+    source_file::SourceFile,
+    span::{Span, SpanBox, SpanSeq, Spanned},
+};
 
 use super::SpannedModuleTrivia;
 
@@ -24,8 +27,9 @@ pub use super::common::{Qualifier, Visibility};
 
 #[derive(Debug, Clone)]
 pub struct Ast {
-    pub(super) trivia: SpannedModuleTrivia,
-    pub(super) decls: SpanSeq<Decl>,
+    pub trivia: SpannedModuleTrivia,
+    pub decls: SpanSeq<Decl>,
+    pub file: SourceFile,
 }
 
 impl Ast {
@@ -34,6 +38,7 @@ impl Ast {
         module_comment: Option<Span>,
         comments: Box<[Span]>,
         decls: SpanSeq<Decl>,
+        file: SourceFile,
     ) -> Self {
         Self {
             trivia: SpannedModuleTrivia {
@@ -42,6 +47,7 @@ impl Ast {
                 comments,
             },
             decls,
+            file,
         }
     }
 
