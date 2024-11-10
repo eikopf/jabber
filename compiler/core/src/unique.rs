@@ -27,19 +27,27 @@
 //! 2^64 by 40'000'000 gives roughly 4.612e11 seconds, or just under 14'615
 //! **years**.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    num::NonZeroU64,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
-static COUNTER: AtomicU64 = AtomicU64::new(0);
+static COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// A unique-by-construction numeric identifier.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct Uid(u64);
+pub struct Uid(NonZeroU64);
 
 impl Uid {
     /// Returns a new unique [`Uid`].
     pub fn fresh() -> Uid {
-        Uid(COUNTER.fetch_add(1, Ordering::Relaxed))
+        let raw_id = COUNTER.fetch_add(1, Ordering::Relaxed);
+
+        // SAFETY: COUNTER is initialized to 1, and will monotonically increase
+        // for the (practical) lifetime of the program; hence raw_id is never 0
+        let uid = unsafe { NonZeroU64::new_unchecked(raw_id) };
+        Uid(uid)
     }
 }
 
