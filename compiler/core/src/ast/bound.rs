@@ -1,20 +1,4 @@
-//! Bound ASTs derived from [unbound ASTs](`super::unbound::Ast`).
-//!
-//! ASTs in this stage are slightly desugared relative to those from
-//! [`crate::ast::unbound`], and store identifiers as [`Symbol`] values
-//! referring to the symbol table in the global [`crate::env::Env`]. Literals
-//! have been processed into appropriate values, though their source span
-//! information has been retained.
-//!
-//! # Identifiers
-//! Rather than represent local variables in a tree of possibly-shadowed names,
-//! we instead take the nuclear option and give each identifier a [`Uid`]. This
-//! is sometimes called alpha-renaming, and makes later substitution operations
-//! in the compiler much simpler.
-//!
-//! Top-level identifiers also have [`Uid`] fields, which are largely used as
-//! sanity-checks during resolution. Keep in mind that these IDs aren't stable
-//! across invocations, so they can't be cached.
+//! Bound ASTs derived from [unbound ASTs](`super::unbound_lowered::Ast`).
 
 use crate::{
     env,
@@ -27,43 +11,59 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub enum TypeDecl {
-    TyAlias {
-        name: Spanned<Ident>,
-        params: SpanSeq<Ident>,
-        ty: Spanned<Ty>,
-    },
-    Ty {
-        name: Spanned<Ident>,
-        opacity: Option<Span>,
-        params: SpanSeq<Ident>,
-        constructors: SpanSeq<TyConstr>,
-    },
-    ExternTy {
-        name: Spanned<Ident>,
-        params: SpanSeq<Ident>,
-    },
+    Alias(TypeAlias),
+    Adt(Adt),
+    Extern(ExternType),
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeAlias {
+    pub name: Spanned<Ident>,
+    pub params: SpanSeq<Ident>,
+    pub ty: Spanned<Ty>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Adt {
+    pub name: Spanned<Ident>,
+    pub opacity: Option<Span>,
+    pub params: SpanSeq<Ident>,
+    pub constructors: SpanSeq<TyConstr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternType {
+    pub name: Spanned<Ident>,
+    pub params: SpanSeq<Ident>,
 }
 
 #[derive(Debug, Clone)]
 pub enum TermDecl {
-    Fn {
-        name: Spanned<Ident>,
-        params: SpanSeq<Parameter>,
-        return_ty: Spanned<Ty>,
-        body: SpanBox<Expr>,
-    },
-    ExternFn {
-        name: Spanned<Ident>,
-        params: SpanSeq<Parameter>,
-        return_ty: Spanned<Ty>,
-    },
-    Const {
-        name: Spanned<Ident>,
-        ty: Spanned<Ty>,
-        value: Spanned<Expr>,
-    },
-    /// A thunk pointing to a type constructor owned by a [`TypeDecl::Ty`].
-    TyConstr { name: Spanned<Ident>, ty: Uid },
+    Fn(Fn),
+    ExternFn(ExternFn),
+    Const(Const),
+}
+
+#[derive(Debug, Clone)]
+pub struct Fn {
+    pub name: Spanned<Ident>,
+    pub params: SpanSeq<Parameter>,
+    pub return_ty: Spanned<Ty>,
+    pub body: SpanBox<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternFn {
+    pub name: Spanned<Ident>,
+    pub params: SpanSeq<Parameter>,
+    pub return_ty: Spanned<Ty>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Const {
+    pub name: Spanned<Ident>,
+    pub ty: Spanned<Ty>,
+    pub value: Spanned<Expr>,
 }
 
 #[derive(Debug, Clone)]
