@@ -8,11 +8,9 @@ use crate::{
 };
 
 use super::{
-    common::{Qualifier, Vis},
+    common::{Qualifier, ViSp},
     unbound as ast, SpannedModuleTrivia,
 };
-
-type ViSp<T> = Vis<Spanned<T>>;
 
 #[derive(Debug, Clone)]
 pub struct Ast {
@@ -56,6 +54,18 @@ pub enum Term {
     Const(Const),
 }
 
+impl Term {
+    pub fn name<'a, 'b: 'a>(&'a self, source: &'b [u8]) -> &'b str {
+        let name = match self {
+            Term::Fn(Fn { name, .. })
+            | Term::ExternFn(ExternFn { name, .. })
+            | Term::Const(Const { name, .. }) => name,
+        };
+
+        name.span.in_source(source).unwrap()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Fn {
     pub name: Spanned<ast::Ident>,
@@ -83,6 +93,18 @@ pub enum Type {
     Adt(Adt),
     Alias(TypeAlias),
     Extern(ExternType),
+}
+
+impl Type {
+    pub fn name<'a, 'b: 'a>(&'a self, source: &'b [u8]) -> &'b str {
+        let name = match self {
+            Type::Adt(Adt { name, .. })
+            | Type::Alias(TypeAlias { name, .. })
+            | Type::Extern(ExternType { name, .. }) => name,
+        };
+
+        name.span.in_source(source).unwrap()
+    }
 }
 
 #[derive(Debug, Clone)]

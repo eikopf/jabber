@@ -13,30 +13,20 @@ const JABBER_FILE_EXTENSION: &str = "jbr";
 const PACKAGE_METADATA_FILE: &str = "jabber.toml";
 const PACKAGE_SOURCE_DIR: &str = "src";
 
-// TODO: create iterator that does a topologically-ordered walk over the
-// dependencies of a root package, while loading the files of each package
-// into memory only once. this probably means that we first read only the
-// `jabber.toml` files to identify dependencies, and build the ordering
-// completely before passing it to an iterator
-
-// NOTE: i presume (but do not know for sure) that `core` will be the terminal
-// package for all dependency graphs. since this is probably true, it might be
-// worth explicitly separating the "build core" stage of the compiler.
-
 #[derive(Debug, Clone)]
 pub struct Package<T, S = Box<str>> {
-    name: S,
-    kind: PackageKind,
-    version: Version,
-    source_path: Box<Path>,
-    root_module: Module<T, S>,
+    pub name: S,
+    pub kind: PackageKind,
+    pub version: Version,
+    pub source_path: Box<Path>,
+    pub root_module: Module<T, S>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Module<T, S = Box<str>> {
-    name: S,
-    content: T,
-    submodules: Box<[Self]>,
+    pub name: S,
+    pub content: T,
+    pub submodules: Box<[Self]>,
 }
 
 impl<T, S> Package<T, S> {
@@ -72,6 +62,10 @@ impl<T, E, S> Package<Result<T, E>, S> {
 
     pub fn contains_err(&self) -> bool {
         self.root_module.contains_err()
+    }
+
+    pub fn collect_errs(self) -> Box<[Module<E, S>]> {
+        todo!()
     }
 }
 

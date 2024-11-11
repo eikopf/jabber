@@ -1,11 +1,10 @@
 //! The [`Env`] type and related definitions.
 
-use semver::Version;
-
+use crate::package as pkg;
 use crate::source_file::SourceFile;
 
-use crate::ast::bound as ast;
-use crate::ast::common::{Vis, Visibility};
+use crate::ast::common::{ViSp, Vis};
+use crate::ast::{bound, unbound_lowered as unbound};
 use crate::span::{Span, Spanned};
 use crate::symbol::{StringInterner, Symbol};
 
@@ -22,9 +21,6 @@ pub struct TermId(usize);
 pub struct TypeId(usize);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct TypeConstrId(usize);
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct FileId(usize);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -36,22 +32,30 @@ pub struct ModId(usize);
 // TODO: add support for unloaded files as a precursor
 // to compiled package caching
 
+pub type BoundEnv = Env<bound::Term, bound::Type, ()>;
+pub type UnboundEnv = Env<
+    Spanned<unbound::Term>,
+    Spanned<unbound::Type>,
+    Vec<ViSp<unbound::Import>>,
+>;
+
 /// The global environment for a given compiler session.
 ///
 /// This struct basically acts as a faux-database for the compiler during name
 /// resolution, and is divided into several "tables" for `files`, `packages`,
 /// `modules`, `terms`, and `types`.
-pub struct Env {
+#[derive(Debug)]
+pub struct Env<Te, Ty, I> {
     files: Vec<SourceFile>,
     packages: Vec<Package>,
-    modules: Vec<Module>,
-    terms: Vec<Term>,
-    types: Vec<Type>,
-    type_constructors: Vec<TypeConstr>,
+    modules: Vec<Module<I>>,
+    terms: Vec<Term<Te>>,
+    types: Vec<Type<Ty>>,
     interner: StringInterner,
 }
 
 /// An entry in the `packages` table of an [`Env`].
+#[derive(Debug, Clone)]
 pub struct Package {
     /// The name of the package, which is globally unique among all packages.
     name: Symbol,
@@ -64,332 +68,334 @@ pub struct Package {
 }
 
 /// An entry in the `modules` table of an [`Env`].
-pub struct Module {
+#[derive(Debug, Clone)]
+pub struct Module<I> {
     name: Symbol,
     parent: Option<ModId>,
     file: FileId,
     package: PkgId,
+    imports: I,
     submodules: Vec<Vis<ModId>>,
     terms: Vec<Vis<TermId>>,
     types: Vec<Vis<TypeId>>,
 }
 
 /// An entry in the `terms` table of an [`Env`].
-pub struct Term {
+#[derive(Debug, Clone)]
+pub struct Term<T> {
     name: Symbol,
     module: ModId,
-    ast: Spanned<ast::TermDecl>,
+    ast: T,
 }
 
 /// An entry in the `types` table of an [`Env`].
-pub struct Type {
+#[derive(Debug, Clone)]
+pub struct Type<T> {
     name: Symbol,
     module: ModId,
-    ast: Spanned<ast::TypeDecl>,
-    constructors: Vec<TypeConstrId>,
+    ast: T,
 }
 
-pub struct TypeConstr {
-    name: Symbol,
-    ty: TypeId,
-    kind: TypeConstrKind,
-}
+impl UnboundEnv {
+    pub fn consume_package(
+        &mut self,
+        pkg::Package {
+            name,
+            version,
+            root_module,
+            ..
+        }: pkg::Package<unbound::Ast>,
+        dependencies: Box<[PkgId]>,
+    ) -> PkgId {
+        // register root file and package
+        let root_file = self.register_file(root_module.content.file.clone());
+        let package = self.register_package(
+            name.as_ref(),
+            version,
+            root_file,
+            dependencies,
+        );
 
-pub enum TypeConstrKind {
-    Unit,
-    Tuple,
-    Record,
-}
+        // recursively populate table using module tree
+        let root_module_id = self.get_package(package).root_module;
+        self.populate_module(root_module, root_module_id, package);
 
-#[derive(Debug, Clone)]
-pub enum RegistrationError {
-    DuplicateTermName {
-        name: Symbol,
-        location: Location,
-        conflict: TermId,
-    },
-    DuplicateTypeName {
-        name: Symbol,
-        location: Location,
-        conflict: TypeId,
-    },
-    DuplicatePackage {
-        name: Symbol,
-    },
-    DuplicateModule {
-        name: Symbol,
+        // return package id
+        package
+    }
+
+    pub fn populate_module(
+        &mut self,
+        pkg::Module {
+            name,
+            content,
+            submodules,
+        }: pkg::Module<unbound::Ast>,
+        mod_id: ModId,
         package: PkgId,
-        parent: ModId,
-    },
+    ) {
+        for module in submodules {
+            // register file
+            let file = self.register_file(module.content.file.clone());
+            // register empty submodule
+            let id = self.register_module(
+                module.name.as_ref(),
+                Some(mod_id),
+                file,
+                package,
+            );
+            // populate submodule
+            self.populate_module(module, id, package);
+        }
+
+        let unbound::Ast {
+            imports,
+            terms,
+            types,
+            ..
+        } = content;
+
+        for import in imports {
+            self.insert_import(import, mod_id);
+        }
+
+        for term in terms {
+            self.insert_term(term, mod_id);
+        }
+
+        for ty in types {
+            self.insert_type(ty, mod_id);
+        }
+    }
+
+    pub fn insert_import(
+        &mut self,
+        import: ViSp<unbound::Import>,
+        module: ModId,
+    ) {
+        let module = self.get_module_mut(module);
+        module.imports.push(import);
+    }
+
+    pub fn insert_term(
+        &mut self,
+        Vis { visibility, item }: ViSp<unbound::Term>,
+        module: ModId,
+    ) {
+        // get name in source
+        let file = self.get_file(self.get_module(module).file);
+        let name = item.name(file.contents().as_bytes());
+
+        // register term in env table
+        let term = self.register_term(name, module, item);
+
+        // insert term into module
+        let module = self.get_module_mut(module);
+        module.terms.push(visibility.with(term));
+    }
+
+    pub fn insert_type(
+        &mut self,
+        Vis { visibility, item }: ViSp<unbound::Type>,
+        module: ModId,
+    ) {
+        // get name in source
+        let file = self.get_file(self.get_module(module).file);
+        let name = item.name(file.contents().as_bytes());
+
+        // register type in env table
+        let ty = self.register_type(name, module, item);
+
+        // insert type into module
+        let module = self.get_module_mut(module);
+        module.types.push(visibility.with(ty));
+    }
 }
 
-impl Env {
-    // MUTATORS
+impl<Te, Ty, I: Default> Env<Te, Ty, I> {
+    pub fn new() -> Self {
+        Self {
+            files: Vec::new(),
+            packages: Vec::new(),
+            modules: Vec::new(),
+            terms: Vec::new(),
+            types: Vec::new(),
+            interner: StringInterner::new(),
+        }
+    }
 
     pub fn register_package(
         &mut self,
-        name: Symbol,
-        version: Version,
+        name: &str,
+        version: semver::Version,
         root_file: FileId,
         dependencies: Box<[PkgId]>,
-    ) -> Result<PkgId, RegistrationError> {
-        // check for conflicting names
-        if let Some(duplicate) =
-            self.packages.iter().find(|package| package.name == name)
-        {
-            return Err(RegistrationError::DuplicatePackage { name });
-        }
+    ) -> PkgId {
+        // WARN: this id is INVALID until the function returns, since we're
+        // reserving an unallocated memory location.
+        let package_id = PkgId(next_index(&self.packages));
+        let root_module = self.register_module("", None, root_file, package_id);
 
-        // WARN: there's a circular dependency between the `root_module` field
-        // in a Package and the `package` field in a Module, so we have to
-        // create one of them in an invalid state first. doing this to the
-        // pkg_id requires that nothing else can mutate self.packages until
-        // this function returns
-        let pkg_id = PkgId(self.packages.len());
-
-        // register root module
-        let empty_symbol = self.interner.intern_static("");
-        let root_module =
-            self.register_module(empty_symbol, None, root_file, pkg_id)?;
-
-        // register package
         let package = Package {
-            name,
+            name: self.interner.intern(name),
             version,
             root_module,
             dependencies,
         };
-        self.packages.push(package);
-        let id = pkg_id; // beyond this point `id` is a valid PkgId
 
-        // return the id
-        Ok(id)
+        self.packages.push(package);
+        package_id
     }
 
     pub fn register_module(
         &mut self,
-        name: Symbol,
+        name: &str,
         parent: Option<ModId>,
         file: FileId,
         package: PkgId,
-    ) -> Result<ModId, RegistrationError> {
-        // check for duplicate name (sanity check, this should be impossible)
-        let duplicate = parent
-            .map(|id| {
-                self.get_module(id)
-                    .submodules
-                    .iter()
-                    .map(|&id| Vis::unwrap(id))
-            })
-            .and_then(|mut iter| {
-                iter.find(|&id| self.get_module(id).name == name)
-            });
-
-        if duplicate.is_some() {
-            return Err(RegistrationError::DuplicateModule {
-                name,
-                package,
-                parent: parent.unwrap(),
-            });
-        }
-
-        // register module
+    ) -> ModId {
         let module = Module {
-            name,
+            name: self.interner.intern(name),
             parent,
             file,
             package,
+            imports: I::default(),
             submodules: Vec::new(),
             terms: Vec::new(),
             types: Vec::new(),
         };
-        self.modules.push(module);
-        let id = ModId(self.modules.len() - 1);
 
-        // return module id
-        Ok(id)
+        self.modules.push(module);
+        let raw_id = latest_index(&self.modules);
+        ModId(raw_id)
+    }
+
+    pub fn register_file(&mut self, file: SourceFile) -> FileId {
+        self.files.push(file);
+        let raw_id = latest_index(&self.files);
+        FileId(raw_id)
     }
 
     pub fn register_term(
         &mut self,
-        name: Symbol,
+        name: &str,
         module: ModId,
-        ast: Spanned<ast::TermDecl>,
-        visibility: Visibility,
-    ) -> Result<TermId, RegistrationError> {
-        // check for conflicting names
-        self.check_term_ns_conflict(module, name)
-            .map_err(|conflict| RegistrationError::DuplicateTermName {
-                name,
-                conflict,
-                location: Location {
-                    span: ast.span,
-                    file: self.get_module(module).file,
-                },
-            })?;
+        ast: Te,
+    ) -> TermId {
+        let term = Term {
+            name: self.interner.intern(name),
+            module,
+            ast,
+        };
 
-        // register new term
-        let term = Term { name, module, ast };
         self.terms.push(term);
-        let id = TermId(self.terms.len() - 1);
-
-        // associate the term with its module
-        self.get_module_mut(module).terms.push(Vis {
-            item: id,
-            visibility,
-        });
-
-        // return the new id
-        Ok(id)
+        let raw_id = latest_index(&self.terms);
+        TermId(raw_id)
     }
 
     pub fn register_type(
         &mut self,
-        name: Symbol,
+        name: &str,
         module: ModId,
-        ast: Spanned<ast::TypeDecl>,
-        visibility: Visibility,
-    ) -> Result<TypeId, RegistrationError> {
-        // check for conflicting names
-        self.check_type_ns_conflict(module, name)
-            .map_err(|conflict| RegistrationError::DuplicateTypeName {
-                name,
-                conflict,
-                location: Location {
-                    span: ast.span,
-                    file: self.get_module(module).file,
-                },
-            })?;
-
-        // register new type with 0 constructors
+        ast: Ty,
+    ) -> TypeId {
         let ty = Type {
-            name,
+            name: self.interner.intern(name),
             module,
             ast,
-            constructors: Vec::new(),
         };
+
         self.types.push(ty);
-        let id = TypeId(self.types.len() - 1);
-
-        // associate the type with its module
-        self.get_module_mut(module).types.push(Vis {
-            item: id,
-            visibility,
-        });
-
-        // return the new id
-        Ok(id)
+        let raw_id = latest_index(&self.types);
+        TypeId(raw_id)
     }
 
-    // PACKAGES
+    // ACCESSORS
 
-    pub fn get_package(&self, id: PkgId) -> &Package {
+    pub fn get_root_module(&self, package: PkgId) -> &Module<I> {
+        self.get_module(self.get_package(package).root_module)
+    }
+
+    pub fn get_package(&self, package: PkgId) -> &Package {
         self.packages
-            .get(id.0)
+            .get(package.0)
             .expect("Package IDs are valid by construction")
     }
 
-    // MODULES
-
-    pub fn get_module(&self, id: ModId) -> &Module {
+    pub fn get_module(&self, module: ModId) -> &Module<I> {
         self.modules
-            .get(id.0)
+            .get(module.0)
             .expect("Module IDs are valid by construction")
     }
 
-    pub fn get_module_mut(&mut self, id: ModId) -> &mut Module {
+    pub fn get_module_mut(&mut self, module: ModId) -> &mut Module<I> {
         self.modules
-            .get_mut(id.0)
+            .get_mut(module.0)
             .expect("Module IDs are valid by construction")
     }
 
-    pub fn get_parent_module_id(&self, id: ModId) -> Option<ModId> {
-        self.get_module(id).parent
-    }
-
-    pub fn get_parent_module(&self, id: ModId) -> Option<&Module> {
-        self.get_parent_module_id(id).map(|id| self.get_module(id))
-    }
-
-    pub fn check_term_ns_conflict(
-        &self,
-        id: ModId,
-        name: Symbol,
-    ) -> Result<(), TermId> {
-        let duplicate = self
-            .get_module(id)
-            .terms
-            .iter()
-            .map(|&id| Vis::unwrap(id))
-            .find(|&term_id| self.get_term(term_id).name == name);
-
-        // TODO: this doesn't handle locally-scoped type constructors
-
-        match duplicate {
-            Some(term_id) => Err(term_id),
-            None => Ok(()),
-        }
-    }
-
-    pub fn check_type_ns_conflict(
-        &self,
-        id: ModId,
-        name: Symbol,
-    ) -> Result<(), TypeId> {
-        let duplicate = self
-            .get_module(id)
-            .types
-            .iter()
-            .map(|&id| Vis::unwrap(id))
-            .find(|&type_id| self.get_type(type_id).name == name);
-
-        match duplicate {
-            Some(type_id) => Err(type_id),
-            None => Ok(()),
-        }
-    }
-
-    pub fn check_type_constr_ns_conflict(
-        &self,
-        ty: TypeId,
-        name: Symbol,
-    ) -> Result<(), TypeConstrId> {
-        let duplicate = self
-            .get_type(ty)
-            .constructors
-            .iter()
-            .find(|&&id| self.get_type_constr(id).name == name)
-            .cloned();
-
-        match duplicate {
-            Some(type_constr_id) => Err(type_constr_id),
-            None => Ok(()),
-        }
-    }
-
-    // DECLARATIONS
-
-    pub fn get_term(&self, id: TermId) -> &Term {
-        self.terms
-            .get(id.0)
-            .expect("Term IDs are valid by construction")
-    }
-
-    pub fn get_type(&self, id: TypeId) -> &Type {
-        self.types
-            .get(id.0)
-            .expect("Type IDs are valid by construction")
-    }
-
-    pub fn get_type_constr(&self, id: TypeConstrId) -> &TypeConstr {
-        self.type_constructors
-            .get(id.0)
-            .expect("Type constructor IDs are valid by construction")
+    pub fn get_file(&self, file: FileId) -> SourceFile {
+        self.files
+            .get(file.0)
+            .cloned()
+            .expect("File IDs are valid by construction")
     }
 }
 
-impl Package {
-    pub fn root_module_id(&self) -> ModId {
-        self.root_module
+impl<Te, Ty, I: Default> Default for Env<Te, Ty, I> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn latest_index<T>(slice: &[T]) -> usize {
+    slice.len() - 1
+}
+
+fn next_index<T>(slice: &[T]) -> usize {
+    slice.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{path::PathBuf, str::FromStr};
+
+    use crate::cst::Parser;
+
+    use super::*;
+
+    #[test]
+    fn build_unbound_env_from_core() {
+        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let package = pkg::Package::load_files(path).unwrap();
+        let mut parser = Parser::new().unwrap();
+
+        let package = package
+            .map_modules(|file| parser.parse(file))
+            .transpose()
+            .unwrap()
+            .map_modules(crate::ast::unbound::Ast::try_from)
+            .transpose()
+            .unwrap()
+            .map_modules(crate::ast::unbound_lowered::Ast::from);
+
+        let mut env = UnboundEnv::new();
+        let core_id = env.consume_package(package, Box::new([]));
+
+        //dbg!(&env);
+
+        for module in &env.modules {
+            eprintln!("MOD: {}", env.interner.resolve(module.name).unwrap());
+        }
+
+        eprintln!(
+            "PKG: {}",
+            env.interner.resolve(env.get_package(core_id).name).unwrap()
+        );
+
+        //dbg!(&env.modules);
+        dbg!(&env.modules[7].imports);
+
+        panic!();
     }
 }

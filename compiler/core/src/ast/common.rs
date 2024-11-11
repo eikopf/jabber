@@ -1,6 +1,6 @@
 //! Pervasive AST constructs that change infrequently.
 
-use crate::span::Span;
+use crate::span::{Span, Spanned};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Qualifier {
@@ -24,6 +24,8 @@ impl Visibility {
         }
     }
 }
+
+pub type ViSp<T> = Vis<Spanned<T>>;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vis<T> {

@@ -10,7 +10,7 @@ use crate::{
 // DECLARATIONS
 
 #[derive(Debug, Clone)]
-pub enum TypeDecl {
+pub enum Type {
     Alias(TypeAlias),
     Adt(Adt),
     Extern(ExternType),
@@ -38,7 +38,7 @@ pub struct ExternType {
 }
 
 #[derive(Debug, Clone)]
-pub enum TermDecl {
+pub enum Term {
     Fn(Fn),
     ExternFn(ExternFn),
     Const(Const),
@@ -103,8 +103,18 @@ pub enum Expr {
     List(SpanSeq<Self>),
     Tuple(SpanSeq<Self>),
     Block(Block),
-    Record {
-        name: Spanned<env::TypeConstrId>,
+    UnitConstr {
+        ty: env::TypeId,
+        name: Spanned<Ident>,
+    },
+    TupleConstr {
+        ty: env::TypeId,
+        name: Spanned<Ident>,
+        args: SpanSeq<Self>,
+    },
+    RecordConstr {
+        ty: env::TypeId,
+        name: Spanned<Ident>,
         fields: SpanSeq<RecordExprField>,
         base: Option<SpanBox<Self>>,
     },
@@ -188,13 +198,18 @@ pub enum Pattern {
         head: SpanBox<Self>,
         tail: SpanBox<Self>,
     },
-    UnitConstr(env::TypeConstrId),
+    UnitConstr {
+        ty: env::TypeId,
+        name: Spanned<Ident>,
+    },
     TupleConstr {
-        name: Spanned<env::TypeConstrId>,
+        ty: env::TypeId,
+        name: Spanned<Ident>,
         elems: SpanSeq<Self>,
     },
     RecordConstr {
-        name: Spanned<env::TypeConstrId>,
+        ty: env::TypeId,
+        name: Spanned<Ident>,
         fields: SpanSeq<RecordPatternField>,
         rest: Option<Span>,
     },
