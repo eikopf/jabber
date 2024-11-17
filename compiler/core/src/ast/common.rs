@@ -27,6 +27,16 @@ impl Visibility {
 
 pub type ViSp<T> = Vis<Spanned<T>>;
 
+impl<T> ViSp<T> {
+    pub fn spread(self) -> (Visibility, Span, T) {
+        let Vis {
+            visibility,
+            item: Spanned { item, span },
+        } = self;
+        (visibility, span, item)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vis<T> {
     pub visibility: Visibility,
