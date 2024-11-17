@@ -115,14 +115,6 @@ pub struct Module<I> {
     items: I,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct UnboundModItems {
-    imports: Vec<ViSp<ubd::Import>>,
-    submodules: Vec<ViSp<ModId>>,
-    terms: Vec<ViSp<TermId>>,
-    types: Vec<ViSp<TypeId>>,
-}
-
 /// An entry in the `terms` table of an [`Env`].
 #[derive(Debug, Clone)]
 pub struct Term<T> {
@@ -143,7 +135,7 @@ pub struct Type<T> {
 pub type Name = Loc<Symbol>;
 
 /// A value of `T` annotated with its location in an [`Env`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Loc<T> {
     pub item: Spanned<T>,
     pub module: ModId,
