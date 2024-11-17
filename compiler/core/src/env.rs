@@ -1,12 +1,18 @@
 //! The [`Env`] type and related definitions.
 
-use crate::package as pkg;
-use crate::source_file::SourceFile;
+use std::collections::HashMap;
 
-use crate::ast::common::{ViSp, Vis};
-use crate::ast::{bound, unbound_lowered as unbound};
-use crate::span::{Span, Spanned};
-use crate::symbol::{StringInterner, Symbol};
+use import_res::PrefixId;
+
+use crate::{
+    ast::{bound, common::ViSp, unbound_lowered as ubd},
+    source_file::SourceFile,
+    span::{Span, Spanned},
+    symbol::{StringInterner, Symbol},
+};
+
+mod import_res;
+mod unbound;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Location {
@@ -24,20 +30,50 @@ pub struct TypeId(usize);
 pub struct FileId(usize);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct PkgId(usize);
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ModId(usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Res {
+    Term(TermId),
+    Type(TypeId),
+    /// A non-opaque ADT with a single constructor whose name is exactly the
+    /// same as the name of the type.
+    StructType(TypeId),
+    TyConstr {
+        ty: TypeId,
+        name: Symbol,
+    },
+    Module(ModId),
+}
+
+impl Res {
+    pub fn as_module(&self) -> Option<ModId> {
+        if let Self::Module(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_type(&self) -> Option<TypeId> {
+        if let Self::Type(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_prefix(&self) -> Option<PrefixId> {
+        match *self {
+            Res::Type(id) => Some(PrefixId::Type(id)),
+            Res::Module(id) => Some(PrefixId::Mod(id)),
+            _ => None,
+        }
+    }
+}
 
 // TODO: add support for unloaded files as a precursor
 // to compiled package caching
-
-pub type BoundEnv = Env<bound::Term, bound::Type, ()>;
-pub type UnboundEnv = Env<
-    Spanned<unbound::Term>,
-    Spanned<unbound::Type>,
-    Vec<ViSp<unbound::Import>>,
->;
 
 /// The global environment for a given compiler session.
 ///
@@ -45,9 +81,13 @@ pub type UnboundEnv = Env<
 /// resolution, and is divided into several "tables" for `files`, `packages`,
 /// `modules`, `terms`, and `types`.
 #[derive(Debug)]
-pub struct Env<Te, Ty, I> {
+pub struct Env<
+    Te = bound::Term,
+    Ty = bound::Type,
+    I = HashMap<Symbol, Spanned<Res>>,
+> {
     files: Vec<SourceFile>,
-    packages: Vec<Package>,
+    packages: HashMap<Symbol, Package>,
     modules: Vec<Module<I>>,
     terms: Vec<Term<Te>>,
     types: Vec<Type<Ty>>,
@@ -57,14 +97,12 @@ pub struct Env<Te, Ty, I> {
 /// An entry in the `packages` table of an [`Env`].
 #[derive(Debug, Clone)]
 pub struct Package {
-    /// The name of the package, which is globally unique among all packages.
-    name: Symbol,
     /// The version of this package.
     version: semver::Version,
     /// The root module in this package's module tree.
     root_module: ModId,
     /// The immediate dependencies of this package.
-    dependencies: Box<[PkgId]>,
+    dependencies: Box<[Symbol]>,
 }
 
 /// An entry in the `modules` table of an [`Env`].
@@ -73,11 +111,16 @@ pub struct Module<I> {
     name: Symbol,
     parent: Option<ModId>,
     file: FileId,
-    package: PkgId,
-    imports: I,
-    submodules: Vec<Vis<ModId>>,
-    terms: Vec<Vis<TermId>>,
-    types: Vec<Vis<TypeId>>,
+    package: Symbol,
+    items: I,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UnboundModItems {
+    imports: Vec<ViSp<ubd::Import>>,
+    submodules: Vec<ViSp<ModId>>,
+    terms: Vec<ViSp<TermId>>,
+    types: Vec<ViSp<TypeId>>,
 }
 
 /// An entry in the `terms` table of an [`Env`].
@@ -96,119 +139,21 @@ pub struct Type<T> {
     ast: T,
 }
 
-impl UnboundEnv {
-    pub fn consume_package(
-        &mut self,
-        pkg::Package {
-            name,
-            version,
-            root_module,
-            ..
-        }: pkg::Package<unbound::Ast>,
-        dependencies: Box<[PkgId]>,
-    ) -> PkgId {
-        // register root file and package
-        let root_file = self.register_file(root_module.content.file.clone());
-        let package = self.register_package(
-            name.as_ref(),
-            version,
-            root_file,
-            dependencies,
-        );
+/// A located [`Symbol`] in an [`Env`].
+pub type Name = Loc<Symbol>;
 
-        // recursively populate table using module tree
-        let root_module_id = self.get_package(package).root_module;
-        self.populate_module(root_module, root_module_id, package);
+/// A value of `T` annotated with its location in an [`Env`].
+#[derive(Debug, Clone, Copy)]
+pub struct Loc<T> {
+    pub item: Spanned<T>,
+    pub module: ModId,
+}
 
-        // return package id
-        package
-    }
+impl<T: std::ops::Deref> std::ops::Deref for Loc<T> {
+    type Target = Spanned<T>;
 
-    pub fn populate_module(
-        &mut self,
-        pkg::Module {
-            name,
-            content,
-            submodules,
-        }: pkg::Module<unbound::Ast>,
-        mod_id: ModId,
-        package: PkgId,
-    ) {
-        for module in submodules {
-            // register file
-            let file = self.register_file(module.content.file.clone());
-            // register empty submodule
-            let id = self.register_module(
-                module.name.as_ref(),
-                Some(mod_id),
-                file,
-                package,
-            );
-            // populate submodule
-            self.populate_module(module, id, package);
-        }
-
-        let unbound::Ast {
-            imports,
-            terms,
-            types,
-            ..
-        } = content;
-
-        for import in imports {
-            self.insert_import(import, mod_id);
-        }
-
-        for term in terms {
-            self.insert_term(term, mod_id);
-        }
-
-        for ty in types {
-            self.insert_type(ty, mod_id);
-        }
-    }
-
-    pub fn insert_import(
-        &mut self,
-        import: ViSp<unbound::Import>,
-        module: ModId,
-    ) {
-        let module = self.get_module_mut(module);
-        module.imports.push(import);
-    }
-
-    pub fn insert_term(
-        &mut self,
-        Vis { visibility, item }: ViSp<unbound::Term>,
-        module: ModId,
-    ) {
-        // get name in source
-        let file = self.get_file(self.get_module(module).file);
-        let name = item.name(file.contents().as_bytes());
-
-        // register term in env table
-        let term = self.register_term(name, module, item);
-
-        // insert term into module
-        let module = self.get_module_mut(module);
-        module.terms.push(visibility.with(term));
-    }
-
-    pub fn insert_type(
-        &mut self,
-        Vis { visibility, item }: ViSp<unbound::Type>,
-        module: ModId,
-    ) {
-        // get name in source
-        let file = self.get_file(self.get_module(module).file);
-        let name = item.name(file.contents().as_bytes());
-
-        // register type in env table
-        let ty = self.register_type(name, module, item);
-
-        // insert type into module
-        let module = self.get_module_mut(module);
-        module.types.push(visibility.with(ty));
+    fn deref(&self) -> &Self::Target {
+        &self.item
     }
 }
 
@@ -216,7 +161,7 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
     pub fn new() -> Self {
         Self {
             files: Vec::new(),
-            packages: Vec::new(),
+            packages: HashMap::new(),
             modules: Vec::new(),
             terms: Vec::new(),
             types: Vec::new(),
@@ -229,22 +174,19 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
         name: &str,
         version: semver::Version,
         root_file: FileId,
-        dependencies: Box<[PkgId]>,
-    ) -> PkgId {
-        // WARN: this id is INVALID until the function returns, since we're
-        // reserving an unallocated memory location.
-        let package_id = PkgId(next_index(&self.packages));
-        let root_module = self.register_module("", None, root_file, package_id);
+        dependencies: Box<[Symbol]>,
+    ) -> Symbol {
+        let name = self.interner.intern(name);
+        let root_module = self.register_module("", None, root_file, name);
 
         let package = Package {
-            name: self.interner.intern(name),
             version,
             root_module,
             dependencies,
         };
 
-        self.packages.push(package);
-        package_id
+        self.packages.insert(name, package);
+        name
     }
 
     pub fn register_module(
@@ -252,17 +194,14 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
         name: &str,
         parent: Option<ModId>,
         file: FileId,
-        package: PkgId,
+        package: Symbol,
     ) -> ModId {
         let module = Module {
             name: self.interner.intern(name),
             parent,
             file,
             package,
-            imports: I::default(),
-            submodules: Vec::new(),
-            terms: Vec::new(),
-            types: Vec::new(),
+            items: I::default(),
         };
 
         self.modules.push(module);
@@ -309,16 +248,16 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
         let raw_id = latest_index(&self.types);
         TypeId(raw_id)
     }
+}
 
-    // ACCESSORS
-
-    pub fn get_root_module(&self, package: PkgId) -> &Module<I> {
+impl<Te, Ty, I> Env<Te, Ty, I> {
+    pub fn get_root_module(&self, package: Symbol) -> &Module<I> {
         self.get_module(self.get_package(package).root_module)
     }
 
-    pub fn get_package(&self, package: PkgId) -> &Package {
+    pub fn get_package(&self, package: Symbol) -> &Package {
         self.packages
-            .get(package.0)
+            .get(&package)
             .expect("Package IDs are valid by construction")
     }
 
@@ -334,11 +273,44 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
             .expect("Module IDs are valid by construction")
     }
 
+    pub fn get_term(&self, term: TermId) -> &Term<Te> {
+        self.terms
+            .get(term.0)
+            .expect("Term IDs are valid by construction")
+    }
+
+    pub fn get_type(&self, ty: TypeId) -> &Type<Ty> {
+        self.types
+            .get(ty.0)
+            .expect("Type IDs are valid by construction")
+    }
+
     pub fn get_file(&self, file: FileId) -> SourceFile {
         self.files
             .get(file.0)
             .cloned()
             .expect("File IDs are valid by construction")
+    }
+
+    pub fn get_file_ref(&self, file: FileId) -> &SourceFile {
+        self.files
+            .get(file.0)
+            .expect("File IDs are valid by construction")
+    }
+
+    pub fn intern_source_span_in_module(
+        &mut self,
+        module: ModId,
+        Span { start, end }: Span,
+    ) -> Result<Symbol, std::str::Utf8Error> {
+        let start = start as usize;
+        let end = end as usize;
+
+        let module = self.get_module(module);
+        let file = self.get_file(module.file);
+        let bytes = &file.contents().as_bytes()[start..end];
+
+        std::str::from_utf8(bytes).map(|s| self.interner.intern(s))
     }
 }
 
@@ -350,52 +322,4 @@ impl<Te, Ty, I: Default> Default for Env<Te, Ty, I> {
 
 fn latest_index<T>(slice: &[T]) -> usize {
     slice.len() - 1
-}
-
-fn next_index<T>(slice: &[T]) -> usize {
-    slice.len()
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{path::PathBuf, str::FromStr};
-
-    use crate::cst::Parser;
-
-    use super::*;
-
-    #[test]
-    fn build_unbound_env_from_core() {
-        let path = PathBuf::from_str("../../libs/core").unwrap();
-        let package = pkg::Package::load_files(path).unwrap();
-        let mut parser = Parser::new().unwrap();
-
-        let package = package
-            .map_modules(|file| parser.parse(file))
-            .transpose()
-            .unwrap()
-            .map_modules(crate::ast::unbound::Ast::try_from)
-            .transpose()
-            .unwrap()
-            .map_modules(crate::ast::unbound_lowered::Ast::from);
-
-        let mut env = UnboundEnv::new();
-        let core_id = env.consume_package(package, Box::new([]));
-
-        //dbg!(&env);
-
-        for module in &env.modules {
-            eprintln!("MOD: {}", env.interner.resolve(module.name).unwrap());
-        }
-
-        eprintln!(
-            "PKG: {}",
-            env.interner.resolve(env.get_package(core_id).name).unwrap()
-        );
-
-        //dbg!(&env.modules);
-        dbg!(&env.modules[7].imports);
-
-        panic!();
-    }
 }
