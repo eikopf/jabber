@@ -49,6 +49,10 @@ impl<T> Spanned<T> {
     pub fn item(&self) -> &T {
         &self.item
     }
+
+    pub fn span(&self) -> Span {
+        self.span
+    }
 }
 
 impl<T> Deref for Spanned<T> {
@@ -109,6 +113,8 @@ impl Span {
             span: self,
         }
     }
+
+    pub const ZERO: Self = Span { start: 0, end: 0 };
 }
 
 impl std::fmt::Display for Span {

@@ -45,4 +45,12 @@ impl<T> Vis<T> {
     pub fn unwrap(self) -> T {
         self.item
     }
+
+    pub fn is_visible(&self) -> bool {
+        matches!(self.visibility, Visibility::Pub(_))
+    }
+
+    pub fn public(item: T) -> Self {
+        Visibility::Pub(Span::ZERO).with(item)
+    }
 }
