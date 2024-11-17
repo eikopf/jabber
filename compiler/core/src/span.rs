@@ -25,7 +25,7 @@ pub type SpanBox<T> = Box<Spanned<T>>;
 /// This type implements [`Deref`] and [`DerefMut`] for `Target = T`, and so
 /// methods on `&T` and `&mut T` can be called transparently on `&Spanned<T>`
 /// and `&mut Spanned<T>`.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Spanned<T> {
     pub item: T,
     pub span: Span,
@@ -76,7 +76,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Spanned<T> {
 }
 
 /// A half-open byte span in the source code.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Span {
     pub start: u32,
     pub end: u32,
