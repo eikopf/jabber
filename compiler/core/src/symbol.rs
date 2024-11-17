@@ -5,7 +5,12 @@ use string_interner::{
     symbol,
 };
 
-const INTERNER_CAPACITY: usize = 256;
+/// The initial capcity of a [`StringInterner`].
+///
+/// At time of writing, [`string_interner`] will multiply this value by 5 and
+/// pass it to [`String::with_capacity`]. This is based on the assumption that
+/// the typical word size is 5 characters.
+const INTERNER_CAPACITY: usize = 1024;
 
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub struct Symbol(symbol::SymbolU32);
