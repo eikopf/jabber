@@ -2,6 +2,8 @@
 //! into their separate namespaces, as well as flattening imports into a
 //! uniform representation.
 
+use std::collections::HashMap;
+
 use crate::{
     source_file::SourceFile,
     span::{Span, SpanSeq, Spanned},
@@ -9,8 +11,10 @@ use crate::{
 
 use super::{
     common::{Qualifier, ViSp},
-    unbound as ast, SpannedModuleTrivia,
+    SpannedModuleTrivia,
 };
+
+pub use super::unbound as ast;
 
 #[derive(Debug, Clone)]
 pub struct Ast {
@@ -88,11 +92,28 @@ pub struct Const {
     pub value: Spanned<ast::Expr>,
 }
 
+/// A partially interned type AST for use during import resolution.
+pub type SymType = Type<
+    crate::env::Name,
+    Box<[crate::env::Name]>,
+    HashMap<crate::symbol::Symbol, Spanned<ast::TyConstr>>,
+>;
+
+/// The AST of a type item.
+///
+/// # Type Parameters
+/// - `N` defines the type of the name field in all members;
+/// - `P` defines the type of the params field in all members;
+/// - `C` defines the type of the constructors field in [`Adt`].
 #[derive(Debug, Clone)]
-pub enum Type {
-    Adt(Adt),
-    Alias(TypeAlias),
-    Extern(ExternType),
+pub enum Type<
+    N = Spanned<ast::Ident>,
+    P = SpanSeq<ast::Ident>,
+    C = SpanSeq<ast::TyConstr>,
+> {
+    Adt(Adt<N, P, C>),
+    Alias(TypeAlias<N, P>),
+    Extern(ExternType<N, P>),
 }
 
 impl Type {
@@ -107,25 +128,59 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Adt {
-    pub name: Spanned<ast::Ident>,
-    pub opacity: Option<Span>,
-    pub params: SpanSeq<ast::Ident>,
-    pub constructors: SpanSeq<ast::TyConstr>,
+impl SymType {
+    /// Returns `true` iff `self` is a non-opaque ADT and has a single
+    /// constructor whose name is exactly the same as the name of `self`.
+    pub fn is_struct(&self) -> bool {
+        match self {
+            Type::Adt(adt) => todo!(),
+            Type::Alias(type_alias) => todo!(),
+            Type::Extern(extern_type) => todo!(),
+        }
+    }
+}
+
+impl<N, P, C> Type<N, P, C> {
+    pub fn is_opaque(&self) -> bool {
+        !matches!(self, Type::Adt(Adt { opacity: None, .. }))
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct TypeAlias {
-    pub name: Spanned<ast::Ident>,
-    pub params: SpanSeq<ast::Ident>,
+pub struct Adt<
+    N = Spanned<ast::Ident>,
+    P = SpanSeq<ast::Ident>,
+    C = SpanSeq<ast::TyConstr>,
+> {
+    pub name: N,
+    pub opacity: Option<Span>,
+    pub params: P,
+    pub constructors: C,
+}
+
+impl<N, P, C> Adt<N, P, C> {
+    pub fn is_opaque(&self) -> bool {
+        matches!(
+            self,
+            Adt {
+                opacity: Some(_),
+                ..
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeAlias<N = Spanned<ast::Ident>, P = SpanSeq<ast::Ident>> {
+    pub name: N,
+    pub params: P,
     pub ty: Spanned<ast::Ty>,
 }
 
 #[derive(Debug, Clone)]
-pub struct ExternType {
-    pub name: Spanned<ast::Ident>,
-    pub params: SpanSeq<ast::Ident>,
+pub struct ExternType<N = Spanned<ast::Ident>, P = SpanSeq<ast::Ident>> {
+    pub name: N,
+    pub params: P,
 }
 
 struct AstLowerer {
