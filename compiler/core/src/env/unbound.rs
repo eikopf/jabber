@@ -24,8 +24,8 @@ pub struct UnboundModItems {
     pub types: Vec<ViSp<TypeId>>,
 }
 
-const INGEST_ERROR_CAPACITY: usize = 256;
-const INGEST_WARNING_CAPACITY: usize = 256;
+const INGEST_ERROR_CAPACITY: usize = 64;
+const INGEST_WARNING_CAPACITY: usize = 64;
 
 #[derive(Debug, Clone)]
 pub enum PackageIngestError {
