@@ -1,9 +1,6 @@
 //! Small wrapper over [`string_interner`].
 
-use string_interner::{
-    backend::{self, Backend},
-    symbol,
-};
+use string_interner::{self, backend, symbol};
 
 /// The initial capcity of a [`StringInterner`].
 ///
@@ -16,20 +13,24 @@ const INTERNER_CAPACITY: usize = 1024;
 pub struct Symbol(symbol::SymbolU32);
 
 #[derive(Debug)]
-pub struct StringInterner(backend::StringBackend<symbol::SymbolU32>);
+pub struct StringInterner(
+    string_interner::StringInterner<backend::StringBackend<symbol::SymbolU32>>,
+);
 
 impl StringInterner {
     pub fn new() -> Self {
-        StringInterner(backend::StringBackend::with_capacity(INTERNER_CAPACITY))
+        StringInterner(string_interner::StringInterner::with_capacity(
+            INTERNER_CAPACITY,
+        ))
     }
 
     pub fn intern(&mut self, s: &str) -> Symbol {
-        let raw_symbol = self.0.intern(s);
+        let raw_symbol = self.0.get_or_intern(s);
         Symbol(raw_symbol)
     }
 
     pub fn intern_static(&mut self, s: &'static str) -> Symbol {
-        let raw_symbol = self.0.intern_static(s);
+        let raw_symbol = self.0.get_or_intern_static(s);
         Symbol(raw_symbol)
     }
 
