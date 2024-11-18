@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use import_res::PrefixId;
 
 use crate::{
-    ast::{bound, common::ViSp, unbound_lowered as ubd},
+    ast::bound,
     source_file::SourceFile,
     span::{Span, Spanned},
     symbol::{StringInterner, Symbol},
