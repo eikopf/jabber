@@ -12,7 +12,8 @@ use crate::{
 };
 
 use super::{
-    unbound::UnboundEnv, Env, Loc, ModId, Module, Name, Res, Type, TypeId,
+    unbound::{UnboundEnv, UnboundModItems},
+    Env, FileId, Loc, ModId, Module, Name, Res, Type, TypeId,
 };
 
 /// An environment where imports have been resolved and type constructor name
@@ -93,7 +94,9 @@ impl ImportResEnv {
         };
 
         // before doing anything else, we scan through the types to check for
-        // duplicate constructors and to intern as many strings as possible
+        // duplicate constructors and to intern as many strings as possible.
+        // importantly, we *cannot* read from the environment's module table
+        // during this process, since it hasn't been initialized yet.
         for (
             raw_id,
             Type {
@@ -104,6 +107,8 @@ impl ImportResEnv {
         ) in types.into_iter().enumerate()
         {
             let id = TypeId(raw_id);
+            let file = modules[module.0].file; // grab file id from old module
+
             let ast = span.with(match item {
                 ubd::Type::Adt(ubd::Adt {
                     name,
@@ -111,10 +116,15 @@ impl ImportResEnv {
                     params,
                     constructors,
                 }) => {
-                    let name = env.intern_ident_in_module(name, module);
+                    let name =
+                        env.intern_ident_in_invalid_module(name, module, file);
                     let params = params
                         .iter()
-                        .map(|&param| env.intern_ident_in_module(param, module))
+                        .map(|&param| {
+                            env.intern_ident_in_invalid_module(
+                                param, module, file,
+                            )
+                        })
                         .collect::<Box<_>>();
 
                     // collect constructors into a hashmap and remove any
@@ -125,16 +135,21 @@ impl ImportResEnv {
                             HashMap::with_capacity(constructors.len());
 
                         for constr in constructors {
-                            let name =
-                                env.intern_ident_in_module(constr.name, module);
+                            let name = env.intern_ident_in_invalid_module(
+                                constr.name,
+                                module,
+                                file,
+                            );
                             let symbol = name.item.item;
 
                             match table.get(&symbol) {
                                 Some(conflict) => {
-                                    let second = env.intern_ident_in_module(
-                                        conflict.name,
-                                        module,
-                                    );
+                                    let second = env
+                                        .intern_ident_in_invalid_module(
+                                            conflict.name,
+                                            module,
+                                            file,
+                                        );
 
                                     errors.push(
                                         ImportResError::DuplicateTyConstrNames {
@@ -163,19 +178,29 @@ impl ImportResEnv {
                     })
                 }
                 ubd::Type::Alias(ubd::TypeAlias { name, params, ty }) => {
-                    let name = env.intern_ident_in_module(name, module);
+                    let name =
+                        env.intern_ident_in_invalid_module(name, module, file);
                     let params = params
                         .iter()
-                        .map(|&param| env.intern_ident_in_module(param, module))
+                        .map(|&param| {
+                            env.intern_ident_in_invalid_module(
+                                param, module, file,
+                            )
+                        })
                         .collect();
 
                     ubd::Type::Alias(ubd::TypeAlias { name, params, ty })
                 }
                 ubd::Type::Extern(ubd::ExternType { name, params }) => {
-                    let name = env.intern_ident_in_module(name, module);
+                    let name =
+                        env.intern_ident_in_invalid_module(name, module, file);
                     let params = params
                         .iter()
-                        .map(|&param| env.intern_ident_in_module(param, module))
+                        .map(|&param| {
+                            env.intern_ident_in_invalid_module(
+                                param, module, file,
+                            )
+                        })
                         .collect();
 
                     ubd::Type::Extern(ubd::ExternType { name, params })
@@ -183,6 +208,11 @@ impl ImportResEnv {
             });
 
             env.types.push(Type { name, module, ast });
+        }
+
+        for module in &modules {
+            let name = env.interner.resolve(module.name).unwrap();
+            eprintln!("\nMOD: {}\n{:#?}", name, "");
         }
 
         // convert modules into a flat {Symbol -> Res} mapping, and push
@@ -196,7 +226,8 @@ impl ImportResEnv {
                 package,
                 items,
             },
-        ) in modules.into_iter().enumerate()
+            // HACK: this clone should be avoided!
+        ) in modules.clone().into_iter().enumerate()
         {
             let id = ModId(raw_id);
             let mut module = Module {
@@ -247,7 +278,7 @@ impl ImportResEnv {
                      visibility,
                      item: Spanned { item, span },
                  }| {
-                    let name = env.get_module(item).name;
+                    let name = modules[item.0].name;
                     (name, visibility.with(span.with(Res::Module(item))))
                 },
             );
@@ -794,6 +825,29 @@ impl ImportResEnv {
         Name { item, module }
     }
 
+    /// An alternative to [`Env::intern_ident_in_module`] for use during the
+    /// construction phase where the module table is invalid.
+    ///
+    /// In the primary constructor for [`ImportResEnv`], the new environment is
+    /// invalid for most of the duration of the function call. In order to
+    /// process the `types` field of the `env` parameter, we need to reference
+    /// module IDs *and* file IDs, but we don't need the modules to be valid
+    /// while doing so.
+    fn intern_ident_in_invalid_module(
+        &mut self,
+        Spanned { span, .. }: Spanned<ubd::ast::Ident>,
+        module: ModId,
+        file: FileId,
+    ) -> Name {
+        let symbol = self
+            .intern_source_span_in_file(file, span)
+            .expect("Idents always span valid UTF-8 bytes");
+
+        let item = span.with(symbol);
+
+        Name { item, module }
+    }
+
     fn resolve_symbol_in_module(
         &mut self,
         name: Symbol,
@@ -817,5 +871,61 @@ impl ImportResEnv {
                     .root_module,
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{path::PathBuf, str::FromStr};
+
+    use crate::cst::Parser;
+    use crate::package as pkg;
+
+    use super::*;
+
+    #[test]
+    fn build_import_res_env_from_core() {
+        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let package = pkg::Package::load_files(path).unwrap();
+        let mut parser = Parser::new().unwrap();
+
+        let package = package
+            .map_modules(|file| parser.parse(file))
+            .transpose()
+            .unwrap()
+            .map_modules(crate::ast::unbound::Ast::try_from)
+            .transpose()
+            .unwrap()
+            .map_modules(crate::ast::unbound_lowered::Ast::from);
+
+        let mut env = UnboundEnv::new();
+        let core_symbol = env.consume_package(package, Box::new([]));
+
+        let (env, errors) = ImportResEnv::from_unbound_env(env);
+
+        let core = env.get_package(core_symbol);
+        let root_module = env.get_module(core.root_module);
+        dbg!(root_module.items.len());
+
+        for (key, value) in root_module.items.iter() {
+            let key = env.interner.resolve(*key).unwrap();
+            eprintln!("{} : {:?}", key, value);
+        }
+
+        //dbg!(&env);
+        //dbg!(&errors);
+        dbg!(errors.len());
+
+        for err in errors {
+            match err {
+                ImportResError::Prefix(PrefixResError::ItemDne(item)) => {
+                    let name = env.interner.resolve(item.item.item).unwrap();
+                    eprintln!("ITEM DNE: {}", name);
+                }
+                other => eprintln!("NOT DNE"),
+            }
+        }
+
+        panic!();
     }
 }

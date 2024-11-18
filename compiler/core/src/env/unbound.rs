@@ -72,6 +72,35 @@ impl UnboundEnv {
                 file,
                 package,
             );
+
+            let parent_file = self.get_module(mod_id).file;
+            let decl_annotations = content.modules.iter().find_map(|m| {
+                let (vis, span, m) = m.spread();
+                let decl_name = self
+                    .intern_source_span_in_file(parent_file, m.name.span)
+                    .unwrap();
+                let submodule_name = self.interner.intern(&module.name);
+
+                Some((vis, span)).filter(|_| decl_name == submodule_name)
+            });
+
+            // if we can't find the module declaration matching the submodule,
+            // we just drop it and continue — the user is allowed to omit them
+            //
+            // TODO: produce a warning to the user that a submodule was omitted
+            let (vis, span) = match decl_annotations {
+                Some(annotations) => annotations,
+                None => continue,
+            };
+
+            // BUG: we aren't handling the case with duplicate module decls,
+            // and this moment is the latest opporunity to do so
+
+            self.get_module_mut(mod_id)
+                .items
+                .submodules
+                .push(vis.with(span.with(id)));
+
             // populate submodule
             self.populate_module(module, id, package);
         }
@@ -180,6 +209,6 @@ mod tests {
         //dbg!(&env.modules[7].imports);
         dbg!(&env.packages);
 
-        panic!();
+        //panic!();
     }
 }
