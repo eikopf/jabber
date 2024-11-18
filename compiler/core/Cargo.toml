@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 semver = { version = "1.0.23", features = ["serde"] }
 serde = { version = "1.0.213", features = ["derive"] }
-string-interner = "0.17.0"
+string-interner = { version = "0.18.0", features = ["std", "inline-more", "backends"] }
 thiserror = "1.0.64"
 toml = "0.8.19"
 tree-sitter-jabber = { path = "../../tree-sitter-jabber"}
