@@ -293,13 +293,21 @@ impl<Te, Ty, I> Env<Te, Ty, I> {
     pub fn intern_source_span_in_module(
         &mut self,
         module: ModId,
+        span: Span,
+    ) -> Result<Symbol, std::str::Utf8Error> {
+        let file = self.get_module(module).file;
+        self.intern_source_span_in_file(file, span)
+    }
+
+    pub fn intern_source_span_in_file(
+        &mut self,
+        file: FileId,
         Span { start, end }: Span,
     ) -> Result<Symbol, std::str::Utf8Error> {
         let start = start as usize;
         let end = end as usize;
 
-        let module = self.get_module(module);
-        let file = self.get_file(module.file);
+        let file = self.get_file(file);
         let bytes = &file.contents().as_bytes()[start..end];
 
         std::str::from_utf8(bytes).map(|s| self.interner.intern(s))
