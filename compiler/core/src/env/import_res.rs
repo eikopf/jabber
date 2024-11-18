@@ -210,11 +210,6 @@ impl ImportResEnv {
             env.types.push(Type { name, module, ast });
         }
 
-        for module in &modules {
-            let name = env.interner.resolve(module.name).unwrap();
-            eprintln!("\nMOD: {}\n{:#?}", name, "");
-        }
-
         // convert modules into a flat {Symbol -> Res} mapping, and push
         // their imports into the resolution queue.
         for (
@@ -278,6 +273,7 @@ impl ImportResEnv {
                      visibility,
                      item: Spanned { item, span },
                  }| {
+                    // NOTE: this is the call that requires the clone above
                     let name = modules[item.0].name;
                     (name, visibility.with(span.with(Res::Module(item))))
                 },
