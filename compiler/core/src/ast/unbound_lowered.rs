@@ -133,9 +133,15 @@ impl SymType {
     /// constructor whose name is exactly the same as the name of `self`.
     pub fn is_struct(&self) -> bool {
         match self {
-            Type::Adt(adt) => todo!(),
-            Type::Alias(type_alias) => todo!(),
-            Type::Extern(extern_type) => todo!(),
+            Type::Adt(Adt {
+                name,
+                opacity: None,
+                constructors,
+                ..
+            }) if constructors.len() == 1 => {
+                constructors.contains_key(&name.item)
+            }
+            _ => false,
         }
     }
 }
