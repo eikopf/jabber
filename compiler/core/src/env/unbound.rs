@@ -10,7 +10,7 @@ use crate::{
     symbol::Symbol,
 };
 
-use super::{Env, ModId, TermId, TypeId};
+use super::{Env, FileId, ModId, TermId, TypeId};
 
 /// A completely unresolved environment.
 pub type UnboundEnv =
@@ -24,6 +24,33 @@ pub struct UnboundModItems {
     pub types: Vec<ViSp<TypeId>>,
 }
 
+const INGEST_ERROR_CAPACITY: usize = 256;
+const INGEST_WARNING_CAPACITY: usize = 256;
+
+#[derive(Debug, Clone)]
+pub enum PackageIngestError {
+    /// There are two colliding module declarations.
+    DuplicateModDecl {
+        /// The module that contains the conflicting declarations.
+        containing_module: ModId,
+        /// The module declaration that gets used to continue on.
+        first: Spanned<ubd::Mod>,
+        second: Spanned<ubd::Mod>,
+        others: Box<[Spanned<ubd::Mod>]>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum PackageIngestWarning {
+    /// A submodule file exists, but is unused.
+    UnusedSubmodule {
+        /// The unused module
+        module: ModId,
+        /// The module that could be the parent of `module`.
+        parent: ModId,
+    },
+}
+
 impl UnboundEnv {
     pub fn consume_package(
         &mut self,
@@ -34,7 +61,7 @@ impl UnboundEnv {
             ..
         }: pkg::Package<ubd::Ast>,
         dependencies: Box<[Symbol]>,
-    ) -> Symbol {
+    ) -> (Symbol, Vec<PackageIngestWarning>, Vec<PackageIngestError>) {
         // register root file and package
         let root_file = self.register_file(root_module.content.file.clone());
         let package = self.register_package(
@@ -44,15 +71,25 @@ impl UnboundEnv {
             dependencies,
         );
 
+        let mut errors = Vec::with_capacity(INGEST_ERROR_CAPACITY);
+        let mut warnings = Vec::with_capacity(INGEST_WARNING_CAPACITY);
+
         // recursively populate table using module tree
         let root_module_id = self.get_package(package).root_module;
-        self.populate_module(root_module, root_module_id, package);
+        self.populate_module(
+            root_module,
+            root_module_id,
+            package,
+            &mut errors,
+            &mut warnings,
+        );
 
-        // return package id
-        package
+        errors.shrink_to_fit();
+        warnings.shrink_to_fit();
+        (package, warnings, errors)
     }
 
-    pub fn populate_module(
+    fn populate_module(
         &mut self,
         pkg::Module {
             content,
@@ -61,6 +98,8 @@ impl UnboundEnv {
         }: pkg::Module<ubd::Ast>,
         mod_id: ModId,
         package: Symbol,
+        errors: &mut Vec<PackageIngestError>,
+        warnings: &mut Vec<PackageIngestWarning>,
     ) {
         for module in submodules {
             // register file
@@ -74,35 +113,70 @@ impl UnboundEnv {
             );
 
             let parent_file = self.get_module(mod_id).file;
-            let decl_annotations = content.modules.iter().find_map(|m| {
-                let (vis, span, m) = m.spread();
-                let decl_name = self
-                    .intern_source_span_in_file(parent_file, m.name.span)
-                    .unwrap();
-                let submodule_name = self.interner.intern(&module.name);
+            let mut mod_decls = content
+                .modules
+                .iter()
+                .filter_map(|m| {
+                    let (vis, span, m) = m.spread();
+                    let decl_name = self
+                        .intern_source_span_in_file(parent_file, m.name.span)
+                        .unwrap();
+                    let submodule_name = self.interner.intern(&module.name);
 
-                Some((vis, span)).filter(|_| decl_name == submodule_name)
-            });
+                    Some((vis, span, m)).filter(|_| decl_name == submodule_name)
+                })
+                .collect::<Vec<_>>();
 
-            // if we can't find the module declaration matching the submodule,
-            // we just drop it and continue — the user is allowed to omit them
-            //
-            // TODO: produce a warning to the user that a submodule was omitted
-            let (vis, span) = match decl_annotations {
-                Some(annotations) => annotations,
-                None => continue,
-            };
+            match mod_decls.len() {
+                0 => {
+                    warnings.push(PackageIngestWarning::UnusedSubmodule {
+                        module: id,
+                        parent: mod_id,
+                    });
+                }
+                1 => {
+                    let (vis, span, _) = mod_decls.first().unwrap();
 
-            // BUG: we aren't handling the case with duplicate module decls,
-            // and this moment is the latest opporunity to do so
+                    self.get_module_mut(mod_id)
+                        .items
+                        .submodules
+                        .push(vis.with(span.with(id)));
 
-            self.get_module_mut(mod_id)
-                .items
-                .submodules
-                .push(vis.with(span.with(id)));
+                    // populate submodule
+                    self.populate_module(module, id, package, errors, warnings);
+                }
+                // at least two...
+                _ => {
+                    let (vis, span, first) = mod_decls
+                        .pop()
+                        .map(|(vis, span, m)| (vis, span, span.with(m)))
+                        .unwrap();
+                    let second = mod_decls
+                        .pop()
+                        .map(|(_, span, m)| span.with(m))
+                        .unwrap();
+                    let others = mod_decls
+                        .into_iter()
+                        .map(|(_, span, m)| span.with(m))
+                        .collect::<Box<[_]>>();
 
-            // populate submodule
-            self.populate_module(module, id, package);
+                    errors.push(PackageIngestError::DuplicateModDecl {
+                        containing_module: mod_id,
+                        first,
+                        second,
+                        others,
+                    });
+
+                    // we keep going with one of the module declarations
+                    self.get_module_mut(mod_id)
+                        .items
+                        .submodules
+                        .push(vis.with(span.with(id)));
+
+                    // populate submodule
+                    self.populate_module(module, id, package, errors, warnings);
+                }
+            }
         }
 
         let ubd::Ast {
@@ -195,7 +269,8 @@ mod tests {
             .map_modules(crate::ast::unbound_lowered::Ast::from);
 
         let mut env = UnboundEnv::new();
-        let core_symbol = env.consume_package(package, Box::new([]));
+        let (core_symbol, warnings, errors) =
+            env.consume_package(package, Box::new([]));
 
         //dbg!(&env);
 

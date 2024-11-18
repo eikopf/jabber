@@ -895,12 +895,17 @@ mod tests {
             .map_modules(crate::ast::unbound_lowered::Ast::from);
 
         let mut env = UnboundEnv::new();
-        let core_symbol = env.consume_package(package, Box::new([]));
+        let (core_symbol, ingest_warnings, ingest_errors) =
+            env.consume_package(package, Box::new([]));
 
-        let (env, errors) = ImportResEnv::from_unbound_env(env);
+        dbg!(ingest_warnings);
+        dbg!(ingest_errors);
 
-        let core = env.get_package(core_symbol);
-        let root_module = env.get_module(core.root_module);
+        let (mut env, errors) = ImportResEnv::from_unbound_env(env);
+        dbg!(errors.len());
+
+        let root_module =
+            env.get_module(env.get_package(core_symbol).root_module);
         dbg!(root_module.items.len());
 
         for (key, value) in root_module.items.iter() {
@@ -908,19 +913,29 @@ mod tests {
             eprintln!("{} : {:?}", key, value);
         }
 
-        //dbg!(&env);
-        //dbg!(&errors);
-        dbg!(errors.len());
+        let prelude_symbol = env.interner.intern_static("prelude");
+        let prelude = env.get_module(
+            env.get_module(env.get_package(core_symbol).root_module)
+                .items
+                .get(&prelude_symbol)
+                .unwrap()
+                .item()
+                .as_module()
+                .unwrap(),
+        );
 
-        for err in errors {
-            match err {
-                ImportResError::Prefix(PrefixResError::ItemDne(item)) => {
-                    let name = env.interner.resolve(item.item.item).unwrap();
-                    eprintln!("ITEM DNE: {}", name);
-                }
-                other => eprintln!("NOT DNE"),
-            }
+        for (name, item) in prelude.items.iter() {
+            let name = env.interner.resolve(*name).unwrap();
+
+            eprintln!(
+                "(public={:?}) {} := {:#?}",
+                item.is_visible(),
+                name,
+                item,
+            );
         }
+
+        dbg!(&env.interner);
 
         panic!();
     }
