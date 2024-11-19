@@ -2,16 +2,19 @@
 
 use std::collections::HashMap;
 
-use import_res::PrefixId;
+use import_res::{ImportResError, PrefixId};
+use resolve::{LocalResError, LocalResWarning};
+use unbound::{PackageIngestError, PackageIngestWarning};
 
 use crate::{
-    ast::bound,
+    ast::{bound, common::ViSp},
     source_file::SourceFile,
     span::{Span, Spanned},
     symbol::{StringInterner, Symbol},
 };
 
 mod import_res;
+mod resolve;
 mod unbound;
 
 #[derive(Debug, Clone, Copy)]
@@ -72,6 +75,34 @@ impl Res {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum ResError {
+    Ingest {
+        package: Symbol,
+        error: PackageIngestError,
+    },
+    ImportRes {
+        package: Symbol,
+        error: ImportResError,
+    },
+    LocalRes {
+        package: Symbol,
+        error: LocalResError,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ResWarning {
+    Ingest {
+        package: Symbol,
+        warning: PackageIngestWarning,
+    },
+    LocalRes {
+        package: Symbol,
+        warning: LocalResWarning,
+    },
+}
+
 // TODO: add support for unloaded files as a precursor
 // to compiled package caching
 
@@ -84,7 +115,7 @@ impl Res {
 pub struct Env<
     Te = bound::Term,
     Ty = bound::Type,
-    I = HashMap<Symbol, Spanned<Res>>,
+    I = HashMap<Symbol, ViSp<Res>>,
 > {
     files: Vec<SourceFile>,
     packages: HashMap<Symbol, Package>,
