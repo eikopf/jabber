@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    unbound::{UnboundEnv, UnboundModItems},
-    Env, FileId, Loc, ModId, Module, Name, Res, Type, TypeId,
+    unbound::UnboundEnv, Env, FileId, Loc, ModId, Module, Name, Res, Type,
+    TypeId,
 };
 
 /// An environment where imports have been resolved and type constructor name
@@ -267,6 +267,10 @@ impl ImportResEnv {
                     (name, visibility.with(span.with(res)))
                 },
             );
+
+            // TODO: give submodules special handling for collisions, since
+            // they are "weak symbols" and local items are allowed to shadow
+            // them in module scopes
 
             let submodules = items.submodules.into_iter().map(
                 |Vis {
