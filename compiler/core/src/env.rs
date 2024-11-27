@@ -59,10 +59,9 @@ impl Res {
     }
 
     pub fn as_type(&self) -> Option<TypeId> {
-        if let Self::Type(v) = self {
-            Some(*v)
-        } else {
-            None
+        match self {
+            Self::Type(id) | Self::StructType(id) => Some(*id),
+            _ => None,
         }
     }
 
@@ -72,6 +71,10 @@ impl Res {
             Res::Module(id) => Some(PrefixId::Mod(id)),
             _ => None,
         }
+    }
+
+    pub fn is_type(&self) -> bool {
+        matches!(self, Res::Type(_) | Res::StructType(_))
     }
 }
 
@@ -113,6 +116,7 @@ pub enum ResWarning {
 /// `modules`, `terms`, and `types`.
 #[derive(Debug)]
 pub struct Env<
+    // TODO: these should change once type checking is implemented
     Te = bound::Term,
     Ty = bound::Type,
     I = HashMap<Symbol, ViSp<Res>>,
@@ -177,6 +181,41 @@ impl<T: std::ops::Deref> std::ops::Deref for Loc<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.item
+    }
+}
+
+pub enum ResValue<'a, Te, Ty, V> {
+    Term(&'a Term<Te>),
+    Type(&'a Type<Ty>),
+    StructType(&'a Type<Ty>),
+    TyConstr { ty: &'a Type<Ty>, name: Symbol },
+    Mod(&'a Module<HashMap<Symbol, V>>),
+}
+
+impl<Te, Ty, V> Env<Te, Ty, HashMap<Symbol, V>> {
+    pub fn get_res(&self, res: Res) -> ResValue<'_, Te, Ty, V> {
+        match res {
+            Res::Term(term_id) => ResValue::Term(self.get_term(term_id)),
+            Res::Type(type_id) => ResValue::Type(self.get_type(type_id)),
+            Res::StructType(type_id) => {
+                ResValue::StructType(self.get_type(type_id))
+            }
+            Res::TyConstr { ty, name } => ResValue::TyConstr {
+                ty: self.get_type(ty),
+                name,
+            },
+            Res::Module(mod_id) => ResValue::Mod(self.get_module(mod_id)),
+        }
+    }
+
+    pub fn get_res_name(&self, res: Res) -> Symbol {
+        match self.get_res(res) {
+            ResValue::Term(Term { name, .. })
+            | ResValue::Type(Type { name, .. })
+            | ResValue::StructType(Type { name, .. })
+            | ResValue::Mod(Module { name, .. }) => *name,
+            ResValue::TyConstr { name, .. } => name,
+        }
     }
 }
 
@@ -312,12 +351,6 @@ impl<Te, Ty, I> Env<Te, Ty, I> {
         self.files
             .get(file.0)
             .cloned()
-            .expect("File IDs are valid by construction")
-    }
-
-    pub fn get_file_ref(&self, file: FileId) -> &SourceFile {
-        self.files
-            .get(file.0)
             .expect("File IDs are valid by construction")
     }
 
