@@ -53,6 +53,10 @@ impl<T> Spanned<T> {
     pub fn span(&self) -> Span {
         self.span
     }
+
+    pub fn as_ref(&self) -> Spanned<&T> {
+        self.span.with(self.item())
+    }
 }
 
 impl<T> Deref for Spanned<T> {
