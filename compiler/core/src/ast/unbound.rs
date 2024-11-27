@@ -398,6 +398,19 @@ pub enum FnTyArgs {
     Parens(SpanSeq<Ty>),
 }
 
+impl FnTyArgs {
+    pub fn len(&self) -> usize {
+        match self {
+            FnTyArgs::NoParens(_) => 1,
+            FnTyArgs::Parens(tys) => tys.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 // NAMES
 
 #[derive(Debug, Clone)]
