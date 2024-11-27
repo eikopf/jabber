@@ -5,8 +5,10 @@
 use std::collections::HashMap;
 
 use crate::{
+    env,
     source_file::SourceFile,
     span::{Span, SpanSeq, Spanned},
+    symbol,
 };
 
 use super::{
@@ -94,10 +96,23 @@ pub struct Const {
 
 /// A partially interned type AST for use during import resolution.
 pub type SymType = Type<
-    crate::env::Name,
-    Box<[crate::env::Name]>,
-    HashMap<crate::symbol::Symbol, Spanned<ast::TyConstr>>,
+    env::Name,
+    Box<[env::Name]>,
+    HashMap<symbol::Symbol, Spanned<ast::TyConstr>>,
 >;
+
+/// A partially interned ADT AST for use during import resolution.
+pub type SymAdt = Adt<
+    env::Name,
+    Box<[env::Name]>,
+    HashMap<symbol::Symbol, Spanned<ast::TyConstr>>,
+>;
+
+/// A partially interned type alias AST for use during import resolution.
+pub type SymTypeAlias = TypeAlias<env::Name, Box<[env::Name]>>;
+
+/// A partially interned extern type AST for use during import resolution.
+pub type SymExternType = ExternType<env::Name, Box<[env::Name]>>;
 
 /// The AST of a type item.
 ///
@@ -125,6 +140,16 @@ impl Type {
         };
 
         name.span.in_source(source).unwrap()
+    }
+}
+
+impl<N, P, C> Type<N, P, C> {
+    pub fn as_adt(&self) -> Option<&Adt<N, P, C>> {
+        if let Self::Adt(v) = self {
+            Some(v)
+        } else {
+            None
+        }
     }
 }
 
