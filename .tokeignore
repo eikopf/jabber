@@ -1,0 +1,6 @@
+# only include the grammar.js file within tree-sitter-jabber
+!tree-sitter-jabber/grammar.js
+tree-sitter-jabber/
+
+# don't count markdown lines in ./notes
+notes/*.md
