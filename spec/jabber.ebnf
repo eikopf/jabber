@@ -58,7 +58,7 @@ parameter  = pattern, [":", type] ;
 
 fn body = ("=", expr) | block ;
 
-const decl  = "const", ident, ":", type, "=", expr ;
+const decl  = "const", ident, [ ":", type ], "=", expr ;
 
 (* ATTRIBUTES *)
 
