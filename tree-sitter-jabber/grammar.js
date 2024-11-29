@@ -211,8 +211,7 @@ module.exports = grammar({
       seq(
         "const",
         field("name", $.ident),
-        ":",
-        field("type", $._type_expr),
+        optional(seq(":", field("type", $._type_expr))),
         "=",
         field("value", $._expr),
       ),

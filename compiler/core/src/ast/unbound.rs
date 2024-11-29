@@ -114,7 +114,7 @@ pub enum DeclKind {
     },
     Const {
         name: Spanned<Ident>,
-        ty: Spanned<Ty>,
+        ty: Option<Spanned<Ty>>,
         value: Spanned<Expr>,
     },
 }

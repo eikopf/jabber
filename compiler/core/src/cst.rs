@@ -302,7 +302,11 @@ impl<'a> CstVisitor<'a> {
         node: ConstDecl<'a>,
     ) -> CstResult<'a, Spanned<ast::DeclKind>> {
         let name = self.visit_ident(node.name()?);
-        let ty = self.visit_type(node.r#type()?)?;
+        let ty = node
+            .r#type()
+            .transpose()?
+            .map(|ty| self.visit_type(ty))
+            .transpose()?;
         let value = self.visit_expr(node.value()?)?;
 
         let span = node_span(node);

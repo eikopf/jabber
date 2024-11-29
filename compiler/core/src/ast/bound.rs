@@ -52,7 +52,7 @@ pub enum Term<N = Bound> {
 pub struct Fn<N = Bound> {
     pub name: Name<Res>,
     pub params: SpanSeq<Parameter<N>>,
-    pub return_ty: Spanned<Ty<N>>,
+    pub return_ty: Option<Spanned<Ty<N>>>,
     pub body: SpanBox<Expr<N>>,
 }
 
@@ -60,13 +60,13 @@ pub struct Fn<N = Bound> {
 pub struct ExternFn<N = Bound> {
     pub name: Name<Res>,
     pub params: SpanSeq<Parameter<N>>,
-    pub return_ty: Spanned<Ty<N>>,
+    pub return_ty: Option<Spanned<Ty<N>>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Const<N = Bound> {
     pub name: Name<Res>,
-    pub ty: Spanned<Ty<N>>,
+    pub ty: Option<Spanned<Ty<N>>>,
     pub value: Spanned<Expr<N>>,
 }
 

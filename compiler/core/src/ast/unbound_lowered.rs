@@ -90,7 +90,7 @@ pub struct ExternFn {
 #[derive(Debug, Clone)]
 pub struct Const {
     pub name: Spanned<ast::Ident>,
-    pub ty: Spanned<ast::Ty>,
+    pub ty: Option<Spanned<ast::Ty>>,
     pub value: Spanned<ast::Expr>,
 }
 
