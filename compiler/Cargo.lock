@@ -126,6 +126,7 @@ dependencies = [
  "tree-sitter-jabber",
  "type-sitter",
  "type-sitter-gen",
+ "winnow",
 ]
 
 [[package]]

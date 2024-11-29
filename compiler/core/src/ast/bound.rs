@@ -151,10 +151,10 @@ pub enum Expr<N = Bound> {
 pub enum LiteralExpr {
     Unit,
     Bool(bool),
-    Char(Symbol),
+    Char(char),
     String(Symbol),
-    Int(Symbol),
-    Float(Symbol),
+    Int(i64),
+    Float(f64),
 }
 
 #[derive(Debug, Clone)]

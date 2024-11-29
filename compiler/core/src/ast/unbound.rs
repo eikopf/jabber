@@ -168,6 +168,8 @@ pub struct Parameter {
     pub ty: Option<Spanned<Ty>>,
 }
 
+/// Note that the span in a `Spanned<FnBody>` always refers to the expression
+/// or block payload, never the `=` prefix in the `EqExpr` case.
 #[derive(Debug, Clone)]
 pub enum FnBody {
     EqExpr(Expr),
