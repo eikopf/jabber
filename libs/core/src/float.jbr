@@ -1,3 +1,52 @@
 //! Utilities for the `float` primitive type.
 
 pub type alias Float = float
+
+// OPERATORS
+
+@core.operator.neg_float
+pub fn neg(x: float) -> float = __prim_float_neg(x)
+@core.operator.add_float
+pub fn add(lhs: float, rhs: float) -> float = __prim_float_add(lhs, rhs)
+@core.operator.sub_float
+pub fn sub(lhs: float, rhs: float) -> float = __prim_float_sub(lhs, rhs)
+@core.operator.mul_float
+pub fn mul(lhs: float, rhs: float) -> float = __prim_float_mul(lhs, rhs)
+@core.operator.div_float
+pub fn div(lhs: float, rhs: float) -> float = __prim_float_div(lhs, rhs)
+@core.operator.pow_float
+pub fn pow(lhs: float, rhs: float) -> float = __prim_float_pow(lhs, rhs)
+
+@core.operator.lt_float
+pub fn lt(lhs: float, rhs: float) -> bool = __prim_float_lt(lhs, rhs)
+@core.operator.gt_float
+pub fn gt(lhs: float, rhs: float) -> bool = __prim_float_gt(lhs, rhs)
+@core.operator.leq_float
+pub fn leq(lhs: float, rhs: float) -> bool = __prim_float_leq(lhs, rhs)
+@core.operator.geq_float
+pub fn geq(lhs: float, rhs: float) -> bool = __prim_float_geq(lhs, rhs)
+
+
+// EXTERNALS
+
+@external.scheme("__jabber_float_neg")
+extern fn __prim_float_neg(x: float) -> float
+@external.scheme("__jabber_float_add")
+extern fn __prim_float_add(lhs: float, rhs: float) -> float
+@external.scheme("__jabber_float_sub")
+extern fn __prim_float_sub(lhs: float, rhs: float) -> float
+@external.scheme("__jabber_float_mul")
+extern fn __prim_float_mul(lhs: float, rhs: float) -> float
+@external.scheme("__jabber_float_div")
+extern fn __prim_float_div(lhs: float, rhs: float) -> float
+@external.scheme("__jabber_float_pow")
+extern fn __prim_float_pow(lhs: float, rhs: float) -> float
+
+@external.scheme("__jabber_float_lt")
+extern fn __prim_float_lt(lhs: float, rhs: float) -> bool
+@external.scheme("__jabber_float_gt")
+extern fn __prim_float_gt(lhs: float, rhs: float) -> bool
+@external.scheme("__jabber_float_leq")
+extern fn __prim_float_leq(lhs: float, rhs: float) -> bool
+@external.scheme("__jabber_float_geq")
+extern fn __prim_float_geq(lhs: float, rhs: float) -> bool

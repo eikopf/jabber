@@ -8,6 +8,10 @@ pub const ONE:  int = 1
 pub fn intmin() -> int = __prim_intmin()
 pub fn intmax() -> int = __prim_intmax()
 
+// OPERATORS
+
+@core.operator.neg_int
+pub fn neg(x: int) -> int = __prim_int_neg(x)
 @core.operator.add_int
 pub fn add(lhs: int, rhs: int) -> int = __prim_int_add(lhs, rhs)
 @core.operator.sub_int
@@ -38,6 +42,8 @@ extern fn __prim_intmin() -> int
 @external.scheme("__jabber_intmax")
 extern fn __prim_intmax() -> int
 
+@external.scheme("__jabber_int_neg")
+extern fn __prim_int_neg(i: int) -> int
 @external.scheme("__jabber_int_add")
 extern fn __prim_int_add(lhs: int, rhs: int) -> int
 @external.scheme("__jabber_int_sub")

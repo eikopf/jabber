@@ -1,6 +1,7 @@
 //! The prelude imported by all Jabber modules
 
 pub use package.{
+    bool.{and, or, xor},
     fun.{id, constant},
     option.{Option, Option.Some, Option.None},
     panic.{panic, panic_with_msg, unreachable, todo},

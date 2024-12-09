@@ -1,7 +1,16 @@
 //! Lists as an inductive datatype.
 
-pub type List[T] = 
-    | @core.operator.cons 
-      Cons(T, List[T]) 
-    | @core.empty_list
-      Nil
+pub type List[T] = Nil | Cons(T, List[T]) 
+
+// OPERATORS
+
+@core.operator.cons
+pub fn cons(head: T, tail: List[T]) -> List[T] = List.Cons(head, tail)
+@core.operator.append
+pub fn append(lhs: List[T], rhs: List[T]) -> List[T] = __prim_append(lhs, rhs)
+
+
+// EXTERNALS
+
+@external.scheme("__jabber_append")
+extern fn __prim_append(lhs: List[T], rhs: List[T]) -> List[T]

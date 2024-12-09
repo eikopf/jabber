@@ -1,5 +1,7 @@
 //! Functional utilities
 
+pub type alias Fn[A, B] = A -> B
+
 pub fn id(x: A) -> A = x
 
 pub fn constant(x: A) -> (B -> A) = (_) -> x
