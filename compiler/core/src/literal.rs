@@ -16,10 +16,7 @@ use winnow::{
     PResult, Parser,
 };
 
-use crate::{
-    span::{Span, Spanned},
-    symbol::{StringInterner, Symbol},
-};
+use crate::span::{Span, Spanned};
 
 const BACKSLASH: char = '\\';
 const SINGLE_QUOTE: char = '\'';
@@ -27,7 +24,7 @@ const DOUBLE_QUOTE: char = '"';
 const UNDERSCORE: char = '_';
 
 pub type CharLiteral = Literal<char, CharKind>;
-pub type StringLiteral = Literal<Symbol>;
+pub type StringLiteral = Literal<String>;
 pub type IntLiteral = Literal<u64, IntKind>;
 pub type FloatLiteral = Literal<f64, FloatKind>;
 
@@ -36,6 +33,13 @@ pub struct Literal<T, K = ()> {
     span: Span,
     kind: K,
     value: T,
+}
+
+impl<T, K> Literal<T, K> {
+    #[inline(always)]
+    pub fn value(&self) -> &T {
+        &self.value
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,12 +64,11 @@ pub enum FloatKind {
     Exponent,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StringLiteralError {
-    InvalidEscape {
-        bad_escape_span: Span,
-        bad_literal: Spanned<Symbol>,
-    },
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StringLiteralError {
+    input: Spanned<String>,
+    offset: usize,
+    bad_escape_span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,30 +88,27 @@ pub struct IntLiteralOverflowError {
 
 pub fn parse_string_literal(
     Spanned { item: input, span }: Spanned<&str>,
-    interner: &mut StringInterner,
 ) -> Result<StringLiteral, StringLiteralError> {
     let mut parser = delimited("\"", string_contents, "\"");
 
     match parser.parse(input) {
-        Ok(contents) => {
-            let value = interner.intern(&contents);
-            Ok(Literal {
-                value,
-                kind: (),
-                span,
-            })
-        }
+        Ok(value) => Ok(Literal {
+            value,
+            kind: (),
+            span,
+        }),
         Err(error) => {
-            let bad_literal = span.with(interner.intern(input));
+            let input = span.with(String::from(input));
             let escape_span_start = span.start + error.offset() as u32;
             let bad_escape_span = Span {
                 start: escape_span_start,
                 end: escape_span_start + error.inner().input.len() as u32,
             };
 
-            Err(StringLiteralError::InvalidEscape {
+            Err(StringLiteralError {
+                input,
+                offset: error.offset(),
                 bad_escape_span,
-                bad_literal,
             })
         }
     }
@@ -352,11 +352,11 @@ fn exponent_float(input: &mut &str) -> PResult<(FloatKind, f64)> {
 /// value. The only failure mode for this function is if the integer literal is
 /// too large to fit into a `u64`.
 fn digits<const RADIX: u32>(input: &mut &str) -> PResult<u64> {
-    take_while(1.., |c: char| c == '_' || c.is_digit(RADIX))
+    take_while(1.., |c: char| c == UNDERSCORE || c.is_digit(RADIX))
         .parse_next(input)
         .and_then(|s| {
             s.chars()
-                .filter(|&c| c != '_')
+                .filter(|&c| c != UNDERSCORE)
                 .try_fold(0u64, |sum, digit| {
                     let (shifted_sum, overflowed) =
                         sum.overflowing_mul((RADIX).into());
@@ -379,13 +379,9 @@ mod tests {
 
     #[test]
     fn complete_strings() {
-        let mut interner = StringInterner::new();
-        let mut parse = |s| {
-            let res = parse_string_literal(Span::ZERO.with(s), &mut interner);
-
-            res.map(|Literal { value, .. }| {
-                interner.resolve(value).map(String::from).unwrap()
-            })
+        let parse = |s| {
+            parse_string_literal(Span::ZERO.with(s))
+                .map(|Literal { value, .. }| value)
         };
 
         // "" --> ε
