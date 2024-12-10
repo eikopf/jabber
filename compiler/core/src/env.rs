@@ -50,23 +50,23 @@ pub enum Res {
 }
 
 impl Res {
-    pub fn as_module(&self) -> Option<ModId> {
+    pub fn as_module(self) -> Option<ModId> {
         if let Self::Module(v) = self {
-            Some(*v)
+            Some(v)
         } else {
             None
         }
     }
 
-    pub fn as_type(&self) -> Option<TypeId> {
+    pub fn as_type(self) -> Option<TypeId> {
         match self {
-            Self::Type(id) | Self::StructType(id) => Some(*id),
+            Self::Type(id) | Self::StructType(id) => Some(id),
             _ => None,
         }
     }
 
-    pub fn as_prefix(&self) -> Option<PrefixId> {
-        match *self {
+    pub fn as_prefix(self) -> Option<PrefixId> {
+        match self {
             Res::Type(id) => Some(PrefixId::Type(id)),
             Res::Module(id) => Some(PrefixId::Mod(id)),
             _ => None,
@@ -75,6 +75,18 @@ impl Res {
 
     pub fn is_type(&self) -> bool {
         matches!(self, Res::Type(_) | Res::StructType(_))
+    }
+
+    pub fn is_term(&self) -> bool {
+        matches!(self, Self::Term(..))
+    }
+
+    pub fn as_term(self) -> Option<TermId> {
+        if let Self::Term(v) = self {
+            Some(v)
+        } else {
+            None
+        }
     }
 }
 
@@ -190,6 +202,32 @@ pub enum ResValue<'a, Te, Ty, V> {
     StructType(&'a Type<Ty>),
     TyConstr { ty: &'a Type<Ty>, name: Symbol },
     Mod(&'a Module<HashMap<Symbol, V>>),
+}
+
+impl<Te, Ty> Env<Te, Ty, HashMap<Symbol, ViSp<Res>>> {
+    // MAGIC METHODS
+
+    /// Returns the [`ModId`] of a direct submodule of `core` (e.g. `core.ref`)
+    /// if such a submodule exists.
+    pub fn magic_core_submodule(&mut self, submodule: Symbol) -> Option<ModId> {
+        let core = self.core_root_module();
+
+        self.get_module(core)
+            .items
+            .get(&submodule)
+            .map(|visp| visp.spread().2)
+            .and_then(|res| res.as_module())
+    }
+
+    pub fn item_in_module(
+        &mut self,
+        item: Symbol,
+        module: ModId,
+    ) -> Option<Res> {
+        let module = self.get_module(module);
+        let (_, _, res) = module.items.get(&item)?.spread();
+        Some(res)
+    }
 }
 
 impl<Te, Ty, V> Env<Te, Ty, HashMap<Symbol, V>> {
@@ -354,6 +392,12 @@ impl<Te, Ty, I> Env<Te, Ty, I> {
             .expect("File IDs are valid by construction")
     }
 
+    pub fn get_file_ref(&self, file: FileId) -> &SourceFile {
+        self.files
+            .get(file.0)
+            .expect("File IDs are valid by construction")
+    }
+
     pub fn intern_source_span_in_module(
         &mut self,
         module: ModId,
@@ -375,6 +419,11 @@ impl<Te, Ty, I> Env<Te, Ty, I> {
         let bytes = &file.contents().as_bytes()[start..end];
 
         std::str::from_utf8(bytes).map(|s| self.interner.intern(s))
+    }
+
+    pub fn core_root_module(&mut self) -> ModId {
+        let core = self.interner.intern_static("core");
+        self.get_package(core).root_module
     }
 }
 
