@@ -941,6 +941,6 @@ mod tests {
 
         dbg!(&env.interner);
 
-        panic!();
+        //panic!();
     }
 }
