@@ -20,6 +20,24 @@ pub enum Type<N = Bound> {
     Extern(ExternType),
 }
 
+impl<N> Type<N> {
+    pub fn as_adt(&self) -> Option<&Adt<N>> {
+        if let Self::Adt(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn name(&self) -> Name<Res> {
+        match self {
+            Type::Adt(Adt { name, .. })
+            | Type::Alias(TypeAlias { name, .. })
+            | Type::Extern(ExternType { name, .. }) => *name,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TypeAlias<N = Bound> {
     pub name: Name<Res>,
@@ -105,28 +123,19 @@ pub enum Expr<N = Bound> {
     List(SpanSeq<Self>),
     Tuple(SpanSeq<Self>),
     Block(Block<N>),
-    UnitConstr {
-        ty: TypeId,
-        name: Spanned<N>,
-    },
-    TupleConstr {
-        ty: TypeId,
-        name: Spanned<N>,
-        args: SpanSeq<Self>,
-    },
     RecordConstr {
-        ty: TypeId,
-        name: Spanned<N>,
+        name: N,
         fields: SpanSeq<RecordExprField<N>>,
         base: Option<SpanBox<Self>>,
     },
     RecordField {
         item: SpanBox<Self>,
-        field: Spanned<N>,
+        field: Spanned<Symbol>,
     },
     TupleField {
         item: SpanBox<Self>,
-        field: Spanned<Symbol>,
+        /// will be `None` if the index overflowed (i.e. exceeded `u32::MAX`)
+        field: Spanned<Option<u32>>,
     },
     Lambda {
         params: SpanSeq<Parameter<N>>,
@@ -135,6 +144,22 @@ pub enum Expr<N = Bound> {
     Call {
         callee: SpanBox<Self>,
         args: SpanSeq<Self>,
+        kind: CallExprKind,
+    },
+    LazyAnd {
+        operator: Span,
+        lhs: SpanBox<Self>,
+        rhs: SpanBox<Self>,
+    },
+    LazyOr {
+        operator: Span,
+        lhs: SpanBox<Self>,
+        rhs: SpanBox<Self>,
+    },
+    Mutate {
+        operator: Span,
+        lhs: SpanBox<Self>,
+        rhs: SpanBox<Self>,
     },
     Match {
         scrutinee: SpanBox<Self>,
@@ -153,14 +178,31 @@ pub enum LiteralExpr {
     Bool(bool),
     Char(char),
     String(Symbol),
-    Int(i64),
+    Int(u64),
     Float(f64),
+    Malformed(MalformedLiteral),
+}
+
+/// The set of literal types that can be grammatically well-formed but
+/// semantically ill-formed.
+#[derive(Debug, Clone, Copy)]
+pub enum MalformedLiteral {
+    Char,
+    String,
+    Int,
 }
 
 #[derive(Debug, Clone)]
 pub struct RecordExprField<N = Bound> {
     pub field: Spanned<N>,
     pub value: Spanned<Expr<N>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum CallExprKind {
+    Normal,
+    DesugaredPrefixOp,
+    DesugeredBinaryOp,
 }
 
 #[derive(Debug, Clone)]
@@ -254,6 +296,12 @@ pub enum Bound {
     Global(GlobalBinding),
 }
 
+impl From<GlobalBinding> for Bound {
+    fn from(v: GlobalBinding) -> Self {
+        Self::Global(v)
+    }
+}
+
 impl Bound {
     pub fn content(self) -> Spanned<NameContent> {
         match self {
@@ -335,9 +383,17 @@ impl BindingId {
         }
     }
 
-    pub fn as_local(&self) -> Option<Uid> {
+    pub fn as_local(self) -> Option<Uid> {
         if let Self::Local(v) = self {
-            Some(*v)
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_global(self) -> Option<Res> {
+        if let Self::Global(v) = self {
+            Some(v)
         } else {
             None
         }
@@ -348,7 +404,7 @@ pub type LocalBinding = Name<Uid>;
 pub type GlobalBinding = Name<Res>;
 pub type PathBinding = Name<Res, Path>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Name<I, C = Symbol> {
     pub content: Spanned<C>,
     pub id: I,
