@@ -268,6 +268,19 @@ pub enum LambdaParams {
     Parameters(SpanSeq<Parameter>),
 }
 
+impl LambdaParams {
+    pub fn len(&self) -> usize {
+        match self {
+            LambdaParams::Ident(_) => 1,
+            LambdaParams::Parameters(params) => params.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum PrefixOp {
     Bang,
@@ -312,7 +325,6 @@ pub enum BinaryOp {
 #[derive(Debug, Clone)]
 pub struct MatchArm {
     pub pattern: Spanned<Pattern>,
-    pub guard: Option<Spanned<Expr>>,
     pub body: Spanned<Expr>,
 }
 

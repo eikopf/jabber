@@ -874,19 +874,7 @@ impl<'a> CstVisitor<'a> {
             let pattern = self.visit_pattern(arm?.pattern()?)?;
             let body = self.visit_expr(arm?.body()?)?;
 
-            let guard = arm?
-                .guard()
-                .transpose()?
-                .map(|guard| guard.expr())
-                .transpose()?
-                .map(|expr| self.visit_expr(expr))
-                .transpose()?;
-
-            arms.push(span.with(ast::MatchArm {
-                pattern,
-                guard,
-                body,
-            }))
+            arms.push(span.with(ast::MatchArm { pattern, body }))
         }
 
         Ok(span.with(arms.into_boxed_slice()))
