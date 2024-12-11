@@ -397,13 +397,7 @@ module.exports = grammar({
 
     match_arms: ($) => seq("{", comma_list0($.match_arm), "}"),
     match_arm: ($) =>
-      seq(
-        field("pattern", $._pattern),
-        optional(field("guard", $.guard_expr)),
-        "=>",
-        field("body", $._expr),
-      ),
-    guard_expr: ($) => seq("if", $._expr),
+      seq(field("pattern", $._pattern), "=>", field("body", $._expr)),
 
     if_else_expr: ($) =>
       seq(

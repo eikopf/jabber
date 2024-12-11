@@ -2547,22 +2547,6 @@
           }
         },
         {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "FIELD",
-              "name": "guard",
-              "content": {
-                "type": "SYMBOL",
-                "name": "guard_expr"
-              }
-            },
-            {
-              "type": "BLANK"
-            }
-          ]
-        },
-        {
           "type": "STRING",
           "value": "=>"
         },
@@ -2573,19 +2557,6 @@
             "type": "SYMBOL",
             "name": "_expr"
           }
-        }
-      ]
-    },
-    "guard_expr": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "if"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "_expr"
         }
       ]
     },
