@@ -4,6 +4,20 @@ use std::{fs, io, path::Path, sync::Arc};
 
 use crate::unique::Uid;
 
+/// Creates a fake [`SourceFile`] with the given contents.
+#[macro_export]
+macro_rules! fake_file {
+    ($s:expr) => {
+        $crate::source_file::SourceFile::fake(
+            $crate::source_file::FileName::Fake {
+                file: file!(),
+                line: line!(),
+            },
+            String::from($s),
+        )
+    };
+}
+
 /// A source file.
 ///
 /// Source files are relatively cheap to clone, since they store their
@@ -55,20 +69,6 @@ impl SourceFile {
 
         Self { path, contents, id }
     }
-}
-
-/// Creates a fake [`SourceFile`] with the given contents.
-#[macro_export]
-macro_rules! fake_file {
-    ($s:expr) => {
-        $crate::source_file::SourceFile::fake(
-            $crate::source_file::FileName::Fake {
-                file: file!(),
-                line: line!(),
-            },
-            String::from($s),
-        )
-    };
 }
 
 impl std::fmt::Debug for SourceFile {

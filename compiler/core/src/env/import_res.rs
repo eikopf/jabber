@@ -372,7 +372,7 @@ pub enum ImportNormalizationError {
 }
 
 impl NormalImport {
-    /// Converts an [`unbound::Import`] into a [`NormalImport`].
+    /// Converts an [`ubd::Import`] into a [`NormalImport`].
     fn normalize(
         env: &mut ImportResEnv,
         module: ModId,
