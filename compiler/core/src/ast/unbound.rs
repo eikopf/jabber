@@ -433,5 +433,30 @@ pub enum Name {
     Ident(Ident),
 }
 
+impl Name {
+    pub fn as_path(
+        self,
+    ) -> Option<(Option<Spanned<Qualifier>>, SpanSeq<Ident>)> {
+        match self {
+            Name::Path(qualifier, elems) => Some((qualifier, elems)),
+            Name::Ident(_) => None,
+        }
+    }
+
+    pub fn as_unqualified_path(self) -> Option<SpanSeq<Ident>> {
+        match self {
+            Name::Path(None, path) => Some(path),
+            _ => None,
+        }
+    }
+
+    pub fn as_unqualified_path_ref(&self) -> Option<&[Spanned<Ident>]> {
+        match self {
+            Name::Path(None, path) => Some(path),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Ident;

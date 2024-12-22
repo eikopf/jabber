@@ -351,6 +351,14 @@ impl Bound {
             Bound::Path(Name { id, .. }) => BindingId::Global(*id),
         }
     }
+
+    pub fn as_local(&self) -> Option<LocalBinding> {
+        if let Self::Local(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

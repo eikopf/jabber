@@ -118,6 +118,10 @@ impl Span {
         }
     }
 
+    pub fn join(Self { start, .. }: Self, Self { end, .. }: Self) -> Self {
+        Self { start, end }
+    }
+
     pub const ZERO: Self = Span { start: 0, end: 0 };
 }
 

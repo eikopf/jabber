@@ -917,12 +917,22 @@ impl<'a> Resolver<'a> {
     ) -> Spanned<ast::Expr<BoundResult>> {
         match item {
             ubd::ast::Expr::Name(name) => {
-                // TODO: if `name` is a path and its first element isn't a
-                // qualifier keyword, we need to check to see if it's a field
-                // expression before resolving it as a path
+                // try to project the unqualified path root into a local binding
+                let local_root = name
+                    .as_unqualified_path_ref()
+                    .and_then(|elems| elems.first())
+                    .and_then(|&ident| self.resolve_ident(ident).ok())
+                    .and_then(|bound| bound.as_local());
 
-                let name = self.resolve_name(span.with(name));
-                span.with(ast::Expr::Name(name))
+                match local_root {
+                    Some(_) => self.visit_compound_field_expr(
+                        span.with(name.as_unqualified_path().unwrap()),
+                    ),
+                    None => {
+                        let name = self.resolve_name(span.with(name));
+                        span.with(ast::Expr::Name(name))
+                    }
+                }
             }
             ubd::ast::Expr::Literal(literal) => span.with(ast::Expr::Literal(
                 self.visit_literal_expr(span.with(literal)).unwrap(),
@@ -1126,6 +1136,35 @@ impl<'a> Resolver<'a> {
                 })
             }
         }
+    }
+
+    /// Visits a sequence of identifiers whose first element is locally bound
+    /// and should be processed as a composite field expression rather than a
+    /// path.
+    fn visit_compound_field_expr(
+        &mut self,
+        Spanned { item, .. }: Spanned<SpanSeq<ubd::ast::Ident>>,
+    ) -> Spanned<ast::Expr<BoundResult>> {
+        // break off the first element to be processed as a local binding
+        let (&root_ident, tail) = item
+            .split_first()
+            .expect("field expressions have at least one element");
+
+        // resolve the root and lift it into an expression
+        let root = root_ident
+            .span
+            .with(ast::Expr::Name(self.resolve_ident(root_ident)));
+
+        // fold the tail into a chain of RecordField expressions
+        tail.iter()
+            .map(|&ident| self.intern_ident_in_module(ident, self.module))
+            .fold(root, |expr, field| {
+                let span = Span::join(expr.span, field.span);
+                span.with(ast::Expr::RecordField {
+                    item: Box::new(expr),
+                    field,
+                })
+            })
     }
 
     fn visit_literal_expr(
@@ -2128,14 +2167,6 @@ pub fn resolve(
         let mut resolver =
             Resolver::new(&mut env, &stale_types, warnings, errors, module, id);
 
-        dbg![resolver
-            .env
-            .interner
-            .resolve(resolver.env.get_module(module).name)];
-
-        dbg![resolver.env.interner.resolve(name)];
-        dbg![resolver.lookup(name)];
-
         let term = Term {
             name,
             module,
@@ -2198,13 +2229,14 @@ mod tests {
 
         for (sym, item) in ref_mod.items.clone() {
             let name = env.interner.resolve(sym).unwrap();
-            let (vis, span, res) = item.spread();
+            let (_vis, _span, res) = item.spread();
 
             let res_value = env.get_res(res);
 
             eprintln!("{} ({:?})\n{:?}\n\n", name, res, res_value);
         }
 
-        panic!();
+        dbg![warnings];
+        dbg![errors];
     }
 }
