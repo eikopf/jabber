@@ -1,6 +1,7 @@
 //! Jabber's core library.
 
 pub mod bool
+pub mod cmp
 pub mod float
 pub mod fun
 pub mod int
