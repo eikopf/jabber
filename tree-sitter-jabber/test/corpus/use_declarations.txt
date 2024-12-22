@@ -7,12 +7,13 @@ use std.foo.bar
 ----------------------------
 
 (source_file
-  decl: (use_decl
-    (path
-      root: (path
-        root: (ident)
-        name: (ident))
-      name: (ident))))
+  declaration: (declaration
+    body: (use_decl
+      item: (path
+        root: (path
+          root: (ident)
+          name: (ident))
+        name: (ident)))))
 
 =====================
 aliased items
@@ -23,41 +24,13 @@ use std.baz as _alias
 ----------------------------
 
 (source_file
-  decl: (use_decl
-    (alias_item
-      item: (path
-        root: (ident)
-        name: (ident))
-      alias: (ident))))
-
-===========
-plain glob
-===========
-
-use *
-
---------------------------
-
-(source_file
-  decl: (use_decl
-    (glob_item)))
-
-=====================
-path-to-glob items
-=====================
-
-use std.option.Option.*
-
-----------------------------
-
-(source_file
-  decl: (use_decl
-    (glob_item
-      root: (path
-        root: (path
+  declaration: (declaration
+    body: (use_decl
+      item: (alias_item
+        item: (path
           root: (ident)
           name: (ident))
-        name: (ident)))))
+        alias: (ident)))))
 
 ===========
 item trees
@@ -66,23 +39,26 @@ item trees
 use std.tree.{
   some_item,
   aliased_item as new_name,
-  Enum.*,
+  Enum.Constr,
 }
 
 ----------------------------
 
 (source_file
-  decl: (use_decl
-    (tree_item
-      root: (path
-        root: (ident)
-        name: (ident))
-      (ident)
-      (alias_item
-        item:  (ident)
-        alias: (ident))
-      (glob_item
-        root: (ident)))))
+  declaration: (declaration
+    body: (use_decl
+      item: (tree_item
+        root: (path
+          root: (ident)
+          name: (ident))
+        items: (tree_item_children
+          (ident)
+          (alias_item
+            item: (ident)
+            alias: (ident))
+          (path
+            root: (ident)
+            name: (ident)))))))
 
 =====================
 pub use declarations
@@ -93,8 +69,9 @@ pub use foo.Foo
 ---------------------------------
 
 (source_file
-  decl: (use_decl
+  declaration: (declaration
     visibility: (access_spec)
-    (path
-      root: (ident)
-      name: (ident))))
+    body: (use_decl
+      item: (path
+        root: (ident)
+        name: (ident)))))

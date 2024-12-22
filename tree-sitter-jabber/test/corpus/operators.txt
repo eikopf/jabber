@@ -1,312 +1,310 @@
-===================================
+==================
 bang (prefix NOT)
-===================================
+==================
 
-const    not: _ = !x
-const notnot: _ = !!x
+const    not = !x
+const notnot = !!x
 
 ----------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (prefix_expr
-      operator: (prefix_operator)
-      operand: (ident)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (prefix_expr
-      operator: (prefix_operator)
-      operand: (prefix_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (prefix_expr
         operator: (prefix_operator)
-        operand: (ident)))))
+        operand: (ident))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (prefix_expr
+        operator: (prefix_operator)
+        operand: (prefix_expr
+          operator: (prefix_operator)
+          operand: (ident))))))
 
-==============================
+=================
 plus (infix add)
-==============================
+=================
 
-const   ints: _ = 7   +  8
-const floats: _ = 7.0 +. 8.0
+const   ints = 7   +  8
+const floats = 7.0 +. 8.0
 
 --------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (dec_literal)
-      operator: (binary_operator)
-      rhs: (dec_literal)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (float_literal)
-      operator: (binary_operator)
-      rhs: (float_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (dec_literal)
+        operator: (binary_operator)
+        rhs: (dec_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (float_literal)
+        operator: (binary_operator)
+        rhs: (float_literal)))))
 
 ===============================
 minus (prefix neg / infix sub)
 ===============================
 
-const  zero: _ = -0.0
-const three: _ = 5 - 2
-const eight: _ = 6 - -2
+const  zero = -0.0
+const three = 5 - 2
+const eight = 6 - -2
 
 --------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (prefix_expr
-      operator: (prefix_operator)
-      operand: (float_literal)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (dec_literal)
-      operator: (binary_operator)
-      rhs: (dec_literal)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (dec_literal)
-      operator: (binary_operator)
-      rhs: (prefix_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (prefix_expr
         operator: (prefix_operator)
-        operand: (dec_literal)))))
+        operand: (float_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (dec_literal)
+        operator: (binary_operator)
+        rhs: (dec_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (dec_literal)
+        operator: (binary_operator)
+        rhs: (prefix_expr
+          operator: (prefix_operator)
+          operand: (dec_literal))))))
 
 ================================
 arithmetic operator precedences
 ================================
 
-const  left: _ = x * y + z
-const right: _ = x * y ^ z
+const  left = x * y + z
+const right = x * y ^ z
 
 -------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (binary_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident))
+        operator: (binary_operator)
+        rhs: (ident))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
         lhs: (ident)
         operator: (binary_operator)
-        rhs: (ident))
-      operator: (binary_operator)
-      rhs: (ident)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (ident)
-      operator: (binary_operator)
-      rhs: (binary_expr
-        lhs: (ident)
-        operator: (binary_operator)
-        rhs: (ident)))))
+        rhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident))))))
 
 ==================
 carat (infix pow)
 ==================
 
-const   one: _ = 2 ^ 0
-const undef: _ = 0 ^ 0 ^ 0
+const  one = 2 ^ 0
+const zero = 0 ^ 0 ^ 0
 
 ----------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (dec_literal)
-      operator: (binary_operator)
-      rhs: (dec_literal)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (dec_literal)
-      operator: (binary_operator)
-      rhs: (binary_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
         lhs: (dec_literal)
         operator: (binary_operator)
-        rhs: (dec_literal)))))
-
-=====================
-pipes (right & left)
-=====================
-
-const right: _ = x |> f |> g
-const  left: _ = g <| f <| x
-const  both: _ = f <| x |> g
-
-------------------------------
-
-(source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (binary_expr
-        lhs: (ident)
-        operator: (binary_operator)
-        rhs: (ident))
-      operator: (binary_operator)
-      rhs: (ident)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (ident)
-      operator: (binary_operator)
-      rhs: (binary_expr
-        lhs: (ident)
-        operator: (binary_operator)
-        rhs: (ident))))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (binary_expr
-        lhs: (ident)
-        operator: (binary_operator)
-        rhs: (ident))
-      operator: (binary_operator)
-      rhs: (ident))))
-
-=====================
-comparison operators
-=====================
-
-const cmp: _ = x >= y
-
------------------------
-(source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (ident)
-      operator: (binary_operator)
-      rhs: (ident))))
-
-=====
-cons
-=====
-
-const zeros: _ = 0 :: 0 :: 0 :: []
-
-------------------------------------
-
-(source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (dec_literal)
-      operator: (binary_operator)
-      rhs: (binary_expr
+        rhs: (dec_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
         lhs: (dec_literal)
         operator: (binary_operator)
         rhs: (binary_expr
           lhs: (dec_literal)
           operator: (binary_operator)
-          rhs: (list_expr))))))
+          rhs: (dec_literal))))))
 
-=======
-concat
-=======
+=====================
+pipes (right & left)
+=====================
 
-const _123: _ = [1] ++ [2] ++ [3]
+const right = x |> f |> g
+const  left = g <| f <| x
+const  both = f <| x |> g
 
-----------------------------------
+------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (list_expr (dec_literal))
-      operator: (binary_operator)
-      rhs: (binary_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident))
+        operator: (binary_operator)
+        rhs: (ident))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (ident)
+        operator: (binary_operator)
+        rhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident)))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident))
+        operator: (binary_operator)
+        rhs: (ident)))))
+
+=====================
+comparison operators
+=====================
+
+const cmp: bool = x >= y
+
+-----------------------
+(source_file
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (binary_expr
+        lhs: (ident)
+        operator: (binary_operator)
+        rhs: (ident)))))
+
+==============
+cons operator
+==============
+
+const zeros = 0 :: 0 :: 0 :: []
+
+------------------------------------
+
+(source_file
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (dec_literal)
+        operator: (binary_operator)
+        rhs: (binary_expr
+          lhs: (dec_literal)
+          operator: (binary_operator)
+          rhs: (binary_expr
+            lhs: (dec_literal)
+            operator: (binary_operator)
+            rhs: (list_expr)))))))
+
+=====================
+list concat operator
+=====================
+
+const _123 = [1] ++ [2] ++ [3]
+
+----------------------------------
+(source_file declaration: (declaration body: (const_decl
+      name: (ident)
+      value: (binary_expr
         lhs: (list_expr (dec_literal))
         operator: (binary_operator)
-        rhs: (list_expr (dec_literal))))))
+        rhs: (binary_expr
+          lhs: (list_expr (dec_literal))
+          operator: (binary_operator)
+          rhs: (list_expr (dec_literal)))))))
 
 =======================
 lazy boolean operators
 =======================
 
-const _and: _ = x && y && z
-const  _or: _ = x || y || z
-const both: _ = x && y || z
+const  and = x && y && z
+const   or = x || y || z
+const both = x && y || z
 
 ----------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (ident)
-      operator: (binary_operator)
-      rhs: (binary_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
         lhs: (ident)
         operator: (binary_operator)
-        rhs: (ident))))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (ident)
-      operator: (binary_operator)
-      rhs: (binary_expr
+        rhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident)))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
         lhs: (ident)
         operator: (binary_operator)
-        rhs: (ident))))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (binary_expr
-        lhs: (ident)
+        rhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident)))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident))
         operator: (binary_operator)
-        rhs: (ident))
-      operator: (binary_operator)
-      rhs: (ident))))
+        rhs: (ident)))))
 
-=================
-update operators
-=================
+===================================
+primitive and ref update operators
+===================================
 
-const ref: _ = some_ref := 3
-const rec: _ = rec.mut_field <- 3
+const ref = some_ref := 3
+const rec = rec.mut_field <- 3
 
 -----------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (ident)
-      operator: (binary_operator)
-      rhs: (dec_literal)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (binary_expr
-      lhs: (path
-        root: (ident)
-        name: (ident))
-      operator: (binary_operator)
-      rhs: (dec_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (ident)
+        operator: (binary_operator)
+        rhs: (dec_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (binary_expr
+        lhs: (path
+          root: (ident)
+          name: (ident))
+        operator: (binary_operator)
+        rhs: (dec_literal)))))

@@ -7,10 +7,11 @@ const unit: () = ()
 -------------------
 
 (source_file
-  decl: (const_decl
-    name:  (ident)
-    type:  (unit_type)
-    value: (unit_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name:  (ident)
+      type:  (unit_type)
+      value: (unit_literal))))
 
 =================
 boolean literals
@@ -22,43 +23,49 @@ const FALSE: bool = false
 ------------------------
 
 (source_file
-  decl: (const_decl
-    name:  (ident)
-    type:  (primitive_type)
-    value: (bool_literal_true))
-  decl: (const_decl
-    name:  (ident)
-    type:  (primitive_type)
-    value: (bool_literal_false)))
+  declaration: (declaration
+    body: (const_decl
+      name:  (ident)
+      type:  (primitive_type)
+      value: (bool_literal_true)))
+  declaration: (declaration
+    body: (const_decl
+      name:  (ident)
+      type:  (primitive_type)
+      value: (bool_literal_false))))
 
 ==============
 char literals
 ==============
 
-const a: char = 'a'
+const a:     char = 'a'
 const quote: char = '\''
-const nil: char = '\x00'
-const utf8: char = '\u{7FFF}'
+const nil:   char = '\x00'
+const utf8:  char = '\u{7FFF}'
 
 ----------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (char_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (char_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (char_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (char_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (char_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (char_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (char_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (char_literal))))
 
 ================
 string literals
@@ -70,14 +77,16 @@ const escaped_quote: string = "\""
 ------------------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (string_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (string_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (string_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (string_literal))))
 
 ==========================
 prefixed integer literals
@@ -90,18 +99,21 @@ const hex_zero: int = 0x00
 -----------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (bin_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (oct_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (hex_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (bin_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (oct_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (hex_literal))))
 
 =========================
 decimal integer literals
@@ -113,14 +125,16 @@ const  one: int = 1
 ---------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (dec_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (dec_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (dec_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (dec_literal))))
 
 ===============
 float literals
@@ -133,16 +147,19 @@ const     mu: float = 1E-6
 ------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (float_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (float_literal))
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (float_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (float_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (float_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (float_literal))))
 

@@ -8,10 +8,12 @@ mod __dunder
 -------------------------------
 
 (source_file
-  decl: (mod_decl
-    name: (ident))
-  decl: (mod_decl
-    name: (ident)))
+  declaration: (declaration
+    body: (mod_decl
+      name: (ident)))
+  declaration: (declaration
+    body: (mod_decl
+      name: (ident))))
 
 ==========================
 public module declaration
@@ -23,9 +25,11 @@ pub mod __dunder
 ------------------------------
 
 (source_file
-  decl: (mod_decl
+  declaration: (declaration
     visibility: (access_spec)
-    name: (ident))
-  decl: (mod_decl
+    body: (mod_decl
+      name: (ident)))
+  declaration: (declaration
     visibility: (access_spec)
-    name: (ident)))
+    body: (mod_decl
+      name: (ident))))
