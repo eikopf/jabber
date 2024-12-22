@@ -13,9 +13,9 @@ use crate::{
     symbol::{StringInterner, Symbol},
 };
 
-mod import_res;
-mod resolve;
-mod unbound;
+pub mod import_res;
+pub mod resolve;
+pub mod unbound;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Location {
@@ -196,6 +196,7 @@ impl<T: std::ops::Deref> std::ops::Deref for Loc<T> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ResValue<'a, Te, Ty, V> {
     Term(&'a Term<Te>),
     Type(&'a Type<Ty>),

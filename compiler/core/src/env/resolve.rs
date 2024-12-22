@@ -1,6 +1,6 @@
 //! Implementation of module-local name resolution.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZeroUsize};
 
 use crate::{
     ast::{
@@ -22,6 +22,13 @@ use super::{
 /// value or unresolved spanned symbols.
 pub type BoundResult = Result<ast::Bound, Spanned<ast::NameContent>>;
 
+fn bound_result_span(res: &BoundResult) -> Span {
+    match res {
+        Ok(bound) => bound.span(),
+        Err(Spanned { span, .. }) => *span,
+    }
+}
+
 /// The environment type produced by [`resolve`].
 pub type ResEnv = Env<
     Spanned<ast::Term<BoundResult>>,
@@ -29,7 +36,7 @@ pub type ResEnv = Env<
     HashMap<Symbol, ViSp<Res>>,
 >;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 struct Scope<T> {
     kind: ScopeKind,
     bindings: HashMap<Symbol, T>,
@@ -49,19 +56,22 @@ impl<T> Scope<T> {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScopeKind {
-    /// An ordinary scope without special assumptions.
-    #[default]
-    Plain,
     /// The scope introduced by a type expression.
     Type,
     /// The scope introduced by the generic parameters in type declarations.
     TypeDeclParams,
     /// The scope introduced by the parameters in `fn` declarations.
     FnDeclParams,
-    /// The scope introduced by the return type in `fn` declarations.
-    FnReturnType,
+    /// The scope introduced by the parameters of a lambda expression.
+    LambdaParams,
+    /// The scope introduced by an individual match arm.
+    MatchArm,
+    /// The scope introduced by a block expression.
+    Block,
+    /// The scope introduced by a `let` statement within a block.
+    LetStmt,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -131,6 +141,15 @@ pub enum LocalResError {
     TupleFieldOverflowError {
         module: ModId,
         span: Span,
+    },
+    NotARecordConstr {
+        module: ModId,
+        name: Spanned<ast::NameContent>,
+    },
+    NoSuchRecordExprField {
+        module: ModId,
+        constr: (TypeId, Symbol),
+        field: Spanned<Symbol>,
     },
 }
 
@@ -228,7 +247,7 @@ impl Operator {
 
                 let kind = match operands.len() {
                     1 => ast::CallExprKind::DesugaredPrefixOp,
-                    2 => ast::CallExprKind::DesugeredBinaryOp,
+                    2 => ast::CallExprKind::DesugaredBinaryOp,
                     n => {
                         panic!("tried to desugar operator with {} operands", n)
                     }
@@ -267,14 +286,6 @@ impl Operator {
 
                 ast::Expr::Mutate { operator, lhs, rhs }
             }
-        }
-    }
-
-    fn as_defined(self) -> Option<TermId> {
-        if let Self::Defined(v) = self {
-            Some(v)
-        } else {
-            None
         }
     }
 }
@@ -386,10 +397,6 @@ impl<'a> Resolver<'a> {
             .expect("Type IDs are valid by construction")
     }
 
-    fn enter_new_plain_scope(&mut self) {
-        self.enter_new_scope(ScopeKind::Plain);
-    }
-
     fn enter_new_scope(&mut self, kind: ScopeKind) {
         self.scopes.push(Scope {
             kind,
@@ -400,6 +407,24 @@ impl<'a> Resolver<'a> {
     /// Pops the topmost scope off the stack and returns it.
     fn leave_scope(&mut self) -> Option<Scope<Binding>> {
         self.scopes.pop()
+    }
+
+    /// Leaves the enclosing block scope by popping scopes off the stack
+    /// up to and including the topmost [`ScopeKind::Block`] scope. Returns
+    /// the number of scopes removed as a sanity check, which will be [`None`]
+    /// if there was no enclosing block scope.
+    fn leave_block_scope(&mut self) -> Option<NonZeroUsize> {
+        let depth = self
+            .scopes
+            .iter()
+            .rev()
+            .position(|s| s.kind == ScopeKind::Block);
+
+        depth.map(|n| {
+            let pop_count = unsafe { NonZeroUsize::new_unchecked(n + 1) };
+            self.scopes.truncate(self.scopes.len() - n - 1);
+            pop_count
+        })
     }
 
     fn scope_kind(&self) -> Option<ScopeKind> {
@@ -556,9 +581,6 @@ impl<'a> Resolver<'a> {
             span,
         }: Spanned<ubd::ast::TyConstr>,
     ) -> Spanned<ast::TyConstr<BoundResult>> {
-        // DEBUG MODE SANITY CHECKS
-        debug_assert_eq!(self.scope_kind(), Some(ScopeKind::TypeDeclParams));
-
         let name = self.intern_ident_in_module(name, self.module);
         let ty = self
             .id
@@ -573,9 +595,7 @@ impl<'a> Resolver<'a> {
                 let mut tys = Vec::with_capacity(unbound_tys.len());
 
                 for ty in unbound_tys {
-                    self.enter_new_scope(ScopeKind::Type);
                     let ty = self.visit_ty(ty);
-                    let _ = self.leave_scope();
                     tys.push(ty);
                 }
 
@@ -640,10 +660,7 @@ impl<'a> Resolver<'a> {
         };
 
         let name = self.intern_ident_in_module(name, self.module);
-
-        self.enter_new_scope(ScopeKind::Type);
         let ty = self.visit_ty(ty);
-        let _ = self.leave_scope();
 
         (
             *name,
@@ -670,7 +687,6 @@ impl<'a> Resolver<'a> {
         let params = self.visit_generic_params(params);
 
         // process alias rhs
-        self.enter_new_scope(ScopeKind::Type);
         let ty = self.visit_ty(ty);
 
         span.with(ast::TypeAlias { name, params, ty })
@@ -781,12 +797,7 @@ impl<'a> Resolver<'a> {
         let params = self.visit_parameters(params);
 
         // process return type, if any
-        let return_ty = return_ty.map(|ty| {
-            self.enter_new_scope(ScopeKind::Type);
-            let ty = self.visit_ty(ty);
-            self.leave_scope();
-            ty
-        });
+        let return_ty = return_ty.map(|ty| self.visit_ty(ty));
 
         // process function body
         let body = self.visit_fn_body(body);
@@ -822,12 +833,7 @@ impl<'a> Resolver<'a> {
         let params = self.visit_parameters(params);
 
         // process return type, if any
-        let return_ty = return_ty.map(|ty| {
-            self.enter_new_scope(ScopeKind::Type);
-            let ty = self.visit_ty(ty);
-            self.leave_scope();
-            ty
-        });
+        let return_ty = return_ty.map(|ty| self.visit_ty(ty));
 
         span.with(ast::ExternFn {
             name,
@@ -850,12 +856,7 @@ impl<'a> Resolver<'a> {
         let name = self.bind_global_with_ident(name, self.id);
 
         // process type annotation, if any
-        let ty = ty.map(|ty| {
-            self.enter_new_scope(ScopeKind::Type);
-            let ty = self.visit_ty(ty);
-            self.leave_scope();
-            ty
-        });
+        let ty = ty.map(|ty| self.visit_ty(ty));
 
         // process rhs
         let value = self.visit_expr(value);
@@ -868,7 +869,10 @@ impl<'a> Resolver<'a> {
         Spanned { item, .. }: Spanned<SpanSeq<ubd::ast::Parameter>>,
     ) -> SpanSeq<ast::Parameter<BoundResult>> {
         // DEBUG MODE SANITY CHECKS
-        debug_assert_eq!(self.scope_kind(), Some(ScopeKind::FnDeclParams));
+        debug_assert!(self.scope_kind().is_some_and(|scope| matches!(
+            scope,
+            ScopeKind::FnDeclParams | ScopeKind::LambdaParams
+        )));
 
         let mut parameters = Vec::with_capacity(item.len());
 
@@ -888,12 +892,7 @@ impl<'a> Resolver<'a> {
     ) -> Spanned<ast::Parameter<BoundResult>> {
         let pattern = self.visit_pattern(pattern);
 
-        let ty = ty.map(|ty| {
-            self.enter_new_scope(ScopeKind::Type);
-            let ty = self.visit_ty(ty);
-            self.leave_scope();
-            ty
-        });
+        let ty = ty.map(|ty| self.visit_ty(ty));
 
         span.with(ast::Parameter { pattern, ty })
     }
@@ -925,136 +924,9 @@ impl<'a> Resolver<'a> {
                 let name = self.resolve_name(span.with(name));
                 span.with(ast::Expr::Name(name))
             }
-            ubd::ast::Expr::Literal(literal_expr) => {
-                span.with(ast::Expr::Literal(match literal_expr {
-                    ubd::ast::LiteralExpr::Unit => ast::LiteralExpr::Unit,
-                    ubd::ast::LiteralExpr::Bool(value) => {
-                        ast::LiteralExpr::Bool(value)
-                    }
-                    ubd::ast::LiteralExpr::Char => {
-                        let source = span.with(self.get_spanned_str(span));
-
-                        match literal::parse_char_literal(source) {
-                            Ok(lit) => ast::LiteralExpr::Char(*lit.value()),
-                            Err(error) => {
-                                self.emit_local_error(
-                                    LocalResError::CharLiteralError {
-                                        module: self.module,
-                                        error,
-                                    },
-                                );
-
-                                ast::LiteralExpr::Malformed(
-                                    ast::MalformedLiteral::Char,
-                                )
-                            }
-                        }
-                    }
-                    ubd::ast::LiteralExpr::String => {
-                        let source = span.with(self.get_spanned_str(span));
-
-                        match literal::parse_string_literal(source) {
-                            Ok(lit) => ast::LiteralExpr::String(
-                                self.env.interner.intern(lit.value()),
-                            ),
-                            Err(error) => {
-                                self.emit_local_error(
-                                    LocalResError::StringLiteralError {
-                                        module: self.module,
-                                        error,
-                                    },
-                                );
-
-                                ast::LiteralExpr::Malformed(
-                                    ast::MalformedLiteral::String,
-                                )
-                            }
-                        }
-                    }
-                    ubd::ast::LiteralExpr::BinInt => {
-                        let source = span.with(self.get_spanned_str(span));
-
-                        match literal::parse_bin_int_literal(source) {
-                            Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
-                            Err(error) => {
-                                self.emit_local_error(
-                                    LocalResError::IntLiteralOverflowError {
-                                        module: self.module,
-                                        error,
-                                    },
-                                );
-
-                                ast::LiteralExpr::Malformed(
-                                    ast::MalformedLiteral::Int,
-                                )
-                            }
-                        }
-                    }
-                    ubd::ast::LiteralExpr::OctInt => {
-                        let source = span.with(self.get_spanned_str(span));
-
-                        match literal::parse_oct_int_literal(source) {
-                            Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
-                            Err(error) => {
-                                self.emit_local_error(
-                                    LocalResError::IntLiteralOverflowError {
-                                        module: self.module,
-                                        error,
-                                    },
-                                );
-
-                                ast::LiteralExpr::Malformed(
-                                    ast::MalformedLiteral::Int,
-                                )
-                            }
-                        }
-                    }
-                    ubd::ast::LiteralExpr::DecInt => {
-                        let source = span.with(self.get_spanned_str(span));
-
-                        match literal::parse_dec_int_literal(source) {
-                            Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
-                            Err(error) => {
-                                self.emit_local_error(
-                                    LocalResError::IntLiteralOverflowError {
-                                        module: self.module,
-                                        error,
-                                    },
-                                );
-
-                                ast::LiteralExpr::Malformed(
-                                    ast::MalformedLiteral::Int,
-                                )
-                            }
-                        }
-                    }
-                    ubd::ast::LiteralExpr::HexInt => {
-                        let source = span.with(self.get_spanned_str(span));
-
-                        match literal::parse_hex_int_literal(source) {
-                            Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
-                            Err(error) => {
-                                self.emit_local_error(
-                                    LocalResError::IntLiteralOverflowError {
-                                        module: self.module,
-                                        error,
-                                    },
-                                );
-
-                                ast::LiteralExpr::Malformed(
-                                    ast::MalformedLiteral::Int,
-                                )
-                            }
-                        }
-                    }
-                    ubd::ast::LiteralExpr::Float => {
-                        let source = span.with(self.get_spanned_str(span));
-                        let float = literal::parse_float_literal(source);
-
-                        ast::LiteralExpr::Float(*float.value())
-                    }
-                }))
-            }
+            ubd::ast::Expr::Literal(literal) => span.with(ast::Expr::Literal(
+                self.visit_literal_expr(span.with(literal)).unwrap(),
+            )),
             ubd::ast::Expr::List(list) => {
                 let mut elems = Vec::with_capacity(list.len());
 
@@ -1124,7 +996,7 @@ impl<'a> Resolver<'a> {
             ubd::ast::Expr::Record { name, fields, base } => {
                 let name = self.resolve_name(name);
 
-                let fields = name
+                let constr = name
                     .clone()
                     .ok()
                     .map(|bound| bound.id())
@@ -1136,9 +1008,12 @@ impl<'a> Resolver<'a> {
                         )),
                         Res::TyConstr { ty, name } => Some((ty, name)),
                         _ => None,
-                    })
+                    });
+
+                let fields = constr
                     .map(|(ty, constr)| {
-                        self.visit_record_expr_fields(ty, constr, fields)
+                        let name = name.clone().unwrap();
+                        self.visit_record_expr_fields(&name, ty, constr, fields)
                     })
                     .unwrap_or_default();
 
@@ -1186,8 +1061,54 @@ impl<'a> Resolver<'a> {
                     span.with(ast::Expr::TupleField { item, field })
                 }
             },
-            ubd::ast::Expr::Lambda { params, body } => todo!(),
-            ubd::ast::Expr::Match { scrutinee, arms } => todo!(),
+            ubd::ast::Expr::Lambda {
+                params:
+                    Spanned {
+                        item: old_params,
+                        span: params_span,
+                    },
+                body,
+            } => {
+                self.enter_new_scope(ScopeKind::LambdaParams);
+
+                let params = match old_params {
+                    ubd::ast::LambdaParams::Ident(ident) => {
+                        // TODO: check for shadowing
+                        let ident = self.bind_ident(params_span.with(ident));
+
+                        let param = params_span.with(ast::Parameter {
+                            pattern: params_span
+                                .with(ast::Pattern::Name(Ok(ident))),
+                            ty: None,
+                        });
+
+                        Box::new([param])
+                    }
+                    ubd::ast::LambdaParams::Parameters(params) => {
+                        self.visit_parameters(params_span.with(params))
+                    }
+                };
+
+                let body = Box::new(self.visit_expr(*body));
+                self.leave_scope();
+
+                span.with(ast::Expr::Lambda { params, body })
+            }
+            ubd::ast::Expr::Match {
+                scrutinee,
+                arms: old_arms,
+            } => {
+                let scrutinee = Box::new(self.visit_expr(*scrutinee));
+                let mut arms = Vec::with_capacity(old_arms.len());
+
+                for arm in old_arms.item {
+                    let arm = self.visit_match_arm(arm);
+                    arms.push(arm);
+                }
+
+                let arms = arms.into_boxed_slice();
+                span.with(ast::Expr::Match { scrutinee, arms })
+            }
             ubd::ast::Expr::IfElse {
                 condition,
                 consequence,
@@ -1207,13 +1128,273 @@ impl<'a> Resolver<'a> {
         }
     }
 
+    fn visit_literal_expr(
+        &mut self,
+        Spanned {
+            item: literal,
+            span,
+        }: Spanned<ubd::ast::LiteralExpr>,
+    ) -> Spanned<ast::LiteralExpr> {
+        span.with(match literal {
+            ubd::ast::LiteralExpr::Unit => ast::LiteralExpr::Unit,
+            ubd::ast::LiteralExpr::Bool(value) => ast::LiteralExpr::Bool(value),
+            ubd::ast::LiteralExpr::Char => {
+                let source = span.with(self.get_spanned_str(span));
+
+                match literal::parse_char_literal(source) {
+                    Ok(lit) => ast::LiteralExpr::Char(*lit.value()),
+                    Err(error) => {
+                        self.emit_local_error(
+                            LocalResError::CharLiteralError {
+                                module: self.module,
+                                error,
+                            },
+                        );
+
+                        ast::LiteralExpr::Malformed(ast::MalformedLiteral::Char)
+                    }
+                }
+            }
+            ubd::ast::LiteralExpr::String => {
+                let source = span.with(self.get_spanned_str(span));
+
+                match literal::parse_string_literal(source) {
+                    Ok(lit) => ast::LiteralExpr::String(
+                        self.env.interner.intern(lit.value()),
+                    ),
+                    Err(error) => {
+                        self.emit_local_error(
+                            LocalResError::StringLiteralError {
+                                module: self.module,
+                                error,
+                            },
+                        );
+
+                        ast::LiteralExpr::Malformed(
+                            ast::MalformedLiteral::String,
+                        )
+                    }
+                }
+            }
+            ubd::ast::LiteralExpr::BinInt => {
+                let source = span.with(self.get_spanned_str(span));
+
+                match literal::parse_bin_int_literal(source) {
+                    Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
+                    Err(error) => {
+                        self.emit_local_error(
+                            LocalResError::IntLiteralOverflowError {
+                                module: self.module,
+                                error,
+                            },
+                        );
+
+                        ast::LiteralExpr::Malformed(ast::MalformedLiteral::Int)
+                    }
+                }
+            }
+            ubd::ast::LiteralExpr::OctInt => {
+                let source = span.with(self.get_spanned_str(span));
+
+                match literal::parse_oct_int_literal(source) {
+                    Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
+                    Err(error) => {
+                        self.emit_local_error(
+                            LocalResError::IntLiteralOverflowError {
+                                module: self.module,
+                                error,
+                            },
+                        );
+
+                        ast::LiteralExpr::Malformed(ast::MalformedLiteral::Int)
+                    }
+                }
+            }
+            ubd::ast::LiteralExpr::DecInt => {
+                let source = span.with(self.get_spanned_str(span));
+
+                match literal::parse_dec_int_literal(source) {
+                    Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
+                    Err(error) => {
+                        self.emit_local_error(
+                            LocalResError::IntLiteralOverflowError {
+                                module: self.module,
+                                error,
+                            },
+                        );
+
+                        ast::LiteralExpr::Malformed(ast::MalformedLiteral::Int)
+                    }
+                }
+            }
+            ubd::ast::LiteralExpr::HexInt => {
+                let source = span.with(self.get_spanned_str(span));
+
+                match literal::parse_hex_int_literal(source) {
+                    Ok(lit) => ast::LiteralExpr::Int(*lit.value()),
+                    Err(error) => {
+                        self.emit_local_error(
+                            LocalResError::IntLiteralOverflowError {
+                                module: self.module,
+                                error,
+                            },
+                        );
+
+                        ast::LiteralExpr::Malformed(ast::MalformedLiteral::Int)
+                    }
+                }
+            }
+            ubd::ast::LiteralExpr::Float => {
+                let source = span.with(self.get_spanned_str(span));
+                let float = literal::parse_float_literal(source);
+
+                ast::LiteralExpr::Float(*float.value())
+            }
+        })
+    }
+
     fn visit_record_expr_fields(
         &mut self,
+        record_expr_name: &ast::Bound,
         ty: TypeId,
         constr: Symbol,
-        fields: SpanSeq<ubd::ast::RecordExprField>,
+        old_fields: SpanSeq<ubd::ast::RecordExprField>,
     ) -> SpanSeq<ast::RecordExprField<BoundResult>> {
-        todo!()
+        let constr_fields = self
+            .env
+            .get_type(ty)
+            .ast
+            .as_adt()
+            .map(|adt| &adt.constructors)
+            .and_then(|constrs| constrs.get(&constr))
+            .map(Spanned::item)
+            .and_then(|constr| constr.payload())
+            .map(Spanned::item)
+            .and_then(ast::TyConstrPayload::as_record)
+            .cloned(); // HACK: this clone can probably be avoided
+
+        if let Some(constr_fields) = constr_fields {
+            let mut fields = Vec::with_capacity(old_fields.len());
+
+            for Spanned {
+                item: ubd::ast::RecordExprField { field, value },
+                span,
+            } in old_fields
+            {
+                let field = self.intern_ident_in_module(field, self.module);
+
+                let value = value
+                    .map(|expr| self.visit_expr(expr))
+                    .unwrap_or_else(|| {
+                        let local =
+                            self.resolve_symbol(field).ok_or_else(|| {
+                                field
+                                    .span
+                                    .with(ast::NameContent::from(field.item))
+                            });
+                        self.name_from_bound_result(local)
+                    });
+
+                // if the field does not exist, emit an error and do
+                // not insert the field into the expression
+                if !constr_fields.contains_key(&field) {
+                    self.emit_local_error(
+                        LocalResError::NoSuchRecordExprField {
+                            module: self.module,
+                            constr: (ty, constr),
+                            field,
+                        },
+                    );
+
+                    continue;
+                }
+
+                fields.push(span.with(ast::RecordExprField { field, value }));
+            }
+
+            fields.into_boxed_slice()
+        } else {
+            self.emit_local_error(LocalResError::NotARecordConstr {
+                module: self.module,
+                name: record_expr_name.clone().content(),
+            });
+            Default::default()
+        }
+    }
+
+    fn visit_match_arm(
+        &mut self,
+        Spanned {
+            item: ubd::ast::MatchArm { pattern, body },
+            span,
+        }: Spanned<ubd::ast::MatchArm>,
+    ) -> Spanned<ast::MatchArm<BoundResult>> {
+        self.enter_new_scope(ScopeKind::MatchArm);
+        let pattern = self.visit_pattern(pattern);
+        let body = self.visit_expr(body);
+        self.leave_scope();
+
+        span.with(ast::MatchArm { pattern, body })
+    }
+
+    fn visit_block(
+        &mut self,
+        Spanned {
+            item:
+                ubd::ast::Block {
+                    statements: old_statements,
+                    return_expr,
+                },
+            span,
+        }: Spanned<ubd::ast::Block>,
+    ) -> Spanned<ast::Block<BoundResult>> {
+        self.enter_new_scope(ScopeKind::Block);
+        let mut statements = Vec::with_capacity(old_statements.len());
+
+        for stmt in old_statements {
+            let stmt = self.visit_stmt(stmt);
+            statements.push(stmt);
+        }
+
+        let statements = statements.into_boxed_slice();
+        let return_expr = return_expr.map(|ret| Box::new(self.visit_expr(ret)));
+
+        // there could be arbitrarily many `LetStmt` scopes within the block,
+        // so we use this method to remove them all at once by just truncating
+        // the scope stack
+        self.leave_block_scope();
+
+        span.with(ast::Block {
+            statements,
+            return_expr,
+        })
+    }
+
+    fn visit_stmt(
+        &mut self,
+        Spanned { item: stmt, span }: Spanned<ubd::ast::Stmt>,
+    ) -> Spanned<ast::Stmt<BoundResult>> {
+        span.with(match stmt {
+            ubd::ast::Stmt::Empty => ast::Stmt::Empty,
+            ubd::ast::Stmt::Expr(expr) => {
+                let expr = self.visit_expr(expr).item;
+                ast::Stmt::Expr(expr)
+            }
+            ubd::ast::Stmt::Let { pattern, ty, value } => {
+                // reverse order: the pattern should not be visible within
+                // the value expression, so we resolve value and ty within
+                // the current scope before pushing a new scope onto the
+                // stack and resolving the binding pattern itself
+
+                let value = self.visit_expr(value);
+                let ty = ty.map(|ty| self.visit_ty(ty));
+
+                self.enter_new_scope(ScopeKind::LetStmt);
+                let pattern = self.visit_pattern(pattern);
+
+                ast::Stmt::Let { pattern, ty, value }
+            }
+        })
     }
 
     fn prefix_op_id(
@@ -1336,20 +1517,130 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn visit_block(
-        &mut self,
-        block: Spanned<ubd::ast::Block>,
-    ) -> Spanned<ast::Block<BoundResult>> {
-        todo!()
-    }
-
     // PATTERN VISITORS
 
     fn visit_pattern(
         &mut self,
-        pattern: Spanned<ubd::ast::Pattern>,
+        Spanned {
+            item: pattern,
+            span,
+        }: Spanned<ubd::ast::Pattern>,
     ) -> Spanned<ast::Pattern<BoundResult>> {
-        todo!()
+        span.with(match pattern {
+            ubd::ast::Pattern::Wildcard => ast::Pattern::Wildcard,
+            ubd::ast::Pattern::Name(name) => {
+                let res = match name {
+                    ubd::ast::Name::Path(qualifier, elems) => {
+                        let path = self.intern_path(span, qualifier, &elems);
+                        self.resolve_interned_path(path.clone()).map_err(
+                            |error| {
+                                self.emit_local_error(error);
+                                let Spanned { item, span } = path;
+                                span.with(ast::NameContent::from(item))
+                            },
+                        )
+                    }
+                    // an identifier in a pattern is always a new local binding
+                    ubd::ast::Name::Ident(ident) => {
+                        // TODO: check for shadowing
+                        Ok(self.bind_ident(span.with(ident)))
+                    }
+                };
+
+                ast::Pattern::Name(res)
+            }
+            ubd::ast::Pattern::Literal(literal) => ast::Pattern::Literal(
+                self.visit_literal_expr(span.with(literal)).unwrap(),
+            ),
+            ubd::ast::Pattern::Tuple(tuple) => {
+                let mut elems = Vec::with_capacity(tuple.len());
+
+                for elem in tuple {
+                    let elem = self.visit_pattern(elem);
+                    elems.push(elem);
+                }
+
+                ast::Pattern::Tuple(elems.into_boxed_slice())
+            }
+            ubd::ast::Pattern::List(list) => {
+                let mut elems = Vec::with_capacity(list.len());
+
+                for elem in list {
+                    let elem = self.visit_pattern(elem);
+                    elems.push(elem);
+                }
+
+                ast::Pattern::List(elems.into_boxed_slice())
+            }
+            ubd::ast::Pattern::Paren(inner) => {
+                // NOTE: we're dropping the span of `inner` in favour of the
+                // span of the entire parenthesized pattern; this is *probably*
+                // fine but might be annoying later down the line
+
+                self.visit_pattern(*inner).unwrap()
+            }
+            ubd::ast::Pattern::Cons { head, tail } => {
+                let head = Box::new(self.visit_pattern(*head));
+                let tail = Box::new(self.visit_pattern(*tail));
+
+                ast::Pattern::Cons { head, tail }
+            }
+            ubd::ast::Pattern::TupleConstr { name, elems } => {
+                let name = self.resolve_name(name);
+
+                let elems = {
+                    let mut res_elems = Vec::with_capacity(elems.len());
+
+                    for elem in elems {
+                        let elem = self.visit_pattern(elem);
+                        res_elems.push(elem);
+                    }
+
+                    res_elems.into_boxed_slice()
+                };
+
+                ast::Pattern::TupleConstr { name, elems }
+            }
+            ubd::ast::Pattern::Record { name, fields, rest } => {
+                let name = self.resolve_name(name);
+
+                let fields = {
+                    let mut res_fields = Vec::with_capacity(fields.len());
+
+                    for field in fields {
+                        let field = self.visit_record_pattern_field(field);
+                        res_fields.push(field);
+                    }
+
+                    res_fields.into_boxed_slice()
+                };
+
+                ast::Pattern::RecordConstr { name, fields, rest }
+            }
+        })
+    }
+
+    fn visit_record_pattern_field(
+        &mut self,
+        Spanned {
+            item: ubd::ast::RecordPatternField { field, pattern },
+            span,
+        }: Spanned<ubd::ast::RecordPatternField>,
+    ) -> Spanned<ast::RecordPatternField<BoundResult>> {
+        let field = self.intern_ident_in_module(field, self.module);
+
+        let pattern = pattern
+            .map(|pat| self.visit_pattern(pat))
+            .unwrap_or_else(|| {
+                // if there is no pattern, we synthesize a name pattern
+                // with the same name as the field, so e.g. `Foo { bar }`
+                // is desugared to `Foo { bar: bar }`.
+
+                let name = self.bind_local_symbol(field);
+                field.span.with(ast::Pattern::Name(Ok(name)))
+            });
+
+        span.with(ast::RecordPatternField { field, pattern })
     }
 
     // TYPE EXPRESSION VISITORS
@@ -1358,9 +1649,7 @@ impl<'a> Resolver<'a> {
         &mut self,
         Spanned { item, span }: Spanned<ubd::ast::Ty>,
     ) -> Spanned<ast::Ty<BoundResult>> {
-        // DEBUG MODE SANITY CHECKS
-        debug_assert!(!self.in_root_scope());
-        debug_assert_eq!(self.scope_kind(), Some(ScopeKind::Type));
+        self.enter_new_scope(ScopeKind::Type);
 
         span.with(match item {
             ubd::ast::Ty::Infer => ast::Ty::Infer,
@@ -1527,14 +1816,6 @@ impl<'a> Resolver<'a> {
         }
 
         impl Spanned<QS> {
-            fn as_qualifier(self) -> Option<Spanned<Qualifier>> {
-                if let QS::Q(qualifier) = self.item {
-                    Some(self.span.with(qualifier))
-                } else {
-                    None
-                }
-            }
-
             fn as_symbol(self) -> Option<Spanned<Symbol>> {
                 if let QS::S(symbol) = self.item {
                     Some(self.span.with(symbol))
@@ -1772,6 +2053,14 @@ impl<'a> Resolver<'a> {
         self.insert(local);
         local.into()
     }
+
+    fn name_from_bound_result(
+        &mut self,
+        bound: BoundResult,
+    ) -> Spanned<ast::Expr<BoundResult>> {
+        let span = bound_result_span(&bound);
+        span.with(ast::Expr::Name(bound))
+    }
 }
 
 /// The main entrypoint for module-local name resolution.
@@ -1839,6 +2128,14 @@ pub fn resolve(
         let mut resolver =
             Resolver::new(&mut env, &stale_types, warnings, errors, module, id);
 
+        dbg![resolver
+            .env
+            .interner
+            .resolve(resolver.env.get_module(module).name)];
+
+        dbg![resolver.env.interner.resolve(name)];
+        dbg![resolver.lookup(name)];
+
         let term = Term {
             name,
             module,
@@ -1893,7 +2190,20 @@ mod tests {
         let mut errors = Vec::new();
 
         // build resolved env
-        let env = super::resolve(env, &mut warnings, &mut errors);
+        let mut env = super::resolve(env, &mut warnings, &mut errors);
+
+        let ref_ = env.interner.intern_static("ref");
+        let ref_mod_id = env.magic_core_submodule(ref_).unwrap();
+        let ref_mod = env.get_module(ref_mod_id);
+
+        for (sym, item) in ref_mod.items.clone() {
+            let name = env.interner.resolve(sym).unwrap();
+            let (vis, span, res) = item.spread();
+
+            let res_value = env.get_res(res);
+
+            eprintln!("{} ({:?})\n{:?}\n\n", name, res, res_value);
+        }
 
         panic!();
     }

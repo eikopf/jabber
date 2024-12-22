@@ -95,10 +95,36 @@ pub struct TyConstr<N = Bound> {
     pub payload: Option<Spanned<TyConstrPayload<N>>>,
 }
 
+impl<N> TyConstr<N> {
+    pub fn payload(&self) -> Option<&Spanned<TyConstrPayload<N>>> {
+        self.payload.as_ref()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TyConstrPayload<N = Bound> {
     Tuple(SpanSeq<Ty<N>>),
     Record(HashMap<Symbol, Spanned<RecordField<N>>>),
+}
+
+impl<N> TyConstrPayload<N> {
+    pub fn as_tuple(&self) -> Option<&SpanSeq<Ty<N>>> {
+        if let Self::Tuple(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_record(
+        &self,
+    ) -> Option<&HashMap<Symbol, Spanned<RecordField<N>>>> {
+        if let Self::Record(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -194,7 +220,7 @@ pub enum MalformedLiteral {
 
 #[derive(Debug, Clone)]
 pub struct RecordExprField<N = Bound> {
-    pub field: Spanned<N>,
+    pub field: Spanned<Symbol>,
     pub value: Spanned<Expr<N>>,
 }
 
@@ -202,7 +228,7 @@ pub struct RecordExprField<N = Bound> {
 pub enum CallExprKind {
     Normal,
     DesugaredPrefixOp,
-    DesugeredBinaryOp,
+    DesugaredBinaryOp,
 }
 
 #[derive(Debug, Clone)]
@@ -241,18 +267,12 @@ pub enum Pattern<N = Bound> {
         head: SpanBox<Self>,
         tail: SpanBox<Self>,
     },
-    UnitConstr {
-        ty: TypeId,
-        name: Spanned<N>,
-    },
     TupleConstr {
-        ty: TypeId,
-        name: Spanned<N>,
+        name: N,
         elems: SpanSeq<Self>,
     },
     RecordConstr {
-        ty: TypeId,
-        name: Spanned<N>,
+        name: N,
         fields: SpanSeq<RecordPatternField<N>>,
         rest: Option<Span>,
     },
@@ -260,7 +280,7 @@ pub enum Pattern<N = Bound> {
 
 #[derive(Debug, Clone)]
 pub struct RecordPatternField<N = Bound> {
-    pub field: Spanned<N>,
+    pub field: Spanned<Symbol>,
     pub pattern: Spanned<Pattern<N>>,
 }
 
@@ -313,6 +333,14 @@ impl Bound {
                 content: Spanned { item, span },
                 ..
             }) => span.with(NameContent::Path(item)),
+        }
+    }
+
+    pub fn span(&self) -> Span {
+        match self {
+            Bound::Local(name) => name.content.span,
+            Bound::Path(name) => name.content.span,
+            Bound::Global(name) => name.content.span,
         }
     }
 
