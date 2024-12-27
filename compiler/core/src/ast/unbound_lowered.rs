@@ -74,6 +74,7 @@ impl Term {
 
 #[derive(Debug, Clone)]
 pub struct Fn {
+    pub attrs: SpanSeq<ast::Attr>,
     pub name: Spanned<ast::Ident>,
     pub params: Spanned<SpanSeq<ast::Parameter>>,
     pub return_ty: Option<Spanned<ast::Ty>>,
@@ -82,6 +83,7 @@ pub struct Fn {
 
 #[derive(Debug, Clone)]
 pub struct ExternFn {
+    pub attrs: SpanSeq<ast::Attr>,
     pub name: Spanned<ast::Ident>,
     pub params: Spanned<SpanSeq<ast::Parameter>>,
     pub return_ty: Option<Spanned<ast::Ty>>,
@@ -89,6 +91,7 @@ pub struct ExternFn {
 
 #[derive(Debug, Clone)]
 pub struct Const {
+    pub attrs: SpanSeq<ast::Attr>,
     pub name: Spanned<ast::Ident>,
     pub ty: Option<Spanned<ast::Ty>>,
     pub value: Spanned<ast::Expr>,
@@ -183,6 +186,7 @@ pub struct Adt<
     P = SpanSeq<ast::Ident>,
     C = SpanSeq<ast::TyConstr>,
 > {
+    pub attrs: SpanSeq<ast::Attr>,
     pub name: N,
     pub opacity: Option<Span>,
     pub params: P,
@@ -203,6 +207,7 @@ impl<N, P, C> Adt<N, P, C> {
 
 #[derive(Debug, Clone)]
 pub struct TypeAlias<N = Spanned<ast::Ident>, P = SpanSeq<ast::Ident>> {
+    pub attrs: SpanSeq<ast::Attr>,
     pub name: N,
     pub params: P,
     pub ty: Spanned<ast::Ty>,
@@ -210,6 +215,7 @@ pub struct TypeAlias<N = Spanned<ast::Ident>, P = SpanSeq<ast::Ident>> {
 
 #[derive(Debug, Clone)]
 pub struct ExternType<N = Spanned<ast::Ident>, P = SpanSeq<ast::Ident>> {
+    pub attrs: SpanSeq<ast::Attr>,
     pub name: N,
     pub params: P,
 }
@@ -256,6 +262,7 @@ impl AstLowerer {
 
     fn visit_decl(&mut self, decl: Spanned<ast::Decl>) {
         let ast::Decl {
+            attributes: attrs,
             visibility,
             kind: Spanned { item, span },
             ..
@@ -276,7 +283,12 @@ impl AstLowerer {
                 self.modules.push(module);
             }
             ast::DeclKind::TypeAlias { name, params, ty } => {
-                let alias = Type::Alias(TypeAlias { name, params, ty });
+                let alias = Type::Alias(TypeAlias {
+                    attrs,
+                    name,
+                    params,
+                    ty,
+                });
                 let ty = visibility.with(span.with(alias));
                 self.types.push(ty);
             }
@@ -287,6 +299,7 @@ impl AstLowerer {
                 constructors,
             } => {
                 let adt = Adt {
+                    attrs,
                     name,
                     opacity,
                     params,
@@ -297,7 +310,11 @@ impl AstLowerer {
                 self.types.push(ty);
             }
             ast::DeclKind::ExternType { name, params } => {
-                let extern_ty = ExternType { name, params };
+                let extern_ty = ExternType {
+                    attrs,
+                    name,
+                    params,
+                };
                 let ty = visibility.with(span.with(Type::Extern(extern_ty)));
                 self.types.push(ty);
             }
@@ -308,6 +325,7 @@ impl AstLowerer {
                 body,
             } => {
                 let func = Fn {
+                    attrs,
                     name,
                     params,
                     return_ty,
@@ -323,6 +341,7 @@ impl AstLowerer {
                 return_ty,
             } => {
                 let extern_fn = ExternFn {
+                    attrs,
                     name,
                     params,
                     return_ty,
@@ -333,7 +352,12 @@ impl AstLowerer {
                 self.terms.push(term);
             }
             ast::DeclKind::Const { name, ty, value } => {
-                let const_ = Const { name, ty, value };
+                let const_ = Const {
+                    attrs,
+                    name,
+                    ty,
+                    value,
+                };
                 let term = visibility.with(span.with(Term::Const(const_)));
                 self.terms.push(term);
             }

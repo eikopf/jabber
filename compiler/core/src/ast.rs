@@ -2,6 +2,7 @@
 
 use crate::span::Span;
 
+pub mod attr;
 pub mod bound;
 pub mod common;
 pub mod unbound;

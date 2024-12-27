@@ -151,6 +151,29 @@ pub enum LocalResError {
         constr: (TypeId, Symbol),
         field: Spanned<Symbol>,
     },
+    AttrNameHasQualifier {
+        module: ModId,
+        name: Spanned<ast::Path>,
+    },
+    UnrecognisedAttrNameElement {
+        module: ModId,
+        name: Spanned<ast::Path>,
+        elem: Spanned<Symbol>,
+    },
+    UnrecognisedAttrNameIdent {
+        module: ModId,
+        name: Spanned<Symbol>,
+    },
+    UnexpectedAttrNameElements {
+        module: ModId,
+        name: Spanned<ast::Path>,
+        extras: SpanSeq<Symbol>,
+    },
+    MissingAttrNameElements {
+        module: ModId,
+        name: Spanned<ast::Path>,
+        expected_num: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -540,6 +563,7 @@ impl<'a> Resolver<'a> {
         Spanned {
             item:
                 ubd::Adt {
+                    attrs,
                     name,
                     opacity,
                     params,
@@ -548,6 +572,17 @@ impl<'a> Resolver<'a> {
             span,
         }: Spanned<ubd::SymAdt>,
     ) -> Spanned<ast::Adt<BoundResult>> {
+        let attrs = {
+            let mut new_attrs = Vec::with_capacity(attrs.len());
+
+            for attr in attrs {
+                let attr = self.visit_attr(attr);
+                new_attrs.push(attr);
+            }
+
+            new_attrs.into_boxed_slice()
+        };
+
         // annotate name
         let name = self.bind_global_with_symbol(name, self.id);
 
@@ -561,6 +596,7 @@ impl<'a> Resolver<'a> {
             .collect();
 
         span.with(ast::Adt {
+            attrs,
             name,
             opacity,
             params,
@@ -675,10 +711,27 @@ impl<'a> Resolver<'a> {
     fn visit_type_alias(
         &mut self,
         Spanned {
-            item: ubd::TypeAlias { name, params, ty },
+            item:
+                ubd::TypeAlias {
+                    attrs,
+                    name,
+                    params,
+                    ty,
+                },
             span,
         }: Spanned<ubd::SymTypeAlias>,
     ) -> Spanned<ast::TypeAlias<BoundResult>> {
+        let attrs = {
+            let mut new_attrs = Vec::with_capacity(attrs.len());
+
+            for attr in attrs {
+                let attr = self.visit_attr(attr);
+                new_attrs.push(attr);
+            }
+
+            new_attrs.into_boxed_slice()
+        };
+
         // annotate name
         let name = self.bind_global_with_symbol(name, self.id);
 
@@ -689,16 +742,37 @@ impl<'a> Resolver<'a> {
         // process alias rhs
         let ty = self.visit_ty(ty);
 
-        span.with(ast::TypeAlias { name, params, ty })
+        span.with(ast::TypeAlias {
+            attrs,
+            name,
+            params,
+            ty,
+        })
     }
 
     fn visit_extern_type(
         &mut self,
         Spanned {
-            item: ubd::ExternType { name, params },
+            item:
+                ubd::ExternType {
+                    attrs,
+                    name,
+                    params,
+                },
             span,
         }: Spanned<ubd::SymExternType>,
     ) -> Spanned<ast::ExternType> {
+        let attrs = {
+            let mut new_attrs = Vec::with_capacity(attrs.len());
+
+            for attr in attrs {
+                let attr = self.visit_attr(attr);
+                new_attrs.push(attr);
+            }
+
+            new_attrs.into_boxed_slice()
+        };
+
         // annotate name
         let name = self.bind_global_with_symbol(name, self.id);
 
@@ -707,7 +781,11 @@ impl<'a> Resolver<'a> {
         let params = self.visit_generic_params(params);
 
         // return the spanned & processed extern type
-        span.with(ast::ExternType { name, params })
+        span.with(ast::ExternType {
+            attrs,
+            name,
+            params,
+        })
     }
 
     /// Visits the `params` field common to all type declarations, checking
@@ -778,6 +856,7 @@ impl<'a> Resolver<'a> {
         Spanned {
             item:
                 ubd::Fn {
+                    attrs,
                     name,
                     params,
                     return_ty,
@@ -788,6 +867,17 @@ impl<'a> Resolver<'a> {
     ) -> Spanned<ast::Fn<BoundResult>> {
         // DEBUG MODE SANITY CHECKS
         debug_assert!(self.id.is_term());
+
+        let attrs = {
+            let mut new_attrs = Vec::with_capacity(attrs.len());
+
+            for attr in attrs {
+                let attr = self.visit_attr(attr);
+                new_attrs.push(attr);
+            }
+
+            new_attrs.into_boxed_slice()
+        };
 
         // intern and annotate name
         let name = self.bind_global_with_ident(name, self.id);
@@ -803,6 +893,7 @@ impl<'a> Resolver<'a> {
         let body = self.visit_fn_body(body);
 
         span.with(ast::Fn {
+            attrs,
             name,
             params,
             return_ty,
@@ -815,6 +906,7 @@ impl<'a> Resolver<'a> {
         Spanned {
             item:
                 ubd::ExternFn {
+                    attrs,
                     name,
                     params,
                     return_ty,
@@ -824,6 +916,17 @@ impl<'a> Resolver<'a> {
     ) -> Spanned<ast::ExternFn<BoundResult>> {
         // DEBUG MODE SANITY CHECKS
         debug_assert!(self.id.is_term());
+
+        let attrs = {
+            let mut new_attrs = Vec::with_capacity(attrs.len());
+
+            for attr in attrs {
+                let attr = self.visit_attr(attr);
+                new_attrs.push(attr);
+            }
+
+            new_attrs.into_boxed_slice()
+        };
 
         // intern and annotate name
         let name = self.bind_global_with_ident(name, self.id);
@@ -836,6 +939,7 @@ impl<'a> Resolver<'a> {
         let return_ty = return_ty.map(|ty| self.visit_ty(ty));
 
         span.with(ast::ExternFn {
+            attrs,
             name,
             params,
             return_ty,
@@ -845,12 +949,29 @@ impl<'a> Resolver<'a> {
     fn visit_const(
         &mut self,
         Spanned {
-            item: ubd::Const { name, ty, value },
+            item:
+                ubd::Const {
+                    attrs,
+                    name,
+                    ty,
+                    value,
+                },
             span,
         }: Spanned<ubd::Const>,
     ) -> Spanned<ast::Const<BoundResult>> {
         // DEBUG MODE SANITY CHECKS
         debug_assert!(self.id.is_term());
+
+        let attrs = {
+            let mut new_attrs = Vec::with_capacity(attrs.len());
+
+            for attr in attrs {
+                let attr = self.visit_attr(attr);
+                new_attrs.push(attr);
+            }
+
+            new_attrs.into_boxed_slice()
+        };
 
         // intern and annotate name
         let name = self.bind_global_with_ident(name, self.id);
@@ -861,7 +982,12 @@ impl<'a> Resolver<'a> {
         // process rhs
         let value = self.visit_expr(value);
 
-        span.with(ast::Const { name, ty, value })
+        span.with(ast::Const {
+            attrs,
+            name,
+            ty,
+            value,
+        })
     }
 
     fn visit_parameters(
@@ -907,6 +1033,138 @@ impl<'a> Resolver<'a> {
                 self.visit_block(span.with(block)).map(ast::Expr::Block)
             }
         })
+    }
+
+    // ATTRIBUTE VISITORS
+
+    fn visit_attr(
+        &mut self,
+        Spanned {
+            item:
+                ubd::ast::Attr {
+                    name,
+                    args: old_args,
+                },
+            span,
+        }: Spanned<ubd::ast::Attr>,
+    ) -> Spanned<ast::ResAttr> {
+        let name = self.visit_attr_name(name);
+
+        let mut args = Vec::with_capacity(old_args.len());
+
+        for Spanned { item, span } in old_args {
+            let arg = match item {
+                ubd::ast::AttrArg::Name(name) => {
+                    ast::AttrArg::Name(self.resolve_name(span.with(name)))
+                }
+                ubd::ast::AttrArg::Literal(literal_expr) => {
+                    ast::AttrArg::Literal(
+                        self.visit_literal_expr(span.with(literal_expr)).item,
+                    )
+                }
+            };
+
+            args.push(span.with(arg))
+        }
+
+        let args = args.into_boxed_slice();
+        span.with(ast::Attr { name, args })
+    }
+
+    /// Attribute names do not get resolved to "real" items in the environment,
+    /// so they get handled separately. This only concerns the name of the
+    /// attribute, and attribute arguments are resolved as usual.
+    fn visit_attr_name(
+        &mut self,
+        Spanned { item, span }: Spanned<ubd::ast::Name>,
+    ) -> Result<Spanned<ast::AttrName>, Spanned<ast::NameContent>> {
+        match item {
+            ubd::ast::Name::Path(qual @ Some(_), ref elems) => {
+                let path = self.intern_path(span, qual, elems);
+
+                self.emit_local_error(LocalResError::AttrNameHasQualifier {
+                    module: self.module,
+                    name: path.clone(),
+                });
+
+                Err(span.with(ast::NameContent::Path(path.item)))
+            }
+            ubd::ast::Name::Path(None, ref elems) => {
+                let path = self.intern_path(span, None, elems);
+
+                let (first, tail) = path
+                    .elements
+                    .split_first()
+                    .expect("elems is guaranteed to be nonempty");
+
+                // very hacky way to handle attributes that want exactly two
+                // name elements
+                let name_constr =
+                    match self.env.interner.resolve(**first).unwrap() {
+                        "operator" => {
+                            |operator| ast::AttrName::Operator { operator }
+                        }
+                        "external" => |lang| ast::AttrName::External { lang },
+                        _ => {
+                            self.emit_local_error(
+                                LocalResError::UnrecognisedAttrNameElement {
+                                    module: self.module,
+                                    name: path.clone(),
+                                    elem: *first,
+                                },
+                            );
+
+                            Err(span.with(ast::NameContent::Path(
+                                path.clone().item,
+                            )))
+                        }?,
+                    };
+
+                match tail {
+                    [] => {
+                        self.emit_local_error(
+                            LocalResError::MissingAttrNameElements {
+                                module: self.module,
+                                name: path.clone(),
+                                expected_num: 1,
+                            },
+                        );
+
+                        Err(span.with(ast::NameContent::Path(path.item)))
+                    }
+                    [operator] => Ok(span.with(name_constr(**operator))),
+                    [_, extras @ ..] => {
+                        self.emit_local_error(
+                            LocalResError::UnexpectedAttrNameElements {
+                                module: self.module,
+                                name: path.clone(),
+                                extras: extras.to_vec().into_boxed_slice(),
+                            },
+                        );
+
+                        Err(span.with(ast::NameContent::Path(path.item)))
+                    }
+                }
+            }
+            ubd::ast::Name::Ident(ident) => {
+                let name =
+                    self.intern_ident_in_module(span.with(ident), self.module);
+
+                match self.env.interner.resolve(*name).unwrap() {
+                    "debug" => Ok(span.with(ast::AttrName::Debug)),
+                    _ => {
+                        self.emit_local_error(
+                            LocalResError::UnrecognisedAttrNameIdent {
+                                module: self.module,
+                                name,
+                            },
+                        );
+
+                        Err(span.with(ast::NameContent::Ident(name.item)))
+                    }
+                }
+            }
+        }
     }
 
     // EXPRESSION VISITORS

@@ -11,13 +11,15 @@ use crate::{
 
 use super::common::Qualifier;
 
+pub use super::attr::{Attr, AttrArg, AttrName};
+
 // DECLARATIONS
 
 #[derive(Debug, Clone)]
-pub enum Type<N = Bound> {
-    Alias(TypeAlias<N>),
-    Adt(Adt<N>),
-    Extern(ExternType),
+pub enum Type<N = Bound, A = ResAttr> {
+    Alias(TypeAlias<N, A>),
+    Adt(Adt<N, A>),
+    Extern(ExternType<A>),
 }
 
 impl<N> Type<N> {
@@ -39,14 +41,16 @@ impl<N> Type<N> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypeAlias<N = Bound> {
+pub struct TypeAlias<N = Bound, A = ResAttr> {
+    pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
     pub params: Box<[LocalBinding]>,
     pub ty: Spanned<Ty<N>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Adt<N = Bound> {
+pub struct Adt<N = Bound, A = ResAttr> {
+    pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
     pub opacity: Option<Span>,
     pub params: Box<[LocalBinding]>,
@@ -54,20 +58,22 @@ pub struct Adt<N = Bound> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ExternType {
+pub struct ExternType<A = ResAttr> {
+    pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
     pub params: Box<[LocalBinding]>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Term<N = Bound> {
-    Fn(Fn<N>),
-    ExternFn(ExternFn<N>),
-    Const(Const<N>),
+pub enum Term<N = Bound, A = ResAttr> {
+    Fn(Fn<N, A>),
+    ExternFn(ExternFn<N, A>),
+    Const(Const<N, A>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Fn<N = Bound> {
+pub struct Fn<N = Bound, A = ResAttr> {
+    pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
     pub params: SpanSeq<Parameter<N>>,
     pub return_ty: Option<Spanned<Ty<N>>>,
@@ -75,14 +81,16 @@ pub struct Fn<N = Bound> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ExternFn<N = Bound> {
+pub struct ExternFn<N = Bound, A = ResAttr> {
+    pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
     pub params: SpanSeq<Parameter<N>>,
     pub return_ty: Option<Spanned<Ty<N>>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Const<N = Bound> {
+pub struct Const<N = Bound, A = ResAttr> {
+    pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
     pub ty: Option<Spanned<Ty<N>>>,
     pub value: Spanned<Expr<N>>,
@@ -139,6 +147,17 @@ pub struct Parameter<N = Bound> {
     pub pattern: Spanned<Pattern<N>>,
     pub ty: Option<Spanned<Ty<N>>>,
 }
+
+// ATTRIBUTES
+
+/// An attribute produced during name resolution.
+pub type ResAttr = Attr<
+    Result<Spanned<AttrName>, Spanned<NameContent>>,
+    Result<Bound, Spanned<NameContent>>,
+>;
+
+/// A well-formed attribute.
+pub type BoundAttr = Attr<Spanned<AttrName>, Bound>;
 
 // EXPRESSIONS
 
@@ -198,7 +217,7 @@ pub enum Expr<N = Bound> {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum LiteralExpr {
     Unit,
     Bool(bool),

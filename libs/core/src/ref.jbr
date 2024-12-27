@@ -4,10 +4,10 @@ pub type Ref[T] = Ref { mutable contents: T }
 
 pub fn ref(contents: T) -> Ref[T] = Ref { contents }
 
-@core.operator.deref
+@operator.deref
 pub fn deref(Ref { contents }: Ref[T]) -> T = contents
 
-@core.operator.update
+@operator.update
 pub fn update(ref: Ref[T], value: T) = ref.contents <- value
 
 pub fn increment(ref: Ref[int]) = ref := *ref + 1

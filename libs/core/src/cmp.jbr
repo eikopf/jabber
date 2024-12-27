@@ -4,9 +4,9 @@ pub type Ord = Lt | Eq | Gt
 
 // OPERATORS
 
-@core.operator.eq
+@operator.eq
 pub fn eq(lhs: T, rhs: T) -> bool = __prim_eq(lhs, rhs)
-@core.operator.neq
+@operator.neq
 pub fn neq(lhs: T, rhs: T) -> bool = __prim_neq(lhs, rhs)
 
 // EXTERNALS
