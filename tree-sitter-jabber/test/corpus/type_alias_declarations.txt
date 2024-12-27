@@ -1,0 +1,71 @@
+=================================
+concrete type alias declarations
+=================================
+
+type alias Unit = ()
+type alias Bool = bool
+type alias None = Option[!]
+
+---------------------------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_alias_decl
+      name: (ident)
+      type: (unit_type)))
+  declaration: (declaration
+    body: (type_alias_decl
+      name: (ident)
+      type: (primitive_type)))
+  declaration: (declaration
+    body: (type_alias_decl
+      name: (ident)
+      type: (generic_type
+        name: (ident)
+        arguments: (generic_type_args (primitive_type))))))
+
+================================
+generic type alias declarations
+================================
+
+type alias Always[T] = Result[T, !]
+type alias Maybe[T]  = Option[T]
+
+------------------------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_alias_decl
+      name: (ident)
+      params: (generic_params (ident))
+      type: (generic_type
+        name: (ident)
+        arguments: (generic_type_args
+          (ident)
+          (primitive_type)))))
+  declaration: (declaration
+    body: (type_alias_decl
+      name: (ident)
+      params: (generic_params (ident))
+      type: (generic_type
+        name: (ident)
+        arguments: (generic_type_args (ident))))))
+
+=========================
+extern type declarations
+=========================
+
+pub extern type Buffer
+    extern type Ref[T]
+
+-----------------------------
+
+(source_file
+  declaration: (declaration
+    visibility: (access_spec)
+    body: (extern_type_decl
+      name: (ident)))
+  declaration: (declaration
+    body: (extern_type_decl
+      name: (ident)
+      params: (generic_params (ident)))))

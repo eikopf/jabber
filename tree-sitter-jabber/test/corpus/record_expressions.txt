@@ -1,0 +1,41 @@
+=============================
+singleton record expressions
+=============================
+
+const SINGLETON = Foo { }
+
+-----------------------------
+
+(source_file
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (record_expr
+        name: (ident)))))
+
+=====================================
+functional record update expressions
+=====================================
+
+const R = Foo {
+  bar: 13,
+  baz: (),
+  ..quux,
+}
+
+------------------------------------
+
+(source_file
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (record_expr
+        name: (ident)
+        fields: (record_expr_fields
+          (record_expr_field
+            name: (ident)
+            value: (dec_literal))
+          (record_expr_field
+            name: (ident)
+            value: (unit_literal))
+          (record_update_base (ident)))))))

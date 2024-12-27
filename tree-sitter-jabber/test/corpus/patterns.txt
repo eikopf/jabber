@@ -10,18 +10,19 @@ fn main() {
 --------------------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    block_body: (block
-      (let_stmt
-        pattern: (ident)
-        value: (unit_literal))
-      (let_stmt
-        pattern: (path
-          root: (ident)
-          name: (ident))
-        value: (ident)))))
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      block_body: (block
+        (let_stmt
+          pattern: (ident)
+          value: (unit_literal))
+        (let_stmt
+          pattern: (path
+            root: (ident)
+            name: (ident))
+          value: (ident))))))
 
 =================
 literal patterns
@@ -35,16 +36,17 @@ fn main() {
 ------------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    block_body: (block
-      (let_stmt
-        pattern: (unit_literal)
-        value: (unit_literal))
-      (let_stmt
-        pattern: (dec_literal)
-        value: (dec_literal)))))
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      block_body: (block
+        (let_stmt
+          pattern: (unit_literal)
+          value: (unit_literal))
+        (let_stmt
+          pattern: (dec_literal)
+          value: (dec_literal))))))
 
 ==================
 wildcard patterns
@@ -57,13 +59,14 @@ fn main() {
 -------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    block_body: (block
-      (let_stmt
-        pattern: (wildcard_pattern)
-        value: (unit_literal)))))
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      block_body: (block
+        (let_stmt
+          pattern: (wildcard_pattern)
+          value: (unit_literal))))))
 
 ===============
 tuple patterns
@@ -78,27 +81,28 @@ fn foo() = match tup {
 -------------------------------------------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    eq_body: (match_expr
-      scrutinee: (ident)
-      arms: (match_arms
-        (match_arm
-          pattern: (parenthesized_pattern
-            inner: (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (tuple_pattern
-            (ident)
-            (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (tuple_pattern
-            (ident)
-            (ident)
-            (ident))
-          body: (string_literal))))))
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      eq_body: (match_expr
+        scrutinee: (ident)
+        arms: (match_arms
+          (match_arm
+            pattern: (parenthesized_pattern
+              inner: (ident))
+            body: (string_literal))
+          (match_arm
+            pattern: (tuple_pattern
+              (ident)
+              (ident))
+            body: (string_literal))
+          (match_arm
+            pattern: (tuple_pattern
+              (ident)
+              (ident)
+              (ident))
+            body: (string_literal)))))))
 
 ==============
 list patterns
@@ -115,32 +119,33 @@ fn bar() = match list {
 ---------------------------------------------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    eq_body: (match_expr
-      scrutinee: (ident)
-      arms: (match_arms
-        (match_arm
-          pattern: (list_pattern)
-          body: (string_literal))
-        (match_arm
-          pattern: (list_pattern (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (list_pattern (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (list_pattern
-            (ident)
-            (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (list_pattern
-            (ident)
-            (ident)
-            (ident))
-          body: (string_literal))))))
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      eq_body: (match_expr
+        scrutinee: (ident)
+        arms: (match_arms
+          (match_arm
+            pattern: (list_pattern)
+            body: (string_literal))
+          (match_arm
+            pattern: (list_pattern (ident))
+            body: (string_literal))
+          (match_arm
+            pattern: (list_pattern (ident))
+            body: (string_literal))
+          (match_arm
+            pattern: (list_pattern
+              (ident)
+              (ident))
+            body: (string_literal))
+          (match_arm
+            pattern: (list_pattern
+              (ident)
+              (ident)
+              (ident))
+            body: (string_literal)))))))
 
 ==============
 cons patterns
@@ -156,41 +161,42 @@ fn cons() = match list {
 -----------------------------------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    eq_body: (match_expr
-      scrutinee: (ident)
-      arms: (match_arms
-        (match_arm
-          pattern: (cons_pattern
-            head: (ident)
-            tail: (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (cons_pattern
-            head: (ident)
-            tail: (list_pattern))
-          body: (string_literal))
-        (match_arm
-          pattern: (cons_pattern
-            head: (ident)
-            tail: (cons_pattern
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      eq_body: (match_expr
+        scrutinee: (ident)
+        arms: (match_arms
+          (match_arm
+            pattern: (cons_pattern
               head: (ident)
-              tail: (ident)))
-          body: (string_literal))
-        (match_arm
-          pattern: (cons_pattern
-            head: (parenthesized_pattern
-              inner: (cons_pattern
+              tail: (ident))
+            body: (string_literal))
+          (match_arm
+            pattern: (cons_pattern
+              head: (ident)
+              tail: (list_pattern))
+            body: (string_literal))
+          (match_arm
+            pattern: (cons_pattern
+              head: (ident)
+              tail: (cons_pattern
                 head: (ident)
                 tail: (ident)))
-            tail: (ident))
-          body: (string_literal))))))
+            body: (string_literal))
+          (match_arm
+            pattern: (cons_pattern
+              head: (parenthesized_pattern
+                inner: (cons_pattern
+                  head: (ident)
+                  tail: (ident)))
+              tail: (ident))
+            body: (string_literal)))))))
 
-==============
-enum patterns
-==============
+===========================
+tuple constructor patterns
+===========================
 
 fn baz() = match something {
   Ident         => "in-scope unit variant",
@@ -202,40 +208,41 @@ fn baz() = match something {
 ------------------------------------------------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    eq_body: (match_expr
-      scrutinee: (ident)
-      arms: (match_arms
-        (match_arm
-          pattern: (ident)
-          body: (string_literal))
-        (match_arm
-          pattern: (path
-            root: (ident)
-            name: (ident))
-          body: (string_literal))
-        (match_arm
-          pattern: (enum_pattern
-            name: (ident)
-            payload: (enum_pattern_payload
-              (ident)
-              (ident)))
-          body: (string_literal))
-        (match_arm
-          pattern: (enum_pattern
-            name: (path
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      eq_body: (match_expr
+        scrutinee: (ident)
+        arms: (match_arms
+          (match_arm
+            pattern: (ident)
+            body: (string_literal))
+          (match_arm
+            pattern: (path
               root: (ident)
               name: (ident))
-            payload: (enum_pattern_payload
-              (ident)
-              (wildcard_pattern)))
-          body: (string_literal))))))
+            body: (string_literal))
+          (match_arm
+            pattern: (tuple_constructor_pattern
+              name: (ident)
+              payload: (tuple_constructor_pattern_payload
+                (ident)
+                (ident)))
+            body: (string_literal))
+          (match_arm
+            pattern: (tuple_constructor_pattern
+              name: (path
+                root: (ident)
+                name: (ident))
+              payload: (tuple_constructor_pattern_payload
+                (ident)
+                (wildcard_pattern)))
+            body: (string_literal)))))))
 
-================
-struct patterns
-================
+============================
+record constructor patterns
+============================
 
 fn qux() = match thing {
   some.Foo {} => "qualified singleton",
@@ -247,40 +254,41 @@ fn qux() = match thing {
 ------------------------------------
 
 (source_file
-  decl: (fn_decl
-    name: (ident)
-    parameters: (parameters)
-    eq_body: (match_expr
-      scrutinee: (ident)
-      arms: (match_arms
-        (match_arm
-          pattern: (struct_pattern
-            name: (path
-              root: (ident)
-              name: (ident)))
-          body: (string_literal))
-        (match_arm
-          pattern: (struct_pattern
-            name: (ident)
-            fields: (struct_pattern_fields
-              (struct_pattern_field
-                field: (ident))
-              (struct_pattern_field
-                field: (ident))))
-          body: (string_literal))
-        (match_arm
-          pattern: (struct_pattern
-            name: (ident)
-            fields: (struct_pattern_fields
-              (struct_pattern_field
-                field: (ident)
-                pattern: (wildcard_pattern))))
-          body: (string_literal))
-        (match_arm
-          pattern: (struct_pattern
-            name: (ident)
-            fields: (struct_pattern_fields
-              (struct_pattern_field
-                field: (ident))
-              (rest_pattern)))
-          body: (string_literal))))))
+  declaration: (declaration
+    body: (fn_decl
+      name: (ident)
+      parameters: (parameters)
+      eq_body: (match_expr
+        scrutinee: (ident)
+        arms: (match_arms
+          (match_arm
+            pattern: (record_pattern
+              name: (path
+                root: (ident)
+                name: (ident)))
+            body: (string_literal))
+          (match_arm
+            pattern: (record_pattern
+              name: (ident)
+              fields: (record_pattern_fields
+                (record_pattern_field
+                  field: (ident))
+                (record_pattern_field
+                  field: (ident))))
+            body: (string_literal))
+          (match_arm
+            pattern: (record_pattern
+              name: (ident)
+              fields: (record_pattern_fields
+                (record_pattern_field
+                  field: (ident)
+                  pattern: (wildcard_pattern))))
+            body: (string_literal))
+          (match_arm
+            pattern: (record_pattern
+              name: (ident)
+              fields: (record_pattern_fields
+                (record_pattern_field
+                  field: (ident))
+                (rest_pattern)))
+            body: (string_literal)))))))

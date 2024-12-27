@@ -8,10 +8,11 @@ pub mod foobar
 -----------------------
 
 (source_file
-  decl: (mod_decl
+  declaration: (declaration
     docs: (doc_comments)
     visibility: (access_spec)
-    name: (ident)))
+    body: (mod_decl
+      name: (ident))))
 
 =================================
 multiline documentation comments
@@ -25,10 +26,11 @@ pub mod multi
 --------------------------------------
 
 (source_file
-  decl: (mod_decl
+  declaration: (declaration
     docs: (doc_comments)
     visibility: (access_spec)
-    name: (ident)))
+    body: (mod_decl
+      name: (ident))))
 
 =================
 regular comments
@@ -41,10 +43,11 @@ const zero: float = 0.0000
 
 (source_file
   (comment)
-  decl: (const_decl
-    name: (ident)
-    type: (primitive_type)
-    value: (float_literal)))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      type: (primitive_type)
+      value: (float_literal))))
 
 ================
 module comments

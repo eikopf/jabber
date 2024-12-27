@@ -111,6 +111,7 @@ impl ImportResEnv {
 
             let ast = span.with(match item {
                 ubd::Type::Adt(ubd::Adt {
+                    attrs,
                     name,
                     opacity,
                     params,
@@ -171,13 +172,19 @@ impl ImportResEnv {
                     };
 
                     ubd::Type::Adt(ubd::Adt {
+                        attrs,
                         name,
                         opacity,
                         params,
                         constructors,
                     })
                 }
-                ubd::Type::Alias(ubd::TypeAlias { name, params, ty }) => {
+                ubd::Type::Alias(ubd::TypeAlias {
+                    attrs,
+                    name,
+                    params,
+                    ty,
+                }) => {
                     let name =
                         env.intern_ident_in_invalid_module(name, module, file);
                     let params = params
@@ -189,9 +196,18 @@ impl ImportResEnv {
                         })
                         .collect();
 
-                    ubd::Type::Alias(ubd::TypeAlias { name, params, ty })
+                    ubd::Type::Alias(ubd::TypeAlias {
+                        attrs,
+                        name,
+                        params,
+                        ty,
+                    })
                 }
-                ubd::Type::Extern(ubd::ExternType { name, params }) => {
+                ubd::Type::Extern(ubd::ExternType {
+                    attrs,
+                    name,
+                    params,
+                }) => {
                     let name =
                         env.intern_ident_in_invalid_module(name, module, file);
                     let params = params
@@ -203,7 +219,11 @@ impl ImportResEnv {
                         })
                         .collect();
 
-                    ubd::Type::Extern(ubd::ExternType { name, params })
+                    ubd::Type::Extern(ubd::ExternType {
+                        attrs,
+                        name,
+                        params,
+                    })
                 }
             });
 

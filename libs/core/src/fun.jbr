@@ -6,8 +6,8 @@ pub fn id(x: A) -> A = x
 
 pub fn constant(x: A) -> (B -> A) = (_) -> x
 
-@core.operator.pipe_left
+@operator.pipe_left
 pub fn pipe_left(f: A -> B, x: A) -> B = f(x)
 
-@core.operator.pipe_right
+@operator.pipe_right
 pub fn pipe_right(x: A, f: A -> B) -> B = f(x)

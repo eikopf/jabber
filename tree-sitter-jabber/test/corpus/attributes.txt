@@ -9,7 +9,7 @@ const A: B = C
 ------------------
 
 (source_file
-  decl: (const_decl
+  declaration: (declaration
     attributes: (attributes
       (attribute
         name: (ident))
@@ -19,9 +19,10 @@ const A: B = C
             root: (ident)
             name: (ident))
           name: (ident))))
-    name: (ident)
-    type: (ident)
-    value: (ident)))
+    body: (const_decl
+      name: (ident)
+      type: (ident)
+      value: (ident))))
 
 ====================
 function attributes
@@ -33,7 +34,7 @@ const foo: bar = baz
 ---------------------------------------
 
 (source_file
-  decl: (const_decl
+  declaration: (declaration
     attributes: (attributes
       (attribute
         name: (ident)
@@ -42,6 +43,7 @@ const foo: bar = baz
           (hex_literal)
           (char_literal)
           (ident))))
-    name: (ident)
-    type: (ident)
-    value: (ident)))
+    body: (const_decl
+      name: (ident)
+      type: (ident)
+      value: (ident))))

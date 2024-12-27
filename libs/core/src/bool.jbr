@@ -2,7 +2,7 @@
 
 pub type alias Bool = bool
 
-@core.operator.not
+@operator.not
 pub fn not(b: bool) -> bool = __prim_bool_not(b)
 pub fn and(lhs: bool, rhs: bool) -> bool = __prim_bool_and(lhs, rhs)
 pub fn or(lhs: bool, rhs: bool) -> bool = __prim_bool_or(lhs, rhs)

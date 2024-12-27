@@ -5,33 +5,30 @@ pub type alias Int = int
 pub const ZERO: int = 0
 pub const ONE:  int = 1
 
-pub fn intmin() -> int = __prim_intmin()
-pub fn intmax() -> int = __prim_intmax()
-
 // OPERATORS
 
-@core.operator.neg_int
+@operator.neg_int
 pub fn neg(x: int) -> int = __prim_int_neg(x)
-@core.operator.add_int
+@operator.add_int
 pub fn add(lhs: int, rhs: int) -> int = __prim_int_add(lhs, rhs)
-@core.operator.sub_int
+@operator.sub_int
 pub fn sub(lhs: int, rhs: int) -> int = __prim_int_sub(lhs, rhs)
-@core.operator.mul_int
+@operator.mul_int
 pub fn mul(lhs: int, rhs: int) -> int = __prim_int_mul(lhs, rhs)
-@core.operator.div_int
+@operator.div_int
 pub fn div(lhs: int, rhs: int) -> int = __prim_int_div(lhs, rhs)
-@core.operator.pow_int
+@operator.pow_int
 pub fn pow(lhs: int, rhs: int) -> int = __prim_int_pow(lhs, rhs)
-@core.operator.mod_int
+@operator.mod_int
 pub fn mod(lhs: int, rhs: int) -> int = __prim_int_mod(lhs, rhs)
 
-@core.operator.lt_int
+@operator.lt_int
 pub fn lt(lhs: int, rhs: int) -> int = __prim_int_lt(lhs, rhs)
-@core.operator.gt_int
+@operator.gt_int
 pub fn gt(lhs: int, rhs: int) -> int = __prim_int_gt(lhs, rhs)
-@core.operator.leq_int
+@operator.leq_int
 pub fn leq(lhs: int, rhs: int) -> int = __prim_int_leq(lhs, rhs)
-@core.operator.geq_int
+@operator.geq_int
 pub fn geq(lhs: int, rhs: int) -> int = __prim_int_geq(lhs, rhs)
 
 

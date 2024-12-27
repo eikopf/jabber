@@ -1,66 +1,159 @@
-==========================
-nullary type declarations
-==========================
+===================================
+singleton struct type declarations
+===================================
 
-type Unit       = ()
-type Bool       = bool
-type AlwaysNone = Option[!]
+pub type One = One
 
----------------------------------------
+---------------------
 
 (source_file
-  decl: (type_decl
-    name: (ident)
-    type: (unit_type))
-  decl: (type_decl
-    name: (ident)
-    type: (primitive_type))
-  decl: (type_decl
-    name: (ident)
-    type: (generic_type
-      name: (ident)
-      arguments: (generic_type_args
-        (primitive_type)))))
-
-==========================
-generic type declarations
-==========================
-
-type Always[T] = Result[T, !]
-type  Maybe[T] = Option[T]
-
-------------------------------------
-
-(source_file
-  decl: (type_decl
-    name: (ident)
-    params: (generic_params (ident))
-    type: (generic_type
-      name: (ident)
-      arguments: (generic_type_args
-        (ident)
-        (primitive_type))))
-  decl: (type_decl
-    name: (ident)
-    params: (generic_params (ident))
-    type: (generic_type
-      name: (ident)
-      arguments: (generic_type_args
-        (ident)))))
-
-=========================
-extern type declarations
-=========================
-
-pub extern type Buffer
-    extern type Ref[T]
-
------------------------------
-
-(source_file
-  decl: (extern_type_decl
+  declaration: (declaration
     visibility: (access_spec)
-    name: (ident))
-  decl: (extern_type_decl
-    name: (ident)
-    params: (generic_params (ident))))
+    body: (type_decl
+      name: (ident)
+      constructors: (type_constructors
+        (type_constructor
+          name: (ident))))))
+
+=========================
+opaque type declarations
+=========================
+
+opaque type Foo = Bar | Baz
+
+---------------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_decl (opaque)
+      name: (ident)
+      constructors: (type_constructors
+        (type_constructor
+          name: (ident))
+        (type_constructor
+          name: (ident))))))
+
+======================
+mutable record fields
+======================
+
+type Ref[T] = Ref { mutable contents: T }
+
+------------------------------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_decl
+      name: (ident)
+      params: (generic_params (ident))
+      constructors: (type_constructors
+        (type_constructor
+          name: (ident)
+          payload: (record_payload
+            (record_field
+              mutable: (mutable)
+              name: (ident)
+              type: (ident))))))))
+
+================================
+parameterised type declarations
+================================
+
+type OneTwoThree[A, B, C] =
+  | One(A)
+  | Two(B)
+  | Three(C)
+
+--------------------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_decl
+      name: (ident)
+      params: (generic_params
+        (ident)
+        (ident)
+        (ident))
+      constructors: (type_constructors
+        (type_constructor
+          name: (ident)
+          payload: (tuple_payload (ident)))
+        (type_constructor
+          name: (ident)
+          payload: (tuple_payload (ident)))
+        (type_constructor
+          name: (ident)
+          payload: (tuple_payload (ident)))))))
+
+========================
+result type declaration
+========================
+
+type Result[T, E] =
+  | Ok(T)
+  | Err(E)
+
+--------------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_decl
+      name: (ident)
+      params: (generic_params
+        (ident)
+        (ident))
+      constructors: (type_constructors
+        (type_constructor
+          name: (ident)
+          payload: (tuple_payload (ident)))
+        (type_constructor
+          name: (ident)
+          payload: (tuple_payload (ident)))))))
+
+========================
+option type declaration
+========================
+
+type Option[T] =
+  | Some(T)
+  | None
+
+--------------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_decl
+      name: (ident)
+      params: (generic_params (ident))
+      constructors: (type_constructors
+        (type_constructor
+          name: (ident)
+          payload: (tuple_payload (ident)))
+        (type_constructor
+          name: (ident))))))
+
+=======================
+unit type constructors
+=======================
+
+type Direction =
+  | North
+  | East
+  | South
+  | West
+
+-----------------------
+
+(source_file
+  declaration: (declaration
+    body: (type_decl
+      name: (ident)
+      constructors: (type_constructors
+        (type_constructor
+          name: (ident))
+        (type_constructor
+          name: (ident))
+        (type_constructor
+          name: (ident))
+        (type_constructor
+          name: (ident))))))

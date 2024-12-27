@@ -1,61 +1,61 @@
 =========================
-struct field expressions
+record field expressions
 =========================
 
 // without the parentheses, these would be parsed as paths
-const foo: _ = (S).foo
-const foobar: _ = (S).foo.bar
+const foo    = (S).foo
+const foobar = (S).foo.bar
 
 ----------------------------
 
 (source_file
   (comment)
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (field_expr
-      item: (parenthesized_expr
-        inner: (ident))
-      field: (ident)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (field_expr
-      item: (field_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (field_expr
         item: (parenthesized_expr
           inner: (ident))
-        field: (ident))
-      field: (ident))))
+        field: (ident))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (field_expr
+        item: (field_expr
+          item: (parenthesized_expr
+            inner: (ident))
+          field: (ident))
+        field: (ident)))))
 
 ========================
 tuple field expressions
 ========================
 
-const first: _ = xs.1
-const _99th: _ = xs.99
-const firstfirst: _ = xs.1.1
+const first      = xs.1
+const _99th      = xs.99
+const firstfirst = xs.1.1
 
 ------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (field_expr
-      item: (ident)
-      field: (tuple_field)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (field_expr
-      item: (ident)
-      field: (tuple_field)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (field_expr
-      item: (field_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (field_expr
         item: (ident)
-        field: (tuple_field))
-      field: (tuple_field))))
+        field: (tuple_field))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (field_expr
+        item: (ident)
+        field: (tuple_field))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (field_expr
+        item: (field_expr
+          item: (ident)
+          field: (tuple_field))
+        field: (tuple_field)))))
 

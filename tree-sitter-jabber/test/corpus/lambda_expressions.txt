@@ -2,100 +2,99 @@
 nested lambdas
 ===============
 
-const   once: _ = () -> 0
-const  twice: _ = () -> () -> 0
-const thrice: _
-  = () -> () -> () -> 0
+const   once = () -> 0
+const  twice = () -> () -> 0
+const thrice = () -> () -> () -> 0
 
 ---------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (lambda_expr
-      parameters: (parameters)
-      body: (dec_literal)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (lambda_expr
-      parameters: (parameters)
-      body: (lambda_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (lambda_expr
         parameters: (parameters)
         body: (dec_literal))))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (lambda_expr
-      parameters: (parameters)
-      body: (lambda_expr
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (lambda_expr
         parameters: (parameters)
         body: (lambda_expr
           parameters: (parameters)
-          body: (dec_literal))))))
+          body: (dec_literal)))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (lambda_expr
+        parameters: (parameters)
+        body: (lambda_expr
+          parameters: (parameters)
+          body: (lambda_expr
+            parameters: (parameters)
+            body: (dec_literal)))))))
 
-==========================
-direct lambda invocations
-==========================
+====================
+lambda applications
+====================
 
-const unary: _ = (__x -> 0xFF)(16)
-const nullary: _ = (() -> ())()
+const unary   = (__x -> 0xFF)(16)
+const nullary = (() -> ())()
 
 -----------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (call_expr
-      callee: (parenthesized_expr
-        inner: (lambda_expr
-          parameters: (ident)
-          body: (hex_literal)))
-      arguments: (arguments (dec_literal))))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (call_expr
-      callee: (parenthesized_expr
-        inner: (lambda_expr
-          parameters: (parameters)
-          body: (unit_literal)))
-      arguments: (arguments))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (call_expr
+        callee: (parenthesized_expr
+          inner: (lambda_expr
+            parameters: (ident)
+            body: (hex_literal)))
+        arguments: (arguments (dec_literal)))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (call_expr
+        callee: (parenthesized_expr
+          inner: (lambda_expr
+            parameters: (parameters)
+            body: (unit_literal)))
+        arguments: (arguments)))))
 
 ==========================
 pathological lambda cases
 ==========================
 
-const unit_pat: _ = ((),) -> ()
-const struct_pat: _ = (Foo {a, b}) -> a * b
+const unit_pat   = ((),) -> ()
+const struct_pat = (Foo {a, b}) -> a * b
 
 ---------------------------------------------
 
 (source_file
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (lambda_expr
-      parameters: (parameters
-        (parameter
-          pattern: (unit_literal)))
-      body: (unit_literal)))
-  decl: (const_decl
-    name: (ident)
-    type: (inferred_type)
-    value: (lambda_expr
-      parameters: (parameters
-        (parameter
-          pattern: (struct_pattern
-            name: (ident)
-            fields: (struct_pattern_fields
-              (struct_pattern_field
-                field: (ident))
-              (struct_pattern_field
-                field: (ident))))))
-      body: (binary_expr
-        lhs: (ident)
-        operator: (binary_operator)
-        rhs: (ident)))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (lambda_expr
+        parameters: (parameters
+          (parameter
+            pattern: (unit_literal)))
+        body: (unit_literal))))
+  declaration: (declaration
+    body: (const_decl
+      name: (ident)
+      value: (lambda_expr
+        parameters: (parameters
+          (parameter
+            pattern: (record_pattern
+              name: (ident)
+              fields: (record_pattern_fields
+                (record_pattern_field
+                  field: (ident))
+                (record_pattern_field
+                  field: (ident))))))
+        body: (binary_expr
+          lhs: (ident)
+          operator: (binary_operator)
+          rhs: (ident))))))
