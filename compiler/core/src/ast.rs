@@ -5,6 +5,7 @@ use crate::span::Span;
 pub mod attr;
 pub mod bound;
 pub mod common;
+pub mod typed;
 pub mod unbound;
 pub mod unbound_lowered;
 
