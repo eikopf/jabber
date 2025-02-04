@@ -8,5 +8,4 @@ pub mod package;
 pub mod source_file;
 pub mod span;
 pub mod symbol;
-pub mod ty;
 pub mod unique;
