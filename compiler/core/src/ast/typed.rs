@@ -222,40 +222,35 @@ impl<N> Ty<N, Uid> {
     }
 
     pub fn fresh_unbound_tuple(len: usize) -> Self {
-        let mut vars = Vec::with_capacity(len);
         let mut elems = Vec::with_capacity(len);
 
         for _ in 0..len {
             let uid = Uid::fresh();
-            vars.push(uid);
             elems.push(TyMatrix::Var(uid));
         }
 
         Self {
-            vars: vars.into_boxed_slice(),
+            vars: Default::default(),
             matrix: TyMatrix::Tuple(elems.into_boxed_slice()),
             poisoned: false,
         }
     }
 
     pub fn fresh_unbound_fn(arity: usize) -> Self {
-        let mut vars = Vec::with_capacity(arity);
         let mut domain = Vec::with_capacity(arity);
 
         for _ in 0..arity {
             let uid = Uid::fresh();
-            vars.push(uid);
             domain.push(TyMatrix::Var(uid));
         }
 
         let codomain = {
             let uid = Uid::fresh();
-            vars.push(uid);
             TyMatrix::Var(uid)
         };
 
         Self {
-            vars: vars.into_boxed_slice(),
+            vars: Default::default(),
             matrix: TyMatrix::Fn {
                 domain: domain.into_boxed_slice(),
                 codomain: Box::new(codomain),
