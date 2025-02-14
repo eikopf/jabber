@@ -747,6 +747,5 @@ mod tests {
         }
 
         dbg![ty_errors.len()];
-        panic!()
     }
 }
