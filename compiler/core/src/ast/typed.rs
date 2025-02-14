@@ -11,7 +11,10 @@
 //! necessarily reflect any kind of syntactic information in the source code,
 //! but are instead purely logical constructs used to reason about the code.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::{
     env::{Res, TypeId},
@@ -184,9 +187,25 @@ impl<T, N, V> std::ops::Deref for Typed<T, N, V> {
 
 /// A prenex type consisting of universally quantified type variables and
 /// a subject matrix.
-#[derive(Debug, Clone)]
+///
+/// # Semantics
+/// A [`Ty`] is called _concrete_ if every type variable in the `matrix` field
+/// is quantified in the `vars` field. A type variable which is not quantified
+/// in this manner is an _existential_ type variable, and represents an unknown
+/// type which must be found during type checking.
+///
+/// Both the size of tuple types and the arity of function types are fixed and
+/// cannot vary during typechecking. This is fine from an implementation
+/// perspective, since these values can be inferred statically during lowering.
+///
+/// # Poisoning
+/// A [`Ty`] whose `poisoned` field is `true` is called _poisoned_; this flag
+/// is set whenever an irrecoverable error is present within the struct. Such
+/// instances are undefined within the type system, and typechecking *must*
+/// fail overall if any are present.
+#[derive(Clone)]
 pub struct Ty<N = TypeId, V = Uid> {
-    pub vars: Box<[V]>,
+    pub vars: HashSet<V>,
     pub matrix: TyMatrix<N, V>,
     pub poisoned: bool,
 }
@@ -260,16 +279,41 @@ impl<N> Ty<N, Uid> {
     }
 }
 
+impl<N: std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for Ty<N, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ty ")?;
+
+        if self.poisoned {
+            write!(f, "(poisoned)")?;
+        }
+
+        write!(f, "{{ ")?;
+
+        let mut var_iter = self.vars.iter();
+
+        if let Some(first) = var_iter.next() {
+            write!(f, "∀ {:?}", first)?;
+
+            for var in var_iter {
+                write!(f, ", {:?}", var)?;
+            }
+
+            write!(f, ". ")?;
+        }
+
+        write!(f, "{:?} }}", self.matrix)
+    }
+}
+
 /// The *matrix* of a type.
 ///
 /// In a [`Ty`], the `matrix` is the portion of the type which does not
 /// contain any universal quantifiers.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum TyMatrix<N = TypeId, V = Uid> {
     Prim(PrimTy),
     Var(V),
     Tuple(Box<[Self]>),
-    List(Box<Self>), // technically not a primitive type
     Adt {
         name: N,
         args: Box<[Self]>,
@@ -281,8 +325,65 @@ pub enum TyMatrix<N = TypeId, V = Uid> {
     Poison,
 }
 
+impl<N: std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug
+    for TyMatrix<N, V>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Prim(prim) => write!(f, "{:?}", prim),
+            Self::Var(var) => write!(f, "{:?}", var),
+            Self::Tuple(elems) => {
+                write!(f, "(")?;
+
+                let (last, prefix) = elems.split_last().unwrap();
+
+                for elem in prefix {
+                    write!(f, "{:?}, ", elem)?;
+                }
+
+                write!(f, "{:?},)", last)
+            }
+            Self::Adt { name, args } => {
+                write!(f, "ADT({:?})", name)?;
+
+                match args.as_ref() {
+                    [] => write!(f, ""),
+                    [arg] => write!(f, "[{:?}]", arg),
+                    [prefix @ .., last] => {
+                        write!(f, "[")?;
+
+                        for arg in prefix {
+                            write!(f, "{:?}, ", arg)?;
+                        }
+
+                        write!(f, "{:?}]", last)
+                    }
+                }
+            }
+            Self::Fn { domain, codomain } => {
+                match domain.as_ref() {
+                    [] => write!(f, "()"),
+                    [ty] => write!(f, "{:?}", ty),
+                    [head, tail @ ..] => {
+                        write!(f, "({:?}", head)?;
+
+                        for ty in tail {
+                            write!(f, ", {:?}", ty)?;
+                        }
+
+                        write!(f, ")")
+                    }
+                }?;
+
+                write!(f, " -> {:?}", codomain)
+            }
+            Self::Poison => write!(f, "POISON"),
+        }
+    }
+}
+
 /// A primitive type.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum PrimTy {
     Never,
     Unit,
@@ -291,6 +392,20 @@ pub enum PrimTy {
     String,
     Int,
     Float,
+}
+
+impl std::fmt::Debug for PrimTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Never => write!(f, "!"),
+            Self::Unit => write!(f, "()"),
+            Self::Bool => write!(f, "bool"),
+            Self::Char => write!(f, "char"),
+            Self::String => write!(f, "string"),
+            Self::Int => write!(f, "int"),
+            Self::Float => write!(f, "float"),
+        }
+    }
 }
 
 // ERRORS

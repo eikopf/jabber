@@ -27,7 +27,10 @@
 //! ## Checking
 //! `TODO: write about typechecking impl`
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use super::{
     resolve::{BoundResult, ResEnv},
@@ -85,6 +88,9 @@ pub fn lower(
 
         terms
     };
+
+    // TODO: check for public items which do not have concrete types
+    // (that is, they contain unbound type variables) and emit errors
 
     (
         Env {
@@ -543,7 +549,7 @@ impl TyReifier {
         errors.append(&mut self.errors);
 
         ast::Ty {
-            vars: self.vars.into_boxed_slice(),
+            vars: self.vars.into_iter().collect::<HashSet<_>>(),
             poisoned: self.poisoned,
             matrix,
         }
@@ -720,5 +726,6 @@ mod tests {
         }
 
         dbg![ty_errors.len()];
+        panic!()
     }
 }
