@@ -435,6 +435,27 @@ impl<Te, Ty, I: Default> Default for Env<Te, Ty, I> {
     }
 }
 
+/// Returns a reference to a `Module` from a slice based on the given
+/// `ModId`. This is actually just a simple indexing operation, so it
+/// requires that the slice is just a reference to the `modules` table
+/// of an [`Env`].
+///
+/// This function should only be used in narrow contexts where a valid
+/// [`Env`] cannot be constructed, but the `modules` field of a valid
+/// [`Env`] is available; most commonly this occurs in functions which
+/// convert between different [`Env`] types.
+///
+/// # Safety
+/// The `modules` slice must have exactly the same length as the [`Env`]
+/// from which it was derived, and the `id` must correspond to the same
+/// [`Env`].
+unsafe fn blind_module_index<I>(
+    modules: &[Module<I>],
+    ModId(raw_index): ModId,
+) -> &Module<I> {
+    &modules[raw_index]
+}
+
 fn latest_index<T>(slice: &[T]) -> usize {
     slice.len() - 1
 }
