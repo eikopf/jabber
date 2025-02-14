@@ -671,12 +671,6 @@ impl TyReifier {
         }
     }
 
-    fn fresh_bound_var(&mut self) -> ast::TyMatrix {
-        let uid = Uid::fresh();
-        self.vars.push(uid);
-        ast::TyMatrix::Var(uid)
-    }
-
     fn fresh_unbound_var(&self) -> ast::TyMatrix {
         ast::TyMatrix::Var(Uid::fresh())
     }

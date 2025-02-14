@@ -10,7 +10,7 @@ use crate::{
     symbol::Symbol,
 };
 
-use super::{Env, FileId, ModId, TermId, TypeId};
+use super::{Env, ModId, TermId, TypeId};
 
 /// A completely unresolved environment.
 pub type UnboundEnv =
@@ -269,7 +269,7 @@ mod tests {
             .map_modules(crate::ast::unbound_lowered::Ast::from);
 
         let mut env = UnboundEnv::new();
-        let (core_symbol, warnings, errors) =
+        let (core_symbol, _warnings, _errors) =
             env.consume_package(package, Box::new([]));
 
         //dbg!(&env);
