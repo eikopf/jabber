@@ -73,10 +73,8 @@ impl SourceFile {
 
 impl std::fmt::Debug for SourceFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let contents = format!(
-            "... {{{:.3}KiB}}",
-            (self.contents.as_bytes().len() as f64) / 1024f64
-        );
+        let contents =
+            format!("... {{{:.3}KiB}}", (self.contents.len() as f64) / 1024f64);
         f.debug_struct("File")
             .field("path", &self.path)
             .field("contents", &contents)
