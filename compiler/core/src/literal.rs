@@ -13,7 +13,7 @@ use winnow::{
     },
     error::{ContextError, ErrMode, InputError, StrContext, StrContextValue},
     token::{any, one_of, take_till, take_while},
-    PResult, Parser,
+    ModalResult, Parser,
 };
 
 use crate::span::{Span, Spanned};
@@ -221,7 +221,7 @@ pub fn parse_float_literal(
 
 fn string_contents<'s>(
     input: &mut &'s str,
-) -> PResult<String, InputError<&'s str>> {
+) -> ModalResult<String, InputError<&'s str>> {
     escaped_transform(
         take_till(1.., |c| c == BACKSLASH || c == DOUBLE_QUOTE),
         BACKSLASH,
@@ -237,15 +237,15 @@ fn string_contents<'s>(
     .parse_next(input)
 }
 
-fn char_contents(input: &mut &str) -> PResult<(char, CharKind)> {
+fn char_contents(input: &mut &str) -> ModalResult<(char, CharKind)> {
     alt((preceded(BACKSLASH, char_escape), single_char)).parse_next(input)
 }
 
-fn single_char(input: &mut &str) -> PResult<(char, CharKind)> {
+fn single_char(input: &mut &str) -> ModalResult<(char, CharKind)> {
     any.parse_next(input).map(|c| (c, CharKind::Literal))
 }
 
-fn char_escape(input: &mut &str) -> PResult<(char, CharKind)> {
+fn char_escape(input: &mut &str) -> ModalResult<(char, CharKind)> {
     dispatch! {any;
         'u' => delimited('{', unicode_code_point, '}'),
         'x' => ascii_byte,
@@ -260,7 +260,7 @@ fn char_escape(input: &mut &str) -> PResult<(char, CharKind)> {
     .parse_next(input)
 }
 
-fn unicode_code_point(input: &mut &str) -> PResult<(char, CharKind)> {
+fn unicode_code_point(input: &mut &str) -> ModalResult<(char, CharKind)> {
     take_while(1..=6, |c: char| c.is_ascii_hexdigit())
         .verify_map(|digits| {
             // SAFETY: digits is a string of hexadecimal digits with a maximum
@@ -273,7 +273,7 @@ fn unicode_code_point(input: &mut &str) -> PResult<(char, CharKind)> {
         .parse_next(input)
 }
 
-fn ascii_byte(input: &mut &str) -> PResult<(char, CharKind)> {
+fn ascii_byte(input: &mut &str) -> ModalResult<(char, CharKind)> {
     cut_err((oct_digit, hex_digit))
         .parse_next(input)
         .map(|(oct, hex)| {
@@ -291,7 +291,7 @@ fn ascii_byte(input: &mut &str) -> PResult<(char, CharKind)> {
         })
 }
 
-fn oct_digit(input: &mut &str) -> PResult<char> {
+fn oct_digit(input: &mut &str) -> ModalResult<char> {
     any.verify(|c| ('0'..='7').contains(c))
         .context(StrContext::Label("octal digit"))
         .context(StrContext::Expected(StrContextValue::Description(
@@ -300,7 +300,7 @@ fn oct_digit(input: &mut &str) -> PResult<char> {
         .parse_next(input)
 }
 
-fn hex_digit(input: &mut &str) -> PResult<char> {
+fn hex_digit(input: &mut &str) -> ModalResult<char> {
     any.verify(char::is_ascii_hexdigit)
         .context(StrContext::Label("hexadecimal digit"))
         .parse_next(input)
@@ -312,7 +312,7 @@ fn hex_digit(input: &mut &str) -> PResult<char> {
 // (it literally involves an entire string allocation!), but for now it's good
 // enough.
 
-fn plain_float(input: &mut &str) -> PResult<(FloatKind, f64)> {
+fn plain_float(input: &mut &str) -> ModalResult<(FloatKind, f64)> {
     separated_pair(digits::<10>, ".", digits::<10>)
         .parse_next(input)
         .map(|(int, frac)| {
@@ -323,7 +323,7 @@ fn plain_float(input: &mut &str) -> PResult<(FloatKind, f64)> {
         })
 }
 
-fn exponent_float(input: &mut &str) -> PResult<(FloatKind, f64)> {
+fn exponent_float(input: &mut &str) -> ModalResult<(FloatKind, f64)> {
     (
         digits::<10>,
         opt(preceded('.', digits::<10>)),
@@ -351,7 +351,7 @@ fn exponent_float(input: &mut &str) -> PResult<(FloatKind, f64)> {
 /// Parses a well-formed integer literal of the given `RADIX`, yielding a `u64`
 /// value. The only failure mode for this function is if the integer literal is
 /// too large to fit into a `u64`.
-fn digits<const RADIX: u32>(input: &mut &str) -> PResult<u64> {
+fn digits<const RADIX: u32>(input: &mut &str) -> ModalResult<u64> {
     take_while(1.., |c: char| c == UNDERSCORE || c.is_digit(RADIX))
         .parse_next(input)
         .and_then(|s| {
