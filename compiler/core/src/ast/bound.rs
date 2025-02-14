@@ -378,6 +378,17 @@ impl Bound {
             None
         }
     }
+
+    pub fn as_res(&self) -> Option<Res> {
+        match self.id() {
+            BindingId::Local(_) => None,
+            BindingId::Global(res) => Some(res),
+        }
+    }
+
+    pub fn is_local(&self) -> bool {
+        matches!(self, Self::Local(..))
+    }
 }
 
 #[derive(Debug, Clone)]

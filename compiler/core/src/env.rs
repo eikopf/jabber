@@ -15,6 +15,7 @@ use crate::{
 
 pub mod import_res;
 pub mod resolve;
+pub mod typed;
 pub mod unbound;
 
 #[derive(Debug, Clone, Copy)]
