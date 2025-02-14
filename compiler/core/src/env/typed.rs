@@ -40,7 +40,7 @@ use super::{
 use crate::{
     ast::{
         bound::{self, Bound},
-        common::ViSp,
+        common::{ViSp, Vis},
         typed::{self as ast, Typed},
     },
     env::{Term, Type},
@@ -83,14 +83,26 @@ pub fn lower(
 
         for Term { name, module, ast } in untyped_terms {
             let ast = lower_term(ast, &mut errors);
+
+            let is_public =
+                // SAFETY: the `modules` vec and `module` id come from
+                // the same well-formed environment
+                unsafe { super::blind_module_index(&modules, module) }
+                    .items
+                    .get(&name)
+                    .map(Vis::is_visible)
+                    .unwrap_or(false);
+
+            if !ast.ty.is_concrete() && is_public {
+                let error = ast::TyError::NonConcretePubTermTy { name, module };
+                errors.push(error);
+            }
+
             terms.push(Term { name, module, ast });
         }
 
         terms
     };
-
-    // TODO: check for public items which do not have concrete types
-    // (that is, they contain unbound type variables) and emit errors
 
     (
         Env {
@@ -555,13 +567,18 @@ impl TyReifier {
         }
     }
 
+    /// Reifies an _optional_ type annotation.
+    ///
+    /// Optional types differ from other types in that, when they are absent,
+    /// the resulting inferred type should be an existential type variable.
+    /// This is the same behaviour as the `_` inference placeholder.
     fn reify_option_matrix(
         &mut self,
         matrix: Option<Spanned<ast::TyAst<BoundResult>>>,
     ) -> ast::TyMatrix {
         match matrix {
             Some(ast) => self.reify_matrix(ast),
-            None => self.fresh_var(),
+            None => self.fresh_unbound_var(),
         }
     }
 
@@ -570,7 +587,7 @@ impl TyReifier {
         Spanned { span, item }: Spanned<ast::TyAst<BoundResult>>,
     ) -> ast::TyMatrix {
         match item {
-            bound::Ty::Infer => self.fresh_var(),
+            bound::Ty::Infer => self.fresh_unbound_var(),
             bound::Ty::Never => ast::TyMatrix::Prim(ast::PrimTy::Never),
             bound::Ty::Unit => ast::TyMatrix::Prim(ast::PrimTy::Unit),
             bound::Ty::Bool => ast::TyMatrix::Prim(ast::PrimTy::Bool),
@@ -654,10 +671,14 @@ impl TyReifier {
         }
     }
 
-    fn fresh_var(&mut self) -> ast::TyMatrix {
+    fn fresh_bound_var(&mut self) -> ast::TyMatrix {
         let uid = Uid::fresh();
         self.vars.push(uid);
         ast::TyMatrix::Var(uid)
+    }
+
+    fn fresh_unbound_var(&self) -> ast::TyMatrix {
+        ast::TyMatrix::Var(Uid::fresh())
     }
 }
 

@@ -17,7 +17,7 @@ use std::{
 };
 
 use crate::{
-    env::{Res, TypeId},
+    env::{ModId, Res, TypeId},
     span::{Span, SpanBox, SpanSeq, Spanned},
     symbol::Symbol,
     unique::Uid,
@@ -211,6 +211,7 @@ pub struct Ty<N = TypeId, V = Uid> {
 }
 
 impl<N, V> Ty<N, V> {
+    /// Annotates an item with `self`.
     pub fn with<T>(self: &Arc<Self>, item: T) -> Typed<T, N, V> {
         Typed {
             item,
@@ -218,12 +219,41 @@ impl<N, V> Ty<N, V> {
         }
     }
 
+    /// Constructs a [`Ty`] corresponding to the given primitive type.
     pub fn prim(ty: PrimTy) -> Self {
         Ty {
             matrix: TyMatrix::Prim(ty),
             vars: Default::default(),
             poisoned: false,
         }
+    }
+}
+
+impl<N, V: std::hash::Hash + Eq> Ty<N, V> {
+    /// Returns `true` if and only if `self` does not contain unquantified
+    /// (i.e. existential) type variables.
+    pub fn is_concrete(&self) -> bool {
+        fn rec<N, V: std::hash::Hash + Eq>(
+            matrix: &TyMatrix<N, V>,
+            vars: &HashSet<V>,
+        ) -> bool {
+            match matrix {
+                TyMatrix::Prim(_) | TyMatrix::Poison => true,
+                TyMatrix::Var(var) => vars.contains(var),
+                TyMatrix::Tuple(items) => {
+                    items.iter().all(|matrix| rec(matrix, vars))
+                }
+                TyMatrix::Adt { args, .. } => {
+                    args.iter().all(|matrix| rec(matrix, vars))
+                }
+                TyMatrix::Fn { domain, codomain } => {
+                    domain.iter().all(|matrix| rec(matrix, vars))
+                        && rec(codomain, vars)
+                }
+            }
+        }
+
+        rec(&self.matrix, &self.vars)
     }
 }
 
@@ -418,4 +448,6 @@ pub enum TyError {
     },
     /// it is invalid to use tyvars as polytypes
     TyVarWithArgs { name: LocalBinding, span: Span },
+    /// Public terms must have concrete types.
+    NonConcretePubTermTy { name: Symbol, module: ModId },
 }
