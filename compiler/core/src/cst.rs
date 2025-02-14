@@ -3,6 +3,7 @@
 #[allow(clippy::all)]
 #[allow(unused)]
 #[allow(rustdoc::all)]
+#[allow(warnings)]
 pub(crate) mod nodes {
     include!(concat!(env!("OUT_DIR"), "/nodes.rs"));
 }
@@ -10,6 +11,7 @@ pub(crate) mod nodes {
 #[allow(clippy::all)]
 #[allow(unused)]
 #[allow(rustdoc::all)]
+#[allow(warnings)]
 pub(crate) mod queries {
     include!(concat!(env!("OUT_DIR"), "/queries.rs"));
 }
