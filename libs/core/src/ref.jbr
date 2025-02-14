@@ -8,7 +8,7 @@ pub fn ref(contents: T) -> Ref[T] = Ref { contents }
 pub fn deref(Ref { contents }: Ref[T]) -> T = contents
 
 @operator.update
-pub fn update(ref: Ref[T], value: T) = ref.contents <- value
+pub fn update(ref: Ref[T], value: T) -> () = ref.contents <- value
 
-pub fn increment(ref: Ref[int]) = ref := *ref + 1
-pub fn decrement(ref: Ref[int]) = ref := *ref - 1
+pub fn increment(ref: Ref[int]) -> Ref[int] = ref := *ref + 1
+pub fn decrement(ref: Ref[int]) -> Ref[int] = ref := *ref - 1
