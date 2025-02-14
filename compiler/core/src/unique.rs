@@ -35,9 +35,15 @@ use std::{
 static COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// A unique-by-construction numeric identifier.
-#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
+#[derive(Hash, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Uid(NonZeroU64);
+
+impl std::fmt::Debug for Uid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "⟨{}⟩", self.0)
+    }
+}
 
 impl Uid {
     /// Returns a new unique [`Uid`].
