@@ -28,16 +28,16 @@
 //! **years**.
 
 use std::{
-    num::NonZeroU64,
-    sync::atomic::{AtomicU64, Ordering},
+    num::{NonZeroU32, NonZeroU64},
+    sync::atomic::{AtomicU32, Ordering},
 };
 
-static COUNTER: AtomicU64 = AtomicU64::new(1);
+static COUNTER: AtomicU32 = AtomicU32::new(1);
 
 /// A unique-by-construction numeric identifier.
 #[derive(Hash, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct Uid(NonZeroU64);
+pub struct Uid(NonZeroU32);
 
 impl std::fmt::Debug for Uid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -52,7 +52,7 @@ impl Uid {
 
         // SAFETY: COUNTER is initialized to 1, and will monotonically increase
         // for the (practical) lifetime of the program; hence raw_id is never 0
-        let uid = unsafe { NonZeroU64::new_unchecked(raw_id) };
+        let uid = unsafe { NonZeroU32::new_unchecked(raw_id) };
         Uid(uid)
     }
 }
