@@ -28,7 +28,7 @@
 //! **years**.
 
 use std::{
-    num::{NonZeroU32, NonZeroU64},
+    num::NonZeroU32,
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -45,6 +45,12 @@ impl std::fmt::Debug for Uid {
     }
 }
 
+impl From<Uid> for u32 {
+    fn from(value: Uid) -> Self {
+        value.0.into()
+    }
+}
+
 impl Uid {
     /// Returns a new unique [`Uid`].
     pub fn fresh() -> Uid {
@@ -54,6 +60,14 @@ impl Uid {
         // for the (practical) lifetime of the program; hence raw_id is never 0
         let uid = unsafe { NonZeroU32::new_unchecked(raw_id) };
         Uid(uid)
+    }
+
+    /// Directly instantiates a [`Uid`] from a `u32`.
+    ///
+    /// # Safety
+    /// `value` must be nonzero.
+    pub unsafe fn from_raw(value: u32) -> Uid {
+        Uid(unsafe { NonZeroU32::new_unchecked(value) })
     }
 }
 
