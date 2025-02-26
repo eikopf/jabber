@@ -27,8 +27,8 @@ use std::sync::Arc;
 
 use crate::{
     env::{
-        resolve::{BoundResult, ResEnv},
         Env, ModId,
+        resolve::{BoundResult, ResEnv},
     },
     symbol::Symbol,
 };
@@ -41,10 +41,11 @@ use crate::{
     },
     env::{Term, Type},
     span::{Span, SpanBox, SpanSeq, Spanned},
-    unique::Uid,
 };
 
 use super::TypedEnv;
+
+// TODO: add other lowering checks as errors
 
 #[derive(Debug, Clone)]
 pub enum TyLowerError {
@@ -166,10 +167,7 @@ fn lower_term(
         }) => (
             attrs,
             name,
-            TyReifier::reify_fn_ty_annotation(
-                params.clone(),
-                return_ty.clone(),
-            ),
+            reify_fn_ty_annotation(params.clone(), return_ty.clone()),
             ast::TermKind::Fn {
                 params: lower_params(params),
                 body: lower_expr(*body),
@@ -184,10 +182,7 @@ fn lower_term(
         }) => (
             attrs,
             name,
-            TyReifier::reify_fn_ty_annotation(
-                params.clone(),
-                return_ty.clone(),
-            ),
+            reify_fn_ty_annotation(params.clone(), return_ty.clone()),
             ast::TermKind::ExternFn {
                 params: lower_params(params),
                 return_ty,
@@ -201,7 +196,7 @@ fn lower_term(
         }) => (
             attrs,
             name,
-            TyReifier::reify_optional_ty_annotation(ty.clone()),
+            reify_option_ty(ty.clone()),
             ast::TermKind::Const {
                 ty_ast: ty,
                 value: lower_expr(value),
@@ -321,8 +316,7 @@ fn lower_expr(
             ty.with(ast::Expr::TupleField { item, field })
         }
         bound::Expr::Lambda { params, body } => {
-            let annotation =
-                TyReifier::reify_fn_ty_annotation(params.clone(), None);
+            let annotation = reify_fn_ty_annotation(params.clone(), None);
             let params = lower_params(params);
             let body = Box::new(lower_expr(*body));
 
@@ -483,114 +477,59 @@ fn lower_block_rec(
     }
 }
 
-/// A tree visitor for converting type ASTs into well-formed types.
-#[derive(Debug, Clone, Default)]
-struct TyReifier;
+// TYPE EXPRESSION REIFICATION HELPERS
 
-impl TyReifier {
-    fn reify_fn_ty_annotation(
-        parameters: SpanSeq<bound::Parameter<BoundResult>>,
-        return_ty: Option<Spanned<ast::TyAst<BoundResult>>>,
-    ) -> Arc<ast::Ty<BoundResult>> {
-        let mut reifier = TyReifier;
+fn reify_fn_ty_annotation(
+    parameters: SpanSeq<bound::Parameter<BoundResult>>,
+    return_ty: Option<Spanned<ast::TyAst<BoundResult>>>,
+) -> Arc<ast::Ty<BoundResult>> {
+    Arc::new(ast::Ty::Fn {
+        domain: parameters
+            .into_iter()
+            .map(|param| reify_option_ty(param.item.ty))
+            .collect(),
+        codomain: reify_option_ty(return_ty),
+    })
+}
 
-        let domain: Box<[Arc<_>]> = {
-            let mut tys = Vec::with_capacity(parameters.len());
-
-            for param in parameters {
-                let ty = reifier.reify_option_ty(param.item.ty);
-                tys.push(ty);
-            }
-
-            tys.into_boxed_slice()
-        };
-
-        let codomain = reifier.reify_option_ty(return_ty);
-        Arc::new(ast::Ty::Fn { domain, codomain })
+/// Reifies an _optional_ type annotation.
+///
+/// Optional types differ from other types in that, when they are absent,
+/// the resulting inferred type should be an existential type variable.
+/// This is the same behaviour as the `_` inference placeholder.
+fn reify_option_ty(
+    ast: Option<Spanned<ast::TyAst<BoundResult>>>,
+) -> Arc<ast::Ty<BoundResult>> {
+    match ast {
+        Some(ast) => reify_ty(ast),
+        None => Arc::new(ast::Ty::fresh_unbound()),
     }
+}
 
-    fn reify_optional_ty_annotation(
-        ast: Option<Spanned<ast::TyAst<BoundResult>>>,
-    ) -> Arc<ast::Ty<BoundResult>> {
-        let mut reifier = TyReifier;
-        reifier.reify_option_ty(ast)
-    }
-
-    /// Reifies an _optional_ type annotation.
-    ///
-    /// Optional types differ from other types in that, when they are absent,
-    /// the resulting inferred type should be an existential type variable.
-    /// This is the same behaviour as the `_` inference placeholder.
-    fn reify_option_ty(
-        &mut self,
-        ast: Option<Spanned<ast::TyAst<BoundResult>>>,
-    ) -> Arc<ast::Ty<BoundResult>> {
-        match ast {
-            Some(ast) => self.reify_ty(ast),
-            None => Arc::new(self.fresh_unbound_var()),
+fn reify_ty(
+    Spanned { span: _, item }: Spanned<ast::TyAst<BoundResult>>,
+) -> Arc<ast::Ty<BoundResult>> {
+    Arc::new(match item {
+        bound::Ty::Infer => ast::Ty::fresh_unbound(),
+        bound::Ty::Never => ast::Ty::Prim(ast::PrimTy::Never),
+        bound::Ty::Unit => ast::Ty::Prim(ast::PrimTy::Unit),
+        bound::Ty::Bool => ast::Ty::Prim(ast::PrimTy::Bool),
+        bound::Ty::Char => ast::Ty::Prim(ast::PrimTy::Char),
+        bound::Ty::String => ast::Ty::Prim(ast::PrimTy::String),
+        bound::Ty::Int => ast::Ty::Prim(ast::PrimTy::Int),
+        bound::Ty::Float => ast::Ty::Prim(ast::PrimTy::Float),
+        bound::Ty::Tuple(elems) => {
+            ast::Ty::Tuple(elems.into_iter().map(reify_ty).collect())
         }
-    }
-
-    fn reify_ty(
-        &mut self,
-        Spanned { span: _, item }: Spanned<ast::TyAst<BoundResult>>,
-    ) -> Arc<ast::Ty<BoundResult>> {
-        Arc::new(match item {
-            bound::Ty::Infer => self.fresh_unbound_var(),
-            bound::Ty::Never => ast::Ty::Prim(ast::PrimTy::Never),
-            bound::Ty::Unit => ast::Ty::Prim(ast::PrimTy::Unit),
-            bound::Ty::Bool => ast::Ty::Prim(ast::PrimTy::Bool),
-            bound::Ty::Char => ast::Ty::Prim(ast::PrimTy::Char),
-            bound::Ty::String => ast::Ty::Prim(ast::PrimTy::String),
-            bound::Ty::Int => ast::Ty::Prim(ast::PrimTy::Int),
-            bound::Ty::Float => ast::Ty::Prim(ast::PrimTy::Float),
-            bound::Ty::Tuple(elem_asts) => {
-                let elems = {
-                    let mut elems = Vec::with_capacity(elem_asts.len());
-
-                    for ast in elem_asts {
-                        elems.push(self.reify_ty(ast));
-                    }
-
-                    elems.into_boxed_slice()
-                };
-
-                ast::Ty::Tuple(elems)
-            }
-            bound::Ty::Named { name, args } => {
-                let args = {
-                    let mut new_args = Vec::with_capacity(args.len());
-
-                    for arg in args {
-                        new_args.push(self.reify_ty(arg));
-                    }
-
-                    new_args.into_boxed_slice()
-                };
-
-                ast::Ty::Adt { name, args }
-            }
-            bound::Ty::Fn { domain, codomain } => {
-                let domain = {
-                    let mut dom = Vec::with_capacity(domain.len());
-
-                    for ast in domain.item {
-                        dom.push(self.reify_ty(ast));
-                    }
-
-                    dom.into_boxed_slice()
-                };
-
-                let codomain = self.reify_ty(*codomain);
-
-                ast::Ty::Fn { domain, codomain }
-            }
-        })
-    }
-
-    fn fresh_unbound_var(&self) -> ast::Ty<BoundResult> {
-        ast::Ty::Exists(Uid::fresh())
-    }
+        bound::Ty::Named { name, args } => ast::Ty::Adt {
+            name,
+            args: args.into_iter().map(reify_ty).collect(),
+        },
+        bound::Ty::Fn { domain, codomain } => ast::Ty::Fn {
+            domain: domain.item.into_iter().map(reify_ty).collect(),
+            codomain: reify_ty(*codomain),
+        },
+    })
 }
 
 #[cfg(test)]
