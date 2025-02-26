@@ -353,6 +353,18 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
 }
 
 impl<Te, Ty, I> Env<Te, Ty, I> {
+    // typed index iterators
+
+    pub fn term_id_iter(&self) -> impl Iterator<Item = TermId> + 'static {
+        (0..self.terms.len()).map(TermId)
+    }
+
+    pub fn type_id_iter(&self) -> impl Iterator<Item = TypeId> + 'static {
+        (0..self.types.len()).map(TypeId)
+    }
+
+    // generic getters
+
     pub fn get_root_module(&self, package: Symbol) -> &Module<I> {
         self.get_module(self.get_package(package).root_module)
     }
