@@ -215,18 +215,15 @@ fn lower_term(
 fn lower_params(
     params: SpanSeq<bound::Parameter<BoundResult>>,
 ) -> SpanSeq<ast::Parameter<BoundResult>> {
-    let mut new_params = Vec::with_capacity(params.len());
-
-    for Spanned { item, span } in params {
-        let param = ast::Parameter {
-            pattern: item.pattern,
-            ty_ast: item.ty,
-        };
-
-        new_params.push(span.with(param));
-    }
-
-    new_params.into_boxed_slice()
+    params
+        .into_iter()
+        .map(|Spanned { item, span }| {
+            span.with(ast::Parameter {
+                pattern: item.pattern,
+                ty_ast: item.ty,
+            })
+        })
+        .collect()
 }
 
 fn lower_expr(
@@ -254,31 +251,19 @@ fn lower_expr(
 
             ty.with(ast::Expr::Literal(literal_expr))
         }
-        bound::Expr::List(untyped_elems) => {
+        bound::Expr::List(elems) => {
             // NOTE: we could get a more precise type here by threading the
             // TypeId of core.list.List through as a parameter of lower_expr,
             // but it's less awkward to do this later during full typechecking
 
-            let mut elems = Vec::with_capacity(untyped_elems.len());
-
-            for elem in untyped_elems {
-                let elem = lower_expr(elem);
-                elems.push(elem);
-            }
-
+            let elems = elems.into_iter().map(lower_expr).collect();
             let ty = Arc::new(ast::Ty::fresh_unbound());
-            ty.with(ast::Expr::List(elems.into_boxed_slice()))
+            ty.with(ast::Expr::List(elems))
         }
-        bound::Expr::Tuple(untyped_elems) => {
-            let mut elems = Vec::with_capacity(untyped_elems.len());
-
-            for elem in untyped_elems {
-                let elem = lower_expr(elem);
-                elems.push(elem);
-            }
-
+        bound::Expr::Tuple(elems) => {
+            let elems = elems.into_iter().map(lower_expr).collect::<Box<[_]>>();
             let ty = Arc::new(ast::Ty::fresh_unbound_tuple(elems.len()));
-            ty.with(ast::Expr::Tuple(elems.into_boxed_slice()))
+            ty.with(ast::Expr::Tuple(elems))
         }
         bound::Expr::Block(block) => {
             lower_block_rec(block.statements.as_ref(), block.return_expr)
@@ -288,19 +273,20 @@ fn lower_expr(
             fields: untyped_fields,
             base,
         } => {
-            let mut fields = Vec::with_capacity(untyped_fields.len());
+            let fields = untyped_fields
+                .into_iter()
+                .map(
+                    |Spanned {
+                         span,
+                         item: bound::RecordExprField { field, value },
+                     }| {
+                        let value = lower_expr(value);
+                        let field = ast::RecordExprField { field, value };
+                        span.with(field)
+                    },
+                )
+                .collect();
 
-            for Spanned {
-                item: bound::RecordExprField { field, value },
-                span,
-            } in untyped_fields
-            {
-                let value = lower_expr(value);
-                let field = ast::RecordExprField { field, value };
-                fields.push(span.with(field));
-            }
-
-            let fields = fields.into_boxed_slice();
             let base = base.map(|base| lower_expr(*base)).map(Box::new);
             let ty = Arc::new(ast::Ty::fresh_unbound());
             ty.with(ast::Expr::RecordConstr { name, fields, base })
@@ -329,18 +315,7 @@ fn lower_expr(
         }
         bound::Expr::Call { callee, args, kind } => {
             let callee = Box::new(lower_expr(*callee));
-
-            let args = {
-                let mut typed_args = Vec::with_capacity(args.len());
-
-                for arg in args {
-                    let arg = lower_expr(arg);
-                    typed_args.push(arg);
-                }
-
-                typed_args.into_boxed_slice()
-            };
-
+            let args = args.into_iter().map(lower_expr).collect();
             let ty = Arc::new(ast::Ty::fresh_unbound());
             ty.with(ast::Expr::Call { callee, args, kind })
         }
@@ -372,20 +347,22 @@ fn lower_expr(
             scrutinee,
             arms: untyped_arms,
         } => {
-            let mut arms = Vec::with_capacity(untyped_arms.len());
-
-            for Spanned {
-                item: bound::MatchArm { pattern, body },
-                span,
-            } in untyped_arms
-            {
-                let body = lower_expr(body);
-                let arm = ast::MatchArm { pattern, body };
-                arms.push(span.with(arm));
-            }
-
             let scrutinee = Box::new(lower_expr(*scrutinee));
-            let arms = arms.into_boxed_slice();
+
+            let arms = untyped_arms
+                .into_iter()
+                .map(
+                    |Spanned {
+                         span,
+                         item: bound::MatchArm { pattern, body },
+                     }| {
+                        let body = lower_expr(body);
+                        let arm = ast::MatchArm { pattern, body };
+                        span.with(arm)
+                    },
+                )
+                .collect();
+
             let ty = Arc::new(ast::Ty::fresh_unbound());
             ty.with(ast::Expr::Match { scrutinee, arms })
         }
