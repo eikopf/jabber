@@ -498,7 +498,7 @@ fn reify_ty(
         bound::Ty::Tuple(elems) => {
             ast::Ty::Tuple(elems.into_iter().map(reify_ty).collect())
         }
-        bound::Ty::Named { name, args } => ast::Ty::Adt {
+        bound::Ty::Named { name, args } => ast::Ty::Named {
             name,
             args: args.into_iter().map(reify_ty).collect(),
         },
