@@ -28,6 +28,11 @@ pub use super::bound::{
 
 // DECLARATIONS
 
+// TODO: type declarations also need to get a pass during the lowering stage,
+// and Adt/Alias declarations need to store types for their constructors or
+// synonym (these types must be concrete, and universally quantified variables
+// must be bound by corresponding type parameters in the declaration).
+
 /// A type declaration.
 ///
 /// Based on the value of `kind`, this struct will represent either an ADT,
@@ -194,8 +199,8 @@ pub enum Ty<N = TypeId, V = Uid> {
     Forall(V),
     /// A product of at least two types.
     Tuple(Box<[Arc<Self>]>),
-    /// An algebraic data type (ADT) with 0 or more arguments.
-    Adt { name: N, args: Box<[Arc<Self>]> },
+    /// A named type with 0 or more arguments.
+    Named { name: N, args: Box<[Arc<Self>]> },
     /// A function type with a domain of arbitrary arity.
     Fn {
         domain: Box<[Arc<Self>]>,
@@ -219,8 +224,8 @@ impl<N: Debug, V: Debug> Debug for Ty<N, V> {
 
                 write!(f, ")")
             }
-            Ty::Adt { name, args } => {
-                write!(f, "ADT({:?})", name)?;
+            Ty::Named { name, args } => {
+                write!(f, "NAME({:?})", name)?;
 
                 if let Some((first, tail)) = args.split_first() {
                     write!(f, "[{:?}", first)?;
@@ -281,7 +286,9 @@ impl<N, V: std::hash::Hash + Eq> Ty<N, V> {
             Ty::Prim(_) | Ty::Forall(_) => true,
             Ty::Exists(_) => false,
             Ty::Tuple(items) => items.iter().all(|ty| ty.is_concrete()),
-            Ty::Adt { name: _, args } => args.iter().all(|ty| ty.is_concrete()),
+            Ty::Named { name: _, args } => {
+                args.iter().all(|ty| ty.is_concrete())
+            }
             Ty::Fn { domain, codomain } => {
                 domain.iter().all(|ty| ty.is_concrete())
                     && codomain.is_concrete()
