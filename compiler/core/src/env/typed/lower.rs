@@ -23,16 +23,19 @@
 //! variables).
 //!
 
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
-use crate::env::{
-    resolve::{BoundResult, ResEnv},
-    Env,
+use crate::{
+    env::{
+        resolve::{BoundResult, ResEnv},
+        Env, ModId,
+    },
+    symbol::Symbol,
 };
 
 use crate::{
     ast::{
-        bound::{self, Bound},
+        bound,
         common::Vis,
         typed::{self as ast, Typed},
     },
@@ -43,6 +46,11 @@ use crate::{
 
 use super::TypedEnv;
 
+#[derive(Debug, Clone)]
+pub enum TyLowerError {
+    NonConcretePubTermTy { name: Symbol, module: ModId },
+}
+
 pub fn lower(
     Env {
         files,
@@ -52,7 +60,7 @@ pub fn lower(
         types: untyped_types,
         interner,
     }: ResEnv,
-) -> (TypedEnv, Vec<ast::TyError>) {
+) -> (TypedEnv, Vec<TyLowerError>) {
     let types = {
         let mut types = Vec::with_capacity(untyped_types.len());
 
@@ -70,7 +78,7 @@ pub fn lower(
         let mut terms = Vec::with_capacity(untyped_terms.len());
 
         for Term { name, module, ast } in untyped_terms {
-            let ast = lower_term(ast, &mut errors);
+            let ast = lower_term(ast);
 
             let is_public =
                 // SAFETY: the `modules` vec and `module` id come from
@@ -82,7 +90,7 @@ pub fn lower(
                     .unwrap_or(false);
 
             if !ast.ty.is_concrete() && is_public {
-                let error = ast::TyError::NonConcretePubTermTy { name, module };
+                let error = TyLowerError::NonConcretePubTermTy { name, module };
                 errors.push(error);
             }
 
@@ -147,7 +155,6 @@ fn lower_type(
 
 fn lower_term(
     Spanned { item, span }: Spanned<bound::Term<BoundResult>>,
-    errors: &mut Vec<ast::TyError>,
 ) -> Spanned<ast::Term<BoundResult>> {
     let (attrs, name, ty, kind) = match item {
         bound::Term::Fn(bound::Fn {
@@ -162,11 +169,10 @@ fn lower_term(
             TyReifier::reify_fn_ty_annotation(
                 params.clone(),
                 return_ty.clone(),
-                errors,
             ),
             ast::TermKind::Fn {
                 params: lower_params(params),
-                body: lower_expr(*body, errors),
+                body: lower_expr(*body),
                 return_ty,
             },
         ),
@@ -181,7 +187,6 @@ fn lower_term(
             TyReifier::reify_fn_ty_annotation(
                 params.clone(),
                 return_ty.clone(),
-                errors,
             ),
             ast::TermKind::ExternFn {
                 params: lower_params(params),
@@ -196,10 +201,10 @@ fn lower_term(
         }) => (
             attrs,
             name,
-            TyReifier::reify_option_ty(ty.clone(), errors),
+            TyReifier::reify_optional_ty_annotation(ty.clone()),
             ast::TermKind::Const {
                 ty_ast: ty,
-                value: lower_expr(value, errors),
+                value: lower_expr(value),
             },
         ),
     };
@@ -231,7 +236,6 @@ fn lower_params(
 
 fn lower_expr(
     Spanned { item, span }: Spanned<bound::Expr<BoundResult>>,
-    errors: &mut Vec<ast::TyError>,
 ) -> Spanned<Typed<ast::Expr<BoundResult>, BoundResult>> {
     span.with(match item {
         bound::Expr::Name(name) => {
@@ -239,33 +243,19 @@ fn lower_expr(
             ty.with(ast::Expr::Name(name))
         }
         bound::Expr::Literal(literal_expr) => {
-            let matrix = match &literal_expr {
-                ast::LiteralExpr::Unit => {
-                    ast::TyMatrix::Prim(ast::PrimTy::Unit)
-                }
-                ast::LiteralExpr::Bool(_) => {
-                    ast::TyMatrix::Prim(ast::PrimTy::Bool)
-                }
-                ast::LiteralExpr::Char(_) => {
-                    ast::TyMatrix::Prim(ast::PrimTy::Char)
-                }
-                ast::LiteralExpr::String(_) => {
-                    ast::TyMatrix::Prim(ast::PrimTy::String)
-                }
-                ast::LiteralExpr::Int(_) => {
-                    ast::TyMatrix::Prim(ast::PrimTy::Int)
-                }
-                ast::LiteralExpr::Float(_) => {
-                    ast::TyMatrix::Prim(ast::PrimTy::Float)
-                }
-                ast::LiteralExpr::Malformed(_) => ast::TyMatrix::Poison,
-            };
-
-            let ty = Arc::new(ast::Ty {
-                vars: Default::default(),
-                poisoned: matches!(matrix, ast::TyMatrix::Poison),
-                matrix,
-            });
+            let ty = Arc::new(ast::Ty::Prim(match &literal_expr {
+                ast::LiteralExpr::Unit => ast::PrimTy::Unit,
+                ast::LiteralExpr::Bool(_) => ast::PrimTy::Bool,
+                ast::LiteralExpr::Char(_) => ast::PrimTy::Char,
+                ast::LiteralExpr::String(_) => ast::PrimTy::String,
+                ast::LiteralExpr::Int(_) => ast::PrimTy::Int,
+                ast::LiteralExpr::Float(_) => ast::PrimTy::Float,
+                ast::LiteralExpr::Malformed(lit) => match lit {
+                    bound::MalformedLiteral::Char => ast::PrimTy::Char,
+                    bound::MalformedLiteral::String => ast::PrimTy::String,
+                    bound::MalformedLiteral::Int => ast::PrimTy::Int,
+                },
+            }));
 
             ty.with(ast::Expr::Literal(literal_expr))
         }
@@ -277,7 +267,7 @@ fn lower_expr(
             let mut elems = Vec::with_capacity(untyped_elems.len());
 
             for elem in untyped_elems {
-                let elem = lower_expr(elem, errors);
+                let elem = lower_expr(elem);
                 elems.push(elem);
             }
 
@@ -288,18 +278,16 @@ fn lower_expr(
             let mut elems = Vec::with_capacity(untyped_elems.len());
 
             for elem in untyped_elems {
-                let elem = lower_expr(elem, errors);
+                let elem = lower_expr(elem);
                 elems.push(elem);
             }
 
             let ty = Arc::new(ast::Ty::fresh_unbound_tuple(elems.len()));
             ty.with(ast::Expr::Tuple(elems.into_boxed_slice()))
         }
-        bound::Expr::Block(block) => lower_block_rec(
-            block.statements.as_ref(),
-            block.return_expr,
-            errors,
-        ),
+        bound::Expr::Block(block) => {
+            lower_block_rec(block.statements.as_ref(), block.return_expr)
+        }
         bound::Expr::RecordConstr {
             name,
             fields: untyped_fields,
@@ -312,31 +300,31 @@ fn lower_expr(
                 span,
             } in untyped_fields
             {
-                let value = lower_expr(value, errors);
+                let value = lower_expr(value);
                 let field = ast::RecordExprField { field, value };
                 fields.push(span.with(field));
             }
 
             let fields = fields.into_boxed_slice();
-            let base = base.map(|base| lower_expr(*base, errors)).map(Box::new);
+            let base = base.map(|base| lower_expr(*base)).map(Box::new);
             let ty = Arc::new(ast::Ty::fresh_unbound());
             ty.with(ast::Expr::RecordConstr { name, fields, base })
         }
         bound::Expr::RecordField { item, field } => {
-            let item = Box::new(lower_expr(*item, errors));
+            let item = Box::new(lower_expr(*item));
             let ty = Arc::new(ast::Ty::fresh_unbound());
             ty.with(ast::Expr::RecordField { item, field })
         }
         bound::Expr::TupleField { item, field } => {
-            let item = Box::new(lower_expr(*item, errors));
+            let item = Box::new(lower_expr(*item));
             let ty = Arc::new(ast::Ty::fresh_unbound());
             ty.with(ast::Expr::TupleField { item, field })
         }
         bound::Expr::Lambda { params, body } => {
             let annotation =
-                TyReifier::reify_fn_ty_annotation(params.clone(), None, errors);
+                TyReifier::reify_fn_ty_annotation(params.clone(), None);
             let params = lower_params(params);
-            let body = Box::new(lower_expr(*body, errors));
+            let body = Box::new(lower_expr(*body));
 
             let ty = Arc::new(ast::Ty::fresh_unbound_fn(params.len()));
             ty.with(ast::Expr::Lambda {
@@ -346,13 +334,13 @@ fn lower_expr(
             })
         }
         bound::Expr::Call { callee, args, kind } => {
-            let callee = Box::new(lower_expr(*callee, errors));
+            let callee = Box::new(lower_expr(*callee));
 
             let args = {
                 let mut typed_args = Vec::with_capacity(args.len());
 
                 for arg in args {
-                    let arg = lower_expr(arg, errors);
+                    let arg = lower_expr(arg);
                     typed_args.push(arg);
                 }
 
@@ -364,26 +352,26 @@ fn lower_expr(
         }
         bound::Expr::LazyAnd { operator, lhs, rhs } => {
             let operator = operator.with(ast::BuiltinOperator::LazyAnd);
-            let lhs = Box::new(lower_expr(*lhs, errors));
-            let rhs = Box::new(lower_expr(*rhs, errors));
+            let lhs = Box::new(lower_expr(*lhs));
+            let rhs = Box::new(lower_expr(*rhs));
 
-            let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Bool));
+            let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Bool));
             ty.with(ast::Expr::Builtin { operator, lhs, rhs })
         }
         bound::Expr::LazyOr { operator, lhs, rhs } => {
             let operator = operator.with(ast::BuiltinOperator::LazyOr);
-            let lhs = Box::new(lower_expr(*lhs, errors));
-            let rhs = Box::new(lower_expr(*rhs, errors));
+            let lhs = Box::new(lower_expr(*lhs));
+            let rhs = Box::new(lower_expr(*rhs));
 
-            let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Bool));
+            let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Bool));
             ty.with(ast::Expr::Builtin { operator, lhs, rhs })
         }
         bound::Expr::Mutate { operator, lhs, rhs } => {
             let operator = operator.with(ast::BuiltinOperator::Mutate);
-            let lhs = Box::new(lower_expr(*lhs, errors));
-            let rhs = Box::new(lower_expr(*rhs, errors));
+            let lhs = Box::new(lower_expr(*lhs));
+            let rhs = Box::new(lower_expr(*rhs));
 
-            let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
+            let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Unit));
             ty.with(ast::Expr::Builtin { operator, lhs, rhs })
         }
         bound::Expr::Match {
@@ -397,12 +385,12 @@ fn lower_expr(
                 span,
             } in untyped_arms
             {
-                let body = lower_expr(body, errors);
+                let body = lower_expr(body);
                 let arm = ast::MatchArm { pattern, body };
                 arms.push(span.with(arm));
             }
 
-            let scrutinee = Box::new(lower_expr(*scrutinee, errors));
+            let scrutinee = Box::new(lower_expr(*scrutinee));
             let arms = arms.into_boxed_slice();
             let ty = Arc::new(ast::Ty::fresh_unbound());
             ty.with(ast::Expr::Match { scrutinee, arms })
@@ -419,7 +407,6 @@ fn lower_expr(
                 body: consequence.span.with(lower_block_rec(
                     consequence.statements.as_ref(),
                     consequence.return_expr.clone(),
-                    errors,
                 )),
             });
 
@@ -437,14 +424,13 @@ fn lower_expr(
                             lower_block_rec(
                                 b.statements.as_ref(),
                                 b.return_expr.clone(),
-                                errors,
                             )
                         })
                         .unwrap_or_else(generate_unit_expr),
                 ),
             });
 
-            let scrutinee = Box::new(lower_expr(*condition, errors));
+            let scrutinee = Box::new(lower_expr(*condition));
             let arms = std::iter::once(consequence)
                 .chain(std::iter::once(alternative))
                 .collect::<Box<[_]>>();
@@ -456,29 +442,28 @@ fn lower_expr(
 }
 
 fn generate_unit_expr() -> Typed<ast::Expr<BoundResult>, BoundResult> {
-    let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
+    let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Unit));
     ty.with(ast::Expr::Literal(ast::LiteralExpr::Unit))
 }
 
 fn lower_block_rec(
     stmts: &[Spanned<bound::Stmt<BoundResult>>],
     body: Option<SpanBox<bound::Expr<BoundResult>>>,
-    errors: &mut Vec<ast::TyError>,
 ) -> Typed<ast::Expr<BoundResult>, BoundResult> {
     match stmts {
         [] => match body {
-            Some(expr) => lower_expr(*expr, errors).item,
+            Some(expr) => lower_expr(*expr).item,
             None => {
-                let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
+                let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Unit));
                 ty.with(ast::Expr::Literal(ast::LiteralExpr::Unit))
             }
         },
         [Spanned { item, span }, tail @ ..] => match item {
-            bound::Stmt::Empty => lower_block_rec(tail, body, errors),
+            bound::Stmt::Empty => lower_block_rec(tail, body),
             bound::Stmt::Expr(expr) => {
                 let lhs = None;
-                let rhs = Box::new(lower_expr(span.with(expr.clone()), errors));
-                let body = Box::new(lower_block_rec(tail, body, errors));
+                let rhs = Box::new(lower_expr(span.with(expr.clone())));
+                let body = Box::new(lower_block_rec(tail, body));
 
                 let ty = body.ty.clone();
                 ty.with(ast::Expr::LetIn { lhs, rhs, body })
@@ -488,8 +473,8 @@ fn lower_block_rec(
                     pattern: pattern.clone(),
                     ty_ast: ty.clone(),
                 });
-                let rhs = Box::new(lower_expr(value.clone(), errors));
-                let body = Box::new(lower_block_rec(tail, body, errors));
+                let rhs = Box::new(lower_expr(value.clone()));
+                let body = Box::new(lower_block_rec(tail, body));
 
                 let ty = body.ty.clone();
                 ty.with(ast::Expr::LetIn { lhs, rhs, body })
@@ -500,59 +485,35 @@ fn lower_block_rec(
 
 /// A tree visitor for converting type ASTs into well-formed types.
 #[derive(Debug, Clone, Default)]
-struct TyReifier {
-    vars: Vec<Uid>,
-    errors: Vec<ast::TyError>,
-    poisoned: bool,
-}
+struct TyReifier;
 
 impl TyReifier {
-    fn reify_option_ty(
-        ast: Option<Spanned<ast::TyAst<BoundResult>>>,
-        errors: &mut Vec<ast::TyError>,
-    ) -> ast::Ty {
-        let mut reifier = TyReifier::default();
-        let matrix = reifier.reify_option_matrix(ast);
-        reifier.quantify_matrix(matrix, errors)
-    }
-
     fn reify_fn_ty_annotation(
         parameters: SpanSeq<bound::Parameter<BoundResult>>,
         return_ty: Option<Spanned<ast::TyAst<BoundResult>>>,
-        errors: &mut Vec<ast::TyError>,
-    ) -> ast::Ty {
-        let mut reifier = TyReifier::default();
+    ) -> Arc<ast::Ty<BoundResult>> {
+        let mut reifier = TyReifier;
 
-        let domain: Box<[ast::TyMatrix]> = {
+        let domain: Box<[Arc<_>]> = {
             let mut tys = Vec::with_capacity(parameters.len());
 
             for param in parameters {
-                let ty = reifier.reify_option_matrix(param.item.ty);
+                let ty = reifier.reify_option_ty(param.item.ty);
                 tys.push(ty);
             }
 
             tys.into_boxed_slice()
         };
 
-        let codomain = Box::new(reifier.reify_option_matrix(return_ty));
-        let matrix = ast::TyMatrix::Fn { domain, codomain };
-        reifier.quantify_matrix(matrix, errors)
+        let codomain = reifier.reify_option_ty(return_ty);
+        Arc::new(ast::Ty::Fn { domain, codomain })
     }
 
-    /// Consume self and an [`ast::TyMatrix`] to yield an [`ast::Ty`].
-    fn quantify_matrix(
-        mut self,
-        matrix: ast::TyMatrix,
-        errors: &mut Vec<ast::TyError>,
-    ) -> ast::Ty {
-        // move errors into the passed buffer
-        errors.append(&mut self.errors);
-
-        ast::Ty {
-            vars: self.vars.into_iter().collect::<HashSet<_>>(),
-            poisoned: self.poisoned,
-            matrix,
-        }
+    fn reify_optional_ty_annotation(
+        ast: Option<Spanned<ast::TyAst<BoundResult>>>,
+    ) -> Arc<ast::Ty<BoundResult>> {
+        let mut reifier = TyReifier;
+        reifier.reify_option_ty(ast)
     }
 
     /// Reifies an _optional_ type annotation.
@@ -560,107 +521,75 @@ impl TyReifier {
     /// Optional types differ from other types in that, when they are absent,
     /// the resulting inferred type should be an existential type variable.
     /// This is the same behaviour as the `_` inference placeholder.
-    fn reify_option_matrix(
+    fn reify_option_ty(
         &mut self,
-        matrix: Option<Spanned<ast::TyAst<BoundResult>>>,
-    ) -> ast::TyMatrix {
-        match matrix {
-            Some(ast) => self.reify_matrix(ast),
-            None => self.fresh_unbound_var(),
+        ast: Option<Spanned<ast::TyAst<BoundResult>>>,
+    ) -> Arc<ast::Ty<BoundResult>> {
+        match ast {
+            Some(ast) => self.reify_ty(ast),
+            None => Arc::new(self.fresh_unbound_var()),
         }
     }
 
-    fn reify_matrix(
+    fn reify_ty(
         &mut self,
-        Spanned { span, item }: Spanned<ast::TyAst<BoundResult>>,
-    ) -> ast::TyMatrix {
-        match item {
+        Spanned { span: _, item }: Spanned<ast::TyAst<BoundResult>>,
+    ) -> Arc<ast::Ty<BoundResult>> {
+        Arc::new(match item {
             bound::Ty::Infer => self.fresh_unbound_var(),
-            bound::Ty::Never => ast::TyMatrix::Prim(ast::PrimTy::Never),
-            bound::Ty::Unit => ast::TyMatrix::Prim(ast::PrimTy::Unit),
-            bound::Ty::Bool => ast::TyMatrix::Prim(ast::PrimTy::Bool),
-            bound::Ty::Char => ast::TyMatrix::Prim(ast::PrimTy::Char),
-            bound::Ty::String => ast::TyMatrix::Prim(ast::PrimTy::String),
-            bound::Ty::Int => ast::TyMatrix::Prim(ast::PrimTy::Int),
-            bound::Ty::Float => ast::TyMatrix::Prim(ast::PrimTy::Float),
+            bound::Ty::Never => ast::Ty::Prim(ast::PrimTy::Never),
+            bound::Ty::Unit => ast::Ty::Prim(ast::PrimTy::Unit),
+            bound::Ty::Bool => ast::Ty::Prim(ast::PrimTy::Bool),
+            bound::Ty::Char => ast::Ty::Prim(ast::PrimTy::Char),
+            bound::Ty::String => ast::Ty::Prim(ast::PrimTy::String),
+            bound::Ty::Int => ast::Ty::Prim(ast::PrimTy::Int),
+            bound::Ty::Float => ast::Ty::Prim(ast::PrimTy::Float),
             bound::Ty::Tuple(elem_asts) => {
                 let elems = {
                     let mut elems = Vec::with_capacity(elem_asts.len());
 
                     for ast in elem_asts {
-                        elems.push(self.reify_matrix(ast));
+                        elems.push(self.reify_ty(ast));
                     }
 
                     elems.into_boxed_slice()
                 };
 
-                ast::TyMatrix::Tuple(elems)
+                ast::Ty::Tuple(elems)
             }
-            bound::Ty::Named {
-                name: Err(name), ..
-            } => {
-                let error = ast::TyError::NoSuchName { name, span };
-                self.errors.push(error);
-                self.poisoned = true;
-                ast::TyMatrix::Poison
-            }
-            bound::Ty::Named {
-                name: Ok(name),
-                args,
-            } => {
-                match name {
-                    // error case: ∀T, U. T[U]
-                    Bound::Local(name) if !args.is_empty() => {
-                        let error = ast::TyError::TyVarWithArgs { name, span };
-                        self.errors.push(error);
-                        self.poisoned = true;
-                        ast::TyMatrix::Poison
+            bound::Ty::Named { name, args } => {
+                let args = {
+                    let mut new_args = Vec::with_capacity(args.len());
+
+                    for arg in args {
+                        new_args.push(self.reify_ty(arg));
                     }
-                    Bound::Local(name) => {
-                        self.vars.push(name.id);
-                        ast::TyMatrix::Var(name.id)
-                    }
-                    name => {
-                        let args = {
-                            let mut new_args = Vec::with_capacity(args.len());
 
-                            for arg in args {
-                                new_args.push(self.reify_matrix(arg));
-                            }
+                    new_args.into_boxed_slice()
+                };
 
-                            new_args.into_boxed_slice()
-                        };
-
-                        let name = name
-                            .as_res()
-                            .unwrap()
-                            .as_type()
-                            .expect("definitely referenced by TypeId");
-
-                        ast::TyMatrix::Adt { name, args }
-                    }
-                }
+                ast::Ty::Adt { name, args }
             }
             bound::Ty::Fn { domain, codomain } => {
                 let domain = {
                     let mut dom = Vec::with_capacity(domain.len());
 
                     for ast in domain.item {
-                        dom.push(self.reify_matrix(ast));
+                        dom.push(self.reify_ty(ast));
                     }
 
                     dom.into_boxed_slice()
                 };
 
-                let codomain = Box::new(self.reify_matrix(*codomain));
+                let codomain = self.reify_ty(*codomain);
 
-                ast::TyMatrix::Fn { domain, codomain }
+                ast::Ty::Fn { domain, codomain }
             }
-        }
+        })
     }
 
-    fn fresh_unbound_var(&self) -> ast::TyMatrix {
-        ast::TyMatrix::Var(Uid::fresh())
+    fn fresh_unbound_var(&self) -> ast::Ty<BoundResult> {
+        ast::Ty::Exists(Uid::fresh())
     }
 }
 
@@ -711,7 +640,7 @@ mod tests {
         let env = resolve(env, &mut warnings, &mut errors);
 
         // lower to typed env
-        let (mut env, ty_errors) = super::lower(env);
+        let (mut env, lower_errors) = super::lower(env);
 
         // REF MODULE INSPECTION
 
@@ -728,6 +657,6 @@ mod tests {
             eprintln!("{} ({:?})\n{:?}\n\n", name, res, res_value);
         }
 
-        dbg![ty_errors.len()];
+        dbg![lower_errors.len()];
     }
 }

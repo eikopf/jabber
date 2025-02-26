@@ -11,13 +11,10 @@
 //! necessarily reflect any kind of syntactic information in the source code,
 //! but are instead purely logical constructs used to reason about the code.
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
-    env::{ModId, Res, TypeId},
+    env::{Res, TypeId},
     span::{Span, SpanBox, SpanSeq, Spanned},
     symbol::Symbol,
     unique::Uid,
@@ -61,7 +58,7 @@ pub enum TypeKind<N = Bound> {
 pub struct Term<N = Bound, V = Uid, A = ResAttr> {
     pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
-    pub ty: Ty<TypeId, V>,
+    pub ty: Arc<Ty<N, V>>,
     pub kind: TermKind<N, V>,
 }
 
@@ -109,7 +106,7 @@ pub enum Expr<N = Bound, V = Uid> {
         field: Spanned<Option<u32>>,
     },
     Lambda {
-        annotation: Ty<TypeId, Uid>,
+        annotation: Arc<Ty<N, V>>,
         params: SpanSeq<Parameter<N>>,
         body: TySpanBox<Self, N, V>,
     },
@@ -185,29 +182,85 @@ impl<T, N, V> std::ops::Deref for Typed<T, N, V> {
     }
 }
 
-/// A prenex type consisting of universally quantified type variables and
-/// a subject matrix.
-///
-/// # Semantics
-/// A [`Ty`] is called _concrete_ if every type variable in the `matrix` field
-/// is quantified in the `vars` field. A type variable which is not quantified
-/// in this manner is an _existential_ type variable, and represents an unknown
-/// type which must be found during type checking.
-///
-/// Both the size of tuple types and the arity of function types are fixed and
-/// cannot vary during typechecking. This is fine from an implementation
-/// perspective, since these values can be inferred statically during lowering.
-///
-/// # Poisoning
-/// A [`Ty`] whose `poisoned` field is `true` is called _poisoned_; this flag
-/// is set whenever an irrecoverable error is present within the struct. Such
-/// instances are undefined within the type system, and typechecking *must*
-/// fail overall if any are present.
+/// A type with names of type `N` and variables of type `V`. Recursive variants
+/// are stored with [`Arc`] so cloning can be cheap during unification.
 #[derive(Clone)]
-pub struct Ty<N = TypeId, V = Uid> {
-    pub vars: HashSet<V>,
-    pub matrix: TyMatrix<N, V>,
-    pub poisoned: bool,
+pub enum Ty<N = TypeId, V = Uid> {
+    /// A primitive type.
+    Prim(PrimTy),
+    /// An existentially-quantified type.
+    Exists(V),
+    /// A universally-quantified type.
+    Forall(V),
+    /// A product of at least two types.
+    Tuple(Box<[Arc<Self>]>),
+    /// An algebraic data type (ADT) with 0 or more arguments.
+    Adt { name: N, args: Box<[Arc<Self>]> },
+    /// A function type with a domain of arbitrary arity.
+    Fn {
+        domain: Box<[Arc<Self>]>,
+        codomain: Arc<Self>,
+    },
+}
+
+impl<N: Debug, V: Debug> Debug for Ty<N, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Ty::Prim(prim_ty) => write!(f, "{:?}", prim_ty),
+            Ty::Exists(var) => write!(f, "∃{:?}", var),
+            Ty::Forall(var) => write!(f, "∀{:?}", var),
+            Ty::Tuple(items) => {
+                let (first, tail) = items.split_first().unwrap();
+                write!(f, "({:?}", first)?;
+
+                for elem in tail {
+                    write!(f, ", {:?}", elem)?;
+                }
+
+                write!(f, ")")
+            }
+            Ty::Adt { name, args } => {
+                write!(f, "ADT({:?})", name)?;
+
+                if let Some((first, tail)) = args.split_first() {
+                    write!(f, "[{:?}", first)?;
+
+                    for arg in tail {
+                        write!(f, ", {:?}", arg)?;
+                    }
+
+                    write!(f, "]")?;
+                }
+
+                Ok(())
+            }
+            Ty::Fn { domain, codomain } => {
+                match domain.as_ref() {
+                    [] => write!(f, "()"),
+                    [param] => {
+                        if matches!(param.as_ref(), Ty::Tuple(_)) {
+                            // tuples need special handling when they
+                            // occur as unary function parameters
+                            write!(f, "({:?},)", param)
+                        } else {
+                            write!(f, "{:?}", param)
+                        }
+                    }
+                    [first, tail @ ..] => {
+                        write!(f, "({:?}", first)?;
+
+                        for param in tail {
+                            write!(f, ", {:?}", param)?;
+                        }
+
+                        write!(f, ")")
+                    }
+                }?;
+
+                write!(f, " -> {:?}", codomain)
+            }
+        }
+    }
 }
 
 impl<N, V> Ty<N, V> {
@@ -218,202 +271,58 @@ impl<N, V> Ty<N, V> {
             ty: self.clone(),
         }
     }
-
-    /// Constructs a [`Ty`] corresponding to the given primitive type.
-    pub fn prim(ty: PrimTy) -> Self {
-        Ty {
-            matrix: TyMatrix::Prim(ty),
-            vars: Default::default(),
-            poisoned: false,
-        }
-    }
 }
 
 impl<N, V: std::hash::Hash + Eq> Ty<N, V> {
     /// Returns `true` if and only if `self` does not contain unquantified
     /// (i.e. existential) type variables.
     pub fn is_concrete(&self) -> bool {
-        fn rec<N, V: std::hash::Hash + Eq>(
-            matrix: &TyMatrix<N, V>,
-            vars: &HashSet<V>,
-        ) -> bool {
-            match matrix {
-                TyMatrix::Prim(_) | TyMatrix::Poison => true,
-                TyMatrix::Var(var) => vars.contains(var),
-                TyMatrix::Tuple(items) => {
-                    items.iter().all(|matrix| rec(matrix, vars))
-                }
-                TyMatrix::Adt { args, .. } => {
-                    args.iter().all(|matrix| rec(matrix, vars))
-                }
-                TyMatrix::Fn { domain, codomain } => {
-                    domain.iter().all(|matrix| rec(matrix, vars))
-                        && rec(codomain, vars)
-                }
+        match self {
+            Ty::Prim(_) | Ty::Forall(_) => true,
+            Ty::Exists(_) => false,
+            Ty::Tuple(items) => items.iter().all(|ty| ty.is_concrete()),
+            Ty::Adt { name: _, args } => args.iter().all(|ty| ty.is_concrete()),
+            Ty::Fn { domain, codomain } => {
+                domain.iter().all(|ty| ty.is_concrete())
+                    && codomain.is_concrete()
             }
         }
-
-        rec(&self.matrix, &self.vars)
     }
 }
 
 impl<N> Ty<N, Uid> {
-    /// Returns a type consisting of a single unbound type variable
-    /// guaranteed to not already be bound. Effectively, this is an
-    /// existential type variable that can be freely unified.
     pub fn fresh_unbound() -> Self {
-        let uid = Uid::fresh();
-        Self {
-            vars: Default::default(),
-            matrix: TyMatrix::Var(uid),
-            poisoned: false,
-        }
+        Self::Exists(Uid::fresh())
     }
 
     pub fn fresh_unbound_tuple(len: usize) -> Self {
         let mut elems = Vec::with_capacity(len);
 
         for _ in 0..len {
-            let uid = Uid::fresh();
-            elems.push(TyMatrix::Var(uid));
+            let elem = Arc::new(Self::fresh_unbound());
+            elems.push(elem);
         }
 
-        Self {
-            vars: Default::default(),
-            matrix: TyMatrix::Tuple(elems.into_boxed_slice()),
-            poisoned: false,
-        }
+        Self::Tuple(elems.into_boxed_slice())
     }
 
     pub fn fresh_unbound_fn(arity: usize) -> Self {
         let mut domain = Vec::with_capacity(arity);
 
         for _ in 0..arity {
-            let uid = Uid::fresh();
-            domain.push(TyMatrix::Var(uid));
+            let elem = Arc::new(Self::fresh_unbound());
+            domain.push(elem);
         }
 
-        let codomain = {
-            let uid = Uid::fresh();
-            TyMatrix::Var(uid)
-        };
-
-        Self {
-            vars: Default::default(),
-            matrix: TyMatrix::Fn {
-                domain: domain.into_boxed_slice(),
-                codomain: Box::new(codomain),
-            },
-            poisoned: false,
-        }
-    }
-}
-
-impl<N: std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for Ty<N, V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Ty ")?;
-
-        if self.poisoned {
-            write!(f, "(poisoned)")?;
-        }
-
-        write!(f, "{{ ")?;
-
-        let mut var_iter = self.vars.iter();
-
-        if let Some(first) = var_iter.next() {
-            write!(f, "∀ {:?}", first)?;
-
-            for var in var_iter {
-                write!(f, ", {:?}", var)?;
-            }
-
-            write!(f, ". ")?;
-        }
-
-        write!(f, "{:?} }}", self.matrix)
-    }
-}
-
-/// The *matrix* of a type.
-///
-/// In a [`Ty`], the `matrix` is the portion of the type which does not
-/// contain any universal quantifiers.
-#[derive(Clone)]
-pub enum TyMatrix<N = TypeId, V = Uid> {
-    Prim(PrimTy),
-    Var(V),
-    Tuple(Box<[Self]>),
-    Adt {
-        name: N,
-        args: Box<[Self]>,
-    },
-    Fn {
-        domain: Box<[Self]>,
-        codomain: Box<Self>,
-    },
-    Poison,
-}
-
-impl<N: std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug
-    for TyMatrix<N, V>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Prim(prim) => write!(f, "{:?}", prim),
-            Self::Var(var) => write!(f, "{:?}", var),
-            Self::Tuple(elems) => {
-                write!(f, "(")?;
-
-                let (last, prefix) = elems.split_last().unwrap();
-
-                for elem in prefix {
-                    write!(f, "{:?}, ", elem)?;
-                }
-
-                write!(f, "{:?},)", last)
-            }
-            Self::Adt { name, args } => {
-                write!(f, "ADT({:?})", name)?;
-
-                match args.as_ref() {
-                    [] => write!(f, ""),
-                    [arg] => write!(f, "[{:?}]", arg),
-                    [prefix @ .., last] => {
-                        write!(f, "[")?;
-
-                        for arg in prefix {
-                            write!(f, "{:?}, ", arg)?;
-                        }
-
-                        write!(f, "{:?}]", last)
-                    }
-                }
-            }
-            Self::Fn { domain, codomain } => {
-                match domain.as_ref() {
-                    [] => write!(f, "()"),
-                    [ty] => write!(f, "{:?}", ty),
-                    [head, tail @ ..] => {
-                        write!(f, "({:?}", head)?;
-
-                        for ty in tail {
-                            write!(f, ", {:?}", ty)?;
-                        }
-
-                        write!(f, ")")
-                    }
-                }?;
-
-                write!(f, " -> {:?}", codomain)
-            }
-            Self::Poison => write!(f, "POISON"),
+        Self::Fn {
+            domain: domain.into_boxed_slice(),
+            codomain: Arc::new(Self::fresh_unbound()),
         }
     }
 }
 
 /// A primitive type.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PrimTy {
     Never,
     Unit,
@@ -424,7 +333,7 @@ pub enum PrimTy {
     Float,
 }
 
-impl std::fmt::Debug for PrimTy {
+impl Debug for PrimTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Never => write!(f, "!"),
@@ -436,18 +345,4 @@ impl std::fmt::Debug for PrimTy {
             Self::Float => write!(f, "float"),
         }
     }
-}
-
-// ERRORS
-
-#[derive(Debug, Clone)]
-pub enum TyError {
-    NoSuchName {
-        name: Spanned<NameContent>,
-        span: Span,
-    },
-    /// it is invalid to use tyvars as polytypes
-    TyVarWithArgs { name: LocalBinding, span: Span },
-    /// Public terms must have concrete types.
-    NonConcretePubTermTy { name: Symbol, module: ModId },
 }
