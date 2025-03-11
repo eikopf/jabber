@@ -96,6 +96,8 @@ pub struct Const<N = Bound, A = ResAttr> {
     pub value: Spanned<Expr<N>>,
 }
 
+// TODO: add an `attrs` field to TyConstr and implement corresponding plumbing
+
 #[derive(Debug, Clone)]
 pub struct TyConstr<N = Bound> {
     pub name: Spanned<Symbol>,
@@ -470,7 +472,7 @@ pub type LocalBinding = Name<Uid>;
 pub type GlobalBinding = Name<Res>;
 pub type PathBinding = Name<Res, Path>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Name<I, C = Symbol> {
     pub content: Spanned<C>,
     pub id: I,

@@ -25,16 +25,16 @@ pub struct Location {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct TermId(usize);
+pub struct TermId(pub(super) usize);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct TypeId(usize);
+pub struct TypeId(pub(super) usize);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct FileId(usize);
+pub struct FileId(pub(super) usize);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct ModId(usize);
+pub struct ModId(pub(super) usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Res {

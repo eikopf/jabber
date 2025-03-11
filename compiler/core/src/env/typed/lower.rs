@@ -23,14 +23,19 @@
 //! variables).
 //!
 
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::{
+    ast::typed::{Bound, Name},
     env::{
-        Env, ModId,
+        Env, ModId, Res, TypeId,
         resolve::{BoundResult, ResEnv},
     },
     symbol::Symbol,
+    unique::Uid,
 };
 
 use crate::{
@@ -45,11 +50,31 @@ use crate::{
 
 use super::TypedEnv;
 
-// TODO: add other lowering checks as errors
-
 #[derive(Debug, Clone)]
 pub enum TyLowerError {
+    /// A public term has a non-concrete type.
     NonConcretePubTermTy { name: Symbol, module: ModId },
+    /// An alias has a non-concrete right-hand side.
+    NonConcreteAliasRhs { name: Symbol, module: ModId },
+    /// A type parameter in the definition of a type declaration is unbound.
+    PhantomTypeParameter { name: Name<Uid>, module: ModId },
+    /// A type parameter in the body of a type declaration is unbound.
+    UnboundTypeParameter {
+        ty: Name<Res>,
+        param: Uid,
+        module: ModId,
+    },
+    /// A type alias is recursive.
+    RecursiveAliasDecl {
+        alias: Name<Res>,
+        rhs_occurrence: Bound,
+        module: ModId,
+    },
+    UsedTyParamAsPolytype {
+        param: Name<Uid>,
+        span: Span,
+        module: ModId,
+    },
 }
 
 pub fn lower(
@@ -62,18 +87,21 @@ pub fn lower(
         interner,
     }: ResEnv,
 ) -> (TypedEnv, Vec<TyLowerError>) {
+    let mut errors = Vec::new();
+
     let types = {
         let mut types = Vec::with_capacity(untyped_types.len());
 
-        for Type { name, module, ast } in untyped_types {
-            let ast = lower_type(ast);
+        for (raw_index, Type { name, module, ast }) in
+            untyped_types.into_iter().enumerate()
+        {
+            let id = TypeId(raw_index);
+            let ast = lower_type(ast, id, module, &mut errors);
             types.push(Type { name, module, ast });
         }
 
         types
     };
-
-    let mut errors = Vec::new();
 
     let terms = {
         let mut terms = Vec::with_capacity(untyped_terms.len());
@@ -116,6 +144,9 @@ pub fn lower(
 
 fn lower_type(
     Spanned { item, span }: Spanned<bound::Type<BoundResult>>,
+    id: TypeId,
+    module: ModId,
+    errors: &mut Vec<TyLowerError>,
 ) -> Spanned<ast::Type<BoundResult>> {
     let (attrs, name, params, kind) = match item {
         bound::Type::Alias(bound::TypeAlias {
@@ -123,22 +154,104 @@ fn lower_type(
             name,
             params,
             ty,
-        }) => (attrs, name, params, ast::TypeKind::Alias { rhs: ty }),
+        }) => {
+            let param_set =
+                HashSet::from_iter(params.iter().map(|name| name.id));
+            let rhs_ty =
+                reify_ty_with_params(ty.clone(), &param_set, module, errors);
+            dbg![rhs_ty.clone()];
+
+            // alias rhs concreteness check
+            if !rhs_ty.is_concrete() {
+                let error = TyLowerError::NonConcreteAliasRhs {
+                    name: *name.content,
+                    module,
+                };
+
+                errors.push(error);
+            }
+
+            // variable binding checks
+            let bound_vars = rhs_ty.bound_vars();
+            check_bound_type_variables(
+                &params, bound_vars, name, module, errors,
+            );
+
+            // alias recursiveness check
+            let alias_occurences = rhs_ty.names_with(|bound_result| {
+                bound_result
+                    .as_ref()
+                    .is_ok_and(|res_name| res_name.as_res() == Some(name.id))
+            });
+
+            for occurrence in alias_occurences {
+                let occurrence = occurrence.unwrap();
+                let error = TyLowerError::RecursiveAliasDecl {
+                    alias: name,
+                    rhs_occurrence: occurrence,
+                    module,
+                };
+
+                errors.push(error);
+            }
+
+            (
+                attrs,
+                name,
+                params,
+                ast::TypeKind::Alias {
+                    rhs_ast: ty,
+                    rhs_ty,
+                },
+            )
+        }
         bound::Type::Adt(bound::Adt {
             attrs,
             name,
             opacity,
             params,
             constructors,
-        }) => (
-            attrs,
-            name,
-            params,
-            ast::TypeKind::Adt {
-                opacity,
+        }) => {
+            let constrs = lower_constructors(
                 constructors,
-            },
-        ),
+                &params,
+                id,
+                name.content,
+                module,
+                errors,
+            );
+
+            // aggregate bound type variables over all constructors and
+            // perform binding check
+            let mut bound_vars = HashSet::new();
+
+            for constr in constrs.values() {
+                let constr_kind = &constr.item().kind;
+
+                match constr_kind {
+                    ast::TyConstrKind::Unit(_) => (),
+                    ast::TyConstrKind::Record(fields) => {
+                        for var in fields
+                            .values()
+                            .flat_map(|field| field.ty.bound_vars())
+                        {
+                            bound_vars.insert(var);
+                        }
+                    }
+                    ast::TyConstrKind::Tuple { elems, fn_ty: _ } => {
+                        for var in elems.iter().flat_map(|ty| ty.bound_vars()) {
+                            bound_vars.insert(var);
+                        }
+                    }
+                }
+            }
+
+            check_bound_type_variables(
+                &params, bound_vars, name, module, errors,
+            );
+
+            (attrs, name, params, ast::TypeKind::Adt { opacity, constrs })
+        }
         bound::Type::Extern(bound::ExternType {
             attrs,
             name,
@@ -152,6 +265,117 @@ fn lower_type(
         params,
         kind,
     })
+}
+
+fn check_bound_type_variables(
+    params: &[Name<Uid>],
+    mut bound_vars: HashSet<Uid>,
+    ty_name: Name<Res>,
+    module: ModId,
+    errors: &mut Vec<TyLowerError>,
+) {
+    for param in params {
+        if !bound_vars.contains(&param.id) {
+            let error = TyLowerError::PhantomTypeParameter {
+                name: *param,
+                module,
+            };
+
+            errors.push(error);
+        }
+
+        let _ = bound_vars.remove(&param.id);
+    }
+
+    for var in bound_vars {
+        let error = TyLowerError::UnboundTypeParameter {
+            ty: ty_name,
+            param: var,
+            module,
+        };
+
+        errors.push(error);
+    }
+}
+
+fn lower_constructors(
+    constrs: HashMap<Symbol, Spanned<bound::TyConstr<BoundResult>>>,
+    params: &[Name<Uid>],
+    ty_id: TypeId,
+    ty_name: Spanned<Symbol>,
+    module: ModId,
+    errors: &mut Vec<TyLowerError>,
+) -> HashMap<Symbol, Spanned<ast::TyConstr<BoundResult>>> {
+    // we first build the return type of every constructor, and
+    // because it is arc-ed we may cheaply clone it as necessary
+    let ty = Arc::new(ast::Ty::result_of_type_id(
+        ty_id,
+        ty_name,
+        params
+            .iter()
+            .map(|name| name.id)
+            .map(ast::Ty::Forall)
+            .map(Arc::new)
+            .collect(),
+    ));
+
+    let param_set = HashSet::from_iter(params.iter().map(|name| name.id));
+
+    constrs
+        .into_iter()
+        .map(|(symbol, ast)| {
+            let name = ast.name;
+
+            let kind = match ast.payload.as_ref().map(Spanned::item) {
+                None => ast::TyConstrKind::Unit(ty.clone()),
+                Some(bound::TyConstrPayload::Tuple(tys)) => {
+                    let elems: Box<[_]> = tys
+                        .iter()
+                        .cloned()
+                        .map(|ty| {
+                            reify_ty_with_params(ty, &param_set, module, errors)
+                        })
+                        .collect();
+
+                    let fn_ty = Arc::new(ast::Ty::Fn {
+                        domain: elems.clone(),
+                        codomain: ty.clone(),
+                    });
+
+                    ast::TyConstrKind::Tuple { elems, fn_ty }
+                }
+                Some(bound::TyConstrPayload::Record(fields)) => {
+                    ast::TyConstrKind::Record(
+                        fields
+                            .iter()
+                            .map(|(&symbol, field)| {
+                                let mutability = field.mutability;
+                                let name = field.name;
+                                let ty = reify_ty_with_params(
+                                    field.ty.clone(),
+                                    &param_set,
+                                    module,
+                                    errors,
+                                );
+
+                                (
+                                    symbol,
+                                    ast::RecordField {
+                                        mutability,
+                                        name,
+                                        ty,
+                                    },
+                                )
+                            })
+                            .collect(),
+                    )
+                }
+            };
+
+            let constr = ast.span.with(ast::TyConstr { name, kind, ast });
+            (symbol, constr)
+        })
+        .collect()
 }
 
 fn lower_term(
@@ -483,6 +707,68 @@ fn reify_option_ty(
     }
 }
 
+/// A version of [`reify_ty`] that recognises a given set of parameters and
+/// reifies them properly as [`ast::Ty::Forall`] values; this is necessary
+/// to distinguish type parameters from ordinary named monotypes.
+fn reify_ty_with_params(
+    Spanned { span, item }: Spanned<ast::TyAst<BoundResult>>,
+    params: &HashSet<Uid>,
+    module: ModId,
+    errors: &mut Vec<TyLowerError>,
+) -> Arc<ast::Ty<BoundResult>> {
+    Arc::new(match item {
+        bound::Ty::Infer => ast::Ty::fresh_unbound(),
+        bound::Ty::Never => ast::Ty::Prim(ast::PrimTy::Never),
+        bound::Ty::Unit => ast::Ty::Prim(ast::PrimTy::Unit),
+        bound::Ty::Bool => ast::Ty::Prim(ast::PrimTy::Bool),
+        bound::Ty::Char => ast::Ty::Prim(ast::PrimTy::Char),
+        bound::Ty::String => ast::Ty::Prim(ast::PrimTy::String),
+        bound::Ty::Int => ast::Ty::Prim(ast::PrimTy::Int),
+        bound::Ty::Float => ast::Ty::Prim(ast::PrimTy::Float),
+        bound::Ty::Tuple(elems) => ast::Ty::Tuple(
+            elems
+                .into_iter()
+                .map(|elem| reify_ty_with_params(elem, params, module, errors))
+                .collect(),
+        ),
+        bound::Ty::Fn { domain, codomain } => ast::Ty::Fn {
+            domain: domain
+                .item
+                .into_iter()
+                .map(|elem| reify_ty_with_params(elem, params, module, errors))
+                .collect(),
+            codomain: reify_ty_with_params(*codomain, params, module, errors),
+        },
+        bound::Ty::Named { name, args } => {
+            if let Some(name @ Name { id, .. }) =
+                name.as_ref().ok().and_then(|b| b.as_local())
+            {
+                if params.contains(&id) && !args.is_empty() {
+                    let error = TyLowerError::UsedTyParamAsPolytype {
+                        param: name,
+                        span,
+                        module,
+                    };
+
+                    errors.push(error);
+                }
+
+                ast::Ty::Forall(id)
+            } else {
+                ast::Ty::Named {
+                    name,
+                    args: args
+                        .into_iter()
+                        .map(|arg| {
+                            reify_ty_with_params(arg, params, module, errors)
+                        })
+                        .collect(),
+                }
+            }
+        }
+    })
+}
+
 fn reify_ty(
     Spanned { span: _, item }: Spanned<ast::TyAst<BoundResult>>,
 ) -> Arc<ast::Ty<BoundResult>> {
@@ -573,6 +859,7 @@ mod tests {
             eprintln!("{} ({:?})\n{:?}\n\n", name, res, res_value);
         }
 
-        dbg![lower_errors.len()];
+        dbg![lower_errors];
+        panic!();
     }
 }
