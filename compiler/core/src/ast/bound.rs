@@ -22,6 +22,16 @@ pub enum Type<N = Bound, A = ResAttr> {
     Extern(ExternType<A>),
 }
 
+impl<N, A> Type<N, A> {
+    pub fn params(&self) -> &[LocalBinding] {
+        match self {
+            Type::Alias(alias) => alias.params.as_ref(),
+            Type::Adt(adt) => adt.params.as_ref(),
+            Type::Extern(ext) => ext.params.as_ref(),
+        }
+    }
+}
+
 impl<N> Type<N> {
     pub fn as_adt(&self) -> Option<&Adt<N>> {
         if let Self::Adt(v) = self {
