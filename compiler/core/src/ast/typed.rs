@@ -240,16 +240,20 @@ impl<T, N, V> std::ops::Deref for Typed<T, N, V> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Ty<N = TypeId, V = Uid> {
+    pub prefix: HashSet<V>,
+    pub matrix: Arc<TyMatrix<N, V>>,
+}
+
 /// A type with names of type `N` and variables of type `V`. Recursive variants
 /// are stored with [`Arc`] so cloning can be cheap during unification.
-#[derive(Clone)]
-pub enum Ty<N = TypeId, V = Uid> {
+#[derive(Debug, Clone)]
+pub enum TyMatrix<N = TypeId, V = Uid> {
     /// A primitive type.
     Prim(PrimTy),
     /// An existentially-quantified type.
-    Exists(V),
-    /// A universally-quantified type.
-    Forall(V),
+    Var(V),
     /// A product of at least two types.
     Tuple(Box<[Arc<Self>]>),
     /// A named type with 0 or more arguments.
@@ -261,66 +265,6 @@ pub enum Ty<N = TypeId, V = Uid> {
     },
 }
 
-impl<N: Debug, V: Debug> Debug for Ty<N, V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Ty::Prim(prim_ty) => write!(f, "{:?}", prim_ty),
-            Ty::Exists(var) => write!(f, "∃{:?}", var),
-            Ty::Forall(var) => write!(f, "∀{:?}", var),
-            Ty::Tuple(items) => {
-                let (first, tail) = items.split_first().unwrap();
-                write!(f, "({:?}", first)?;
-
-                for elem in tail {
-                    write!(f, ", {:?}", elem)?;
-                }
-
-                write!(f, ")")
-            }
-            Ty::Named { name, args } => {
-                write!(f, "NAME({:?})", name)?;
-
-                if let Some((first, tail)) = args.split_first() {
-                    write!(f, "[{:?}", first)?;
-
-                    for arg in tail {
-                        write!(f, ", {:?}", arg)?;
-                    }
-
-                    write!(f, "]")?;
-                }
-
-                Ok(())
-            }
-            Ty::Fn { domain, codomain } => {
-                match domain.as_ref() {
-                    [] => write!(f, "()"),
-                    [param] => {
-                        if matches!(param.as_ref(), Ty::Tuple(_)) {
-                            // tuples need special handling when they
-                            // occur as unary function parameters
-                            write!(f, "({:?},)", param)
-                        } else {
-                            write!(f, "{:?}", param)
-                        }
-                    }
-                    [first, tail @ ..] => {
-                        write!(f, "({:?}", first)?;
-
-                        for param in tail {
-                            write!(f, ", {:?}", param)?;
-                        }
-
-                        write!(f, ")")
-                    }
-                }?;
-
-                write!(f, " -> {:?}", codomain)
-            }
-        }
-    }
-}
-
 impl<N, V> Ty<N, V> {
     /// Annotates an item with `self`.
     pub fn with<T>(self: &Arc<Self>, item: T) -> Typed<T, N, V> {
@@ -330,47 +274,10 @@ impl<N, V> Ty<N, V> {
         }
     }
 
-    /// Returns `true` if and only if `self` does not contain unquantified
-    /// (i.e. existential) type variables.
-    pub fn is_concrete(&self) -> bool {
-        match self {
-            Ty::Prim(_) | Ty::Forall(_) => true,
-            Ty::Exists(_) => false,
-            Ty::Tuple(items) => items.iter().all(|ty| ty.is_concrete()),
-            Ty::Named { name: _, args } => {
-                args.iter().all(|ty| ty.is_concrete())
-            }
-            Ty::Fn { domain, codomain } => {
-                domain.iter().all(|ty| ty.is_concrete())
-                    && codomain.is_concrete()
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Binding {
-    Universal,
-    Existential,
-}
-
-impl<N, V: Eq> Ty<N, V> {
-    /// Returns a [`Binding`] corresponding to how `var` is bound in `self`, or
-    /// `None` if `var` does not occur in `self`. This function presumes that
-    /// all occurrences of `var` are bound identically.
-    pub fn binding_of(&self, var: &V) -> Option<Binding> {
-        match self {
-            Ty::Exists(v) if v == var => Some(Binding::Existential),
-            Ty::Forall(v) if v == var => Some(Binding::Universal),
-            Ty::Exists(_) | Ty::Forall(_) | Ty::Prim(_) => None,
-            Ty::Tuple(elems) => elems.iter().find_map(|ty| ty.binding_of(var)),
-            Ty::Named { name: _, args } => {
-                args.iter().find_map(|ty| ty.binding_of(var))
-            }
-            Ty::Fn { domain, codomain } => domain
-                .iter()
-                .find_map(|ty| ty.binding_of(var))
-                .or_else(|| codomain.binding_of(var)),
+    pub fn prim(matrix: PrimTy) -> Self {
+        Self {
+            prefix: Default::default(),
+            matrix: Arc::new(TyMatrix::Prim(matrix)),
         }
     }
 }
@@ -381,92 +288,71 @@ impl<N: Clone, V> Ty<N, V> {
     where
         F: Fn(&N) -> bool + Clone,
     {
-        // HACK: this is a stupid and bad and stupid and dumb implementation
-        // that allocates way too much; fix this later!!!!!
-        match self {
-            Ty::Prim(_) | Ty::Exists(_) | Ty::Forall(_) => vec![],
-            Ty::Tuple(tys) => tys
-                .iter()
-                .flat_map(|ty| ty.names_with(cmp.clone()))
-                .collect(),
-            Ty::Named { name, args } => {
-                let mut names = if cmp(name) {
-                    vec![name.clone()]
-                } else {
-                    vec![]
-                };
-
-                args.iter()
-                    .flat_map(|ty| ty.names_with(cmp.clone()))
-                    .for_each(|name| names.push(name));
-
-                names
-            }
-            Ty::Fn { domain, codomain } => domain
-                .iter()
-                .chain(std::iter::once(codomain))
-                .flat_map(|ty| ty.names_with(cmp.clone()))
-                .collect(),
-        }
+        todo!()
     }
 }
 
 impl<N, V: Hash + Eq + Clone> Ty<N, V> {
     pub fn bound_vars(&self) -> HashSet<V> {
-        // HACK: this is a stupid implementation that clones way too much,
-        // this should be implemented with a recursive helper function that
-        // takes a mutable reference to a HashSet<V>
-        match self {
-            Ty::Prim(_) | Ty::Exists(_) => HashSet::new(),
-            Ty::Forall(var) => HashSet::from([var.clone()]),
-            Ty::Tuple(tys) => tys
-                .iter()
-                .map(|ty| ty.bound_vars())
-                .reduce(|lhs, rhs| lhs.union(&rhs).cloned().collect())
-                .unwrap(),
-            Ty::Named { name: _, args } => args
-                .iter()
-                .map(|ty| ty.bound_vars())
-                .reduce(|lhs, rhs| lhs.union(&rhs).cloned().collect())
-                .unwrap_or_default(),
-            Ty::Fn { domain, codomain } => domain
-                .iter()
-                .map(|ty| ty.bound_vars())
-                .fold(codomain.bound_vars(), |lhs, rhs| {
-                    lhs.union(&rhs).cloned().collect()
-                }),
-        }
+        todo!()
+    }
+
+    /// Returns `true` if and only if `self` does not contain unquantified
+    /// type variables.
+    pub fn is_concrete(&self) -> bool {
+        todo!()
     }
 }
 
 impl<N> Ty<N, Uid> {
     pub fn fresh_unbound() -> Self {
-        Self::Exists(Uid::fresh())
+        let matrix = Arc::new(TyMatrix::fresh_var());
+
+        Self {
+            prefix: Default::default(),
+            matrix,
+        }
     }
 
     pub fn fresh_unbound_tuple(len: usize) -> Self {
         let mut elems = Vec::with_capacity(len);
 
         for _ in 0..len {
-            let elem = Arc::new(Self::fresh_unbound());
+            let elem = Arc::new(TyMatrix::fresh_var());
             elems.push(elem);
         }
 
-        Self::Tuple(elems.into_boxed_slice())
+        let matrix = Arc::new(TyMatrix::Tuple(elems.into_boxed_slice()));
+
+        Self {
+            prefix: Default::default(),
+            matrix,
+        }
     }
 
     pub fn fresh_unbound_fn(arity: usize) -> Self {
         let mut domain = Vec::with_capacity(arity);
 
         for _ in 0..arity {
-            let elem = Arc::new(Self::fresh_unbound());
+            let elem = Arc::new(TyMatrix::fresh_var());
             domain.push(elem);
         }
 
-        Self::Fn {
+        let matrix = Arc::new(TyMatrix::Fn {
             domain: domain.into_boxed_slice(),
-            codomain: Arc::new(Self::fresh_unbound()),
+            codomain: Arc::new(TyMatrix::fresh_var()),
+        });
+
+        Self {
+            prefix: Default::default(),
+            matrix,
         }
+    }
+}
+
+impl<N> TyMatrix<N, Uid> {
+    pub fn fresh_var() -> Self {
+        Self::Var(Uid::fresh())
     }
 }
 
@@ -478,13 +364,7 @@ impl<V> Ty<BoundResult, V> {
         content: Spanned<Symbol>,
         args: Box<[Arc<Self>]>,
     ) -> Self {
-        Ty::Named {
-            name: Ok(Bound::Global(Name {
-                content,
-                id: Res::Type(ty),
-            })),
-            args,
-        }
+        todo!()
     }
 }
 

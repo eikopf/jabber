@@ -107,7 +107,7 @@ pub fn lower(
         let mut terms = Vec::with_capacity(untyped_terms.len());
 
         for Term { name, module, ast } in untyped_terms {
-            let ast = lower_term(ast);
+            let ast = lower_term(ast, module);
 
             let is_public =
                 // SAFETY: the `modules` vec and `module` id come from
@@ -306,6 +306,9 @@ fn lower_constructors(
     module: ModId,
     errors: &mut Vec<TyLowerError>,
 ) -> HashMap<Symbol, Spanned<ast::TyConstr<BoundResult>>> {
+    // TODO: i'm fairly sure this `ty` is incorrect, because the type variables
+    // are not correctly quantified.
+
     // we first build the return type of every constructor, and
     // because it is arc-ed we may cheaply clone it as necessary
     let ty = Arc::new(ast::Ty::result_of_type_id(
@@ -380,6 +383,7 @@ fn lower_constructors(
 
 fn lower_term(
     Spanned { item, span }: Spanned<bound::Term<BoundResult>>,
+    module: ModId,
 ) -> Spanned<ast::Term<BoundResult>> {
     let (attrs, name, ty, kind) = match item {
         bound::Term::Fn(bound::Fn {
@@ -388,44 +392,79 @@ fn lower_term(
             params,
             return_ty,
             body,
-        }) => (
-            attrs,
-            name,
-            reify_fn_ty_annotation(params.clone(), return_ty.clone()),
-            ast::TermKind::Fn {
+        }) => {
+            let ty = {
+                let ty_params = HashSet::new();
+                let mut errors = Vec::new();
+                let mut reifier =
+                    TyReifier::new(module, &ty_params, &mut errors);
+
+                let matrix = reifier.reify_fn_ty_annotation(
+                    &params,
+                    return_ty.as_ref().map(Spanned::as_ref),
+                );
+                reifier.quantify(matrix)
+            };
+
+            let kind = ast::TermKind::Fn {
                 params: lower_params(params),
                 body: lower_expr(*body),
                 return_ty,
-            },
-        ),
+            };
+
+            (attrs, name, ty, kind)
+        }
         bound::Term::ExternFn(bound::ExternFn {
             attrs,
             name,
             params,
             return_ty,
-        }) => (
-            attrs,
-            name,
-            reify_fn_ty_annotation(params.clone(), return_ty.clone()),
-            ast::TermKind::ExternFn {
+        }) => {
+            let ty = {
+                let ty_params = HashSet::new();
+                let mut errors = Vec::new();
+                let mut reifier =
+                    TyReifier::new(module, &ty_params, &mut errors);
+
+                let matrix = reifier.reify_fn_ty_annotation(
+                    &params,
+                    return_ty.as_ref().map(Spanned::as_ref),
+                );
+                reifier.quantify(matrix)
+            };
+
+            let kind = ast::TermKind::ExternFn {
                 params: lower_params(params),
                 return_ty,
-            },
-        ),
+            };
+
+            (attrs, name, ty, kind)
+        }
         bound::Term::Const(bound::Const {
             attrs,
             name,
-            ty,
+            ty: ty_ast,
             value,
-        }) => (
-            attrs,
-            name,
-            reify_option_ty(ty.clone()),
-            ast::TermKind::Const {
-                ty_ast: ty,
+        }) => {
+            let ty = {
+                let ty_params = HashSet::new();
+                let mut errors = Vec::new();
+                let mut reifier =
+                    TyReifier::new(module, &ty_params, &mut errors);
+
+                let matrix = reifier.reify_option_ty_matrix(
+                    ty_ast.as_ref().map(Spanned::as_ref),
+                );
+                reifier.quantify(matrix)
+            };
+
+            let kind = ast::TermKind::Const {
+                ty_ast,
                 value: lower_expr(value),
-            },
-        ),
+            };
+
+            (attrs, name, ty, kind)
+        }
     };
 
     span.with(ast::Term {
@@ -459,7 +498,7 @@ fn lower_expr(
             ty.with(ast::Expr::Name(name))
         }
         bound::Expr::Literal(literal_expr) => {
-            let ty = Arc::new(ast::Ty::Prim(match &literal_expr {
+            let ty = Arc::new(ast::Ty::prim(match &literal_expr {
                 ast::LiteralExpr::Unit => ast::PrimTy::Unit,
                 ast::LiteralExpr::Bool(_) => ast::PrimTy::Bool,
                 ast::LiteralExpr::Char(_) => ast::PrimTy::Char,
@@ -548,7 +587,7 @@ fn lower_expr(
             let lhs = Box::new(lower_expr(*lhs));
             let rhs = Box::new(lower_expr(*rhs));
 
-            let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Bool));
+            let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Bool));
             ty.with(ast::Expr::Builtin { operator, lhs, rhs })
         }
         bound::Expr::LazyOr { operator, lhs, rhs } => {
@@ -556,7 +595,7 @@ fn lower_expr(
             let lhs = Box::new(lower_expr(*lhs));
             let rhs = Box::new(lower_expr(*rhs));
 
-            let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Bool));
+            let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Bool));
             ty.with(ast::Expr::Builtin { operator, lhs, rhs })
         }
         bound::Expr::Mutate { operator, lhs, rhs } => {
@@ -564,7 +603,7 @@ fn lower_expr(
             let lhs = Box::new(lower_expr(*lhs));
             let rhs = Box::new(lower_expr(*rhs));
 
-            let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Unit));
+            let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
             ty.with(ast::Expr::Builtin { operator, lhs, rhs })
         }
         bound::Expr::Match {
@@ -637,7 +676,7 @@ fn lower_expr(
 }
 
 fn generate_unit_expr() -> Typed<ast::Expr<BoundResult>, BoundResult> {
-    let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Unit));
+    let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
     ty.with(ast::Expr::Literal(ast::LiteralExpr::Unit))
 }
 
@@ -649,7 +688,7 @@ fn lower_block_rec(
         [] => match body {
             Some(expr) => lower_expr(*expr).item,
             None => {
-                let ty = Arc::new(ast::Ty::Prim(ast::PrimTy::Unit));
+                let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
                 ty.with(ast::Expr::Literal(ast::LiteralExpr::Unit))
             }
         },
@@ -678,121 +717,165 @@ fn lower_block_rec(
     }
 }
 
-// TYPE EXPRESSION REIFICATION HELPERS
+// TODO: delete these stubs once the lowering implementation has been fixed
 
 fn reify_fn_ty_annotation(
-    parameters: SpanSeq<bound::Parameter<BoundResult>>,
-    return_ty: Option<Spanned<ast::TyAst<BoundResult>>>,
+    _: SpanSeq<bound::Parameter<BoundResult>>,
+    _: Option<Spanned<ast::TyAst<BoundResult>>>,
 ) -> Arc<ast::Ty<BoundResult>> {
-    Arc::new(ast::Ty::Fn {
-        domain: parameters
-            .into_iter()
-            .map(|param| reify_option_ty(param.item.ty))
-            .collect(),
-        codomain: reify_option_ty(return_ty),
-    })
+    todo!()
 }
 
-/// Reifies an _optional_ type annotation.
-///
-/// Optional types differ from other types in that, when they are absent,
-/// the resulting inferred type should be an existential type variable.
-/// This is the same behaviour as the `_` inference placeholder.
 fn reify_option_ty(
-    ast: Option<Spanned<ast::TyAst<BoundResult>>>,
+    _: Option<Spanned<ast::TyAst<BoundResult>>>,
 ) -> Arc<ast::Ty<BoundResult>> {
-    match ast {
-        Some(ast) => reify_ty(ast),
-        None => Arc::new(ast::Ty::fresh_unbound()),
-    }
+    todo!()
 }
 
-/// A version of [`reify_ty`] that recognises a given set of parameters and
-/// reifies them properly as [`ast::Ty::Forall`] values; this is necessary
-/// to distinguish type parameters from ordinary named monotypes.
 fn reify_ty_with_params(
-    Spanned { span, item }: Spanned<ast::TyAst<BoundResult>>,
-    params: &HashSet<Uid>,
-    module: ModId,
-    errors: &mut Vec<TyLowerError>,
+    _: Spanned<ast::TyAst<BoundResult>>,
+    _: &HashSet<Uid>,
+    _: ModId,
+    _: &mut Vec<TyLowerError>,
 ) -> Arc<ast::Ty<BoundResult>> {
-    Arc::new(match item {
-        bound::Ty::Infer => ast::Ty::fresh_unbound(),
-        bound::Ty::Never => ast::Ty::Prim(ast::PrimTy::Never),
-        bound::Ty::Unit => ast::Ty::Prim(ast::PrimTy::Unit),
-        bound::Ty::Bool => ast::Ty::Prim(ast::PrimTy::Bool),
-        bound::Ty::Char => ast::Ty::Prim(ast::PrimTy::Char),
-        bound::Ty::String => ast::Ty::Prim(ast::PrimTy::String),
-        bound::Ty::Int => ast::Ty::Prim(ast::PrimTy::Int),
-        bound::Ty::Float => ast::Ty::Prim(ast::PrimTy::Float),
-        bound::Ty::Tuple(elems) => ast::Ty::Tuple(
-            elems
-                .into_iter()
-                .map(|elem| reify_ty_with_params(elem, params, module, errors))
-                .collect(),
-        ),
-        bound::Ty::Fn { domain, codomain } => ast::Ty::Fn {
-            domain: domain
-                .item
-                .into_iter()
-                .map(|elem| reify_ty_with_params(elem, params, module, errors))
-                .collect(),
-            codomain: reify_ty_with_params(*codomain, params, module, errors),
-        },
-        bound::Ty::Named { name, args } => {
-            if let Some(name @ Name { id, .. }) =
-                name.as_ref().ok().and_then(|b| b.as_local())
-            {
-                if params.contains(&id) && !args.is_empty() {
-                    let error = TyLowerError::UsedTyParamAsPolytype {
-                        param: name,
-                        span,
-                        module,
-                    };
+    todo!()
+}
 
-                    errors.push(error);
-                }
+fn reify_ty(_: Spanned<ast::TyAst<BoundResult>>) -> Arc<ast::Ty<BoundResult>> {
+    todo!()
+}
 
-                ast::Ty::Forall(id)
-            } else {
-                ast::Ty::Named {
-                    name,
-                    args: args
-                        .into_iter()
-                        .map(|arg| {
-                            reify_ty_with_params(arg, params, module, errors)
-                        })
-                        .collect(),
+// TYPE AST REIFICATION
+
+struct TyReifier<'a> {
+    /// The current module.
+    module: ModId,
+    /// The type parameters in scope.
+    ty_params: &'a HashSet<Uid>,
+    /// The universally quantified prefix of the reified type.
+    prefix: HashSet<Uid>,
+    /// The errors that occurred while reifying.
+    errors: &'a mut Vec<TyLowerError>,
+}
+
+impl<'a> TyReifier<'a> {
+    /// Reifies a [`bound::Ty`] into an [`ast::TyMatrix`].
+    pub fn reify_ty_matrix(
+        &mut self,
+        Spanned { span, item }: Spanned<&ast::TyAst<BoundResult>>,
+    ) -> Arc<ast::TyMatrix<BoundResult>> {
+        Arc::new(match item {
+            bound::Ty::Infer => ast::TyMatrix::fresh_var(),
+            bound::Ty::Never => ast::TyMatrix::Prim(ast::PrimTy::Never),
+            bound::Ty::Unit => ast::TyMatrix::Prim(ast::PrimTy::Unit),
+            bound::Ty::Bool => ast::TyMatrix::Prim(ast::PrimTy::Bool),
+            bound::Ty::Char => ast::TyMatrix::Prim(ast::PrimTy::Char),
+            bound::Ty::String => ast::TyMatrix::Prim(ast::PrimTy::String),
+            bound::Ty::Int => ast::TyMatrix::Prim(ast::PrimTy::Int),
+            bound::Ty::Float => ast::TyMatrix::Prim(ast::PrimTy::Float),
+            bound::Ty::Tuple(elems) => ast::TyMatrix::Tuple(
+                elems
+                    .into_iter()
+                    .map(|ty| self.reify_ty_matrix(ty.as_ref()))
+                    .collect(),
+            ),
+            bound::Ty::Fn { domain, codomain } => ast::TyMatrix::Fn {
+                domain: domain
+                    .item
+                    .iter()
+                    .map(|ty| self.reify_ty_matrix(ty.as_ref()))
+                    .collect(),
+                codomain: self.reify_ty_matrix(codomain.as_ref().as_ref()),
+            },
+            bound::Ty::Named { name, args } => {
+                // if name is locally bound, it must be a parameter
+                if let Some(name @ Name { id, .. }) =
+                    name.as_ref().ok().and_then(|b| b.as_local())
+                {
+                    // if the id is known to be a type parameter but it has been
+                    // used with arguments, this is an error
+                    if self.ty_params.contains(&id) && !args.is_empty() {
+                        let error = TyLowerError::UsedTyParamAsPolytype {
+                            param: name,
+                            span,
+                            module: self.module,
+                        };
+
+                        self.errors.push(error);
+                    }
+
+                    // add the id to the prefix and return
+                    self.prefix.insert(id);
+                    ast::TyMatrix::Var(id)
+                } else {
+                    // otherwise just process the name as expected
+                    ast::TyMatrix::Named {
+                        name: name.clone(),
+                        args: args
+                            .iter()
+                            .map(|arg| self.reify_ty_matrix(arg.as_ref()))
+                            .collect(),
+                    }
                 }
             }
-        }
-    })
-}
+        })
+    }
 
-fn reify_ty(
-    Spanned { span: _, item }: Spanned<ast::TyAst<BoundResult>>,
-) -> Arc<ast::Ty<BoundResult>> {
-    Arc::new(match item {
-        bound::Ty::Infer => ast::Ty::fresh_unbound(),
-        bound::Ty::Never => ast::Ty::Prim(ast::PrimTy::Never),
-        bound::Ty::Unit => ast::Ty::Prim(ast::PrimTy::Unit),
-        bound::Ty::Bool => ast::Ty::Prim(ast::PrimTy::Bool),
-        bound::Ty::Char => ast::Ty::Prim(ast::PrimTy::Char),
-        bound::Ty::String => ast::Ty::Prim(ast::PrimTy::String),
-        bound::Ty::Int => ast::Ty::Prim(ast::PrimTy::Int),
-        bound::Ty::Float => ast::Ty::Prim(ast::PrimTy::Float),
-        bound::Ty::Tuple(elems) => {
-            ast::Ty::Tuple(elems.into_iter().map(reify_ty).collect())
+    /// Reifies an _optional_ type annotation.
+    ///
+    /// Optional types differ from other types in that, when they are absent,
+    /// the resulting inferred type should be an existential type variable.
+    /// This is the same behaviour as the `_` inference placeholder.
+    pub fn reify_option_ty_matrix(
+        &mut self,
+        ast: Option<Spanned<&ast::TyAst<BoundResult>>>,
+    ) -> Arc<ast::TyMatrix<BoundResult>> {
+        match ast {
+            Some(ast) => self.reify_ty_matrix(ast),
+            None => Arc::new(ast::TyMatrix::fresh_var()),
         }
-        bound::Ty::Named { name, args } => ast::Ty::Named {
-            name,
-            args: args.into_iter().map(reify_ty).collect(),
-        },
-        bound::Ty::Fn { domain, codomain } => ast::Ty::Fn {
-            domain: domain.item.into_iter().map(reify_ty).collect(),
-            codomain: reify_ty(*codomain),
-        },
-    })
+    }
+
+    /// Reifies the annotations of a function declaration into a type.
+    pub fn reify_fn_ty_annotation(
+        &mut self,
+        parameters: &[Spanned<bound::Parameter<BoundResult>>],
+        return_ty: Option<Spanned<&ast::TyAst<BoundResult>>>,
+    ) -> Arc<ast::TyMatrix<BoundResult>> {
+        Arc::new(ast::TyMatrix::Fn {
+            domain: parameters
+                .iter()
+                .map(|Spanned { item, .. }| {
+                    self.reify_option_ty_matrix(
+                        item.ty.as_ref().map(Spanned::as_ref),
+                    )
+                })
+                .collect(),
+            codomain: self.reify_option_ty_matrix(return_ty),
+        })
+    }
+
+    /// Consumes `self` to convert an [`ast::TyMatrix`] into an [`ast::Ty`].
+    pub fn quantify(
+        self,
+        matrix: Arc<ast::TyMatrix<BoundResult>>,
+    ) -> Arc<ast::Ty<BoundResult>> {
+        let Self { prefix, .. } = self;
+        Arc::new(ast::Ty { prefix, matrix })
+    }
+
+    pub fn new(
+        module: ModId,
+        ty_params: &'a HashSet<Uid>,
+        errors: &'a mut Vec<TyLowerError>,
+    ) -> Self {
+        Self {
+            module,
+            ty_params,
+            errors,
+            prefix: Default::default(),
+        }
+    }
 }
 
 #[cfg(test)]
