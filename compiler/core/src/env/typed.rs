@@ -123,6 +123,8 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
+    // TODO: finish implementing unification
+
     fn unify_matrices(
         &mut self,
         t1: Arc<TyMatrix<N, TyVar>>,
@@ -153,17 +155,18 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
-    fn assign_var(&mut self, var: TyVar, matrix: Arc<TyMatrix<N, TyVar>>) {
+    fn assign_var(&mut self, var: TyVar, ty: Arc<TyMatrix<N, TyVar>>) {
         // grab the representative element for `var`.
         let repr = self.unifier.find(var);
 
-        // TODO: correct this to handle the case where `repr` has an
-        // assignment, in which case it should be instantiated
-
-        //let ty = Arc::new(Ty::unquantified(matrix));
-        //self.assignments.insert(repr, ty);
-
-        todo!()
+        // check for a preexisting assignment
+        if let Some(current_ty) = self.lookup_var(repr) {
+            // unify to check consistency with current_ty
+            self.unify(current_ty, Ty::unquantified(ty));
+        } else {
+            // otherwise just create the new assignment
+            self.var_assignments.insert(repr, Ty::unquantified(ty));
+        }
     }
 
     fn instantiate(&mut self, ty: &Ty<N, TyVar>) -> Arc<TyMatrix<N, TyVar>>
@@ -189,6 +192,64 @@ impl<'a, N> Typer<'a, N> {
 
         self.latest_index += 1;
         TyVar(self.latest_index)
+    }
+
+    // UID CONVERSION METHODS
+
+    /// Returns the assigned [`TyVar`] for the given [`Uid`], making a new
+    /// assignment if necessary.
+    fn get_or_assign_var(&mut self, uid: Uid) -> TyVar {
+        match self.uid_assigments.get(&uid) {
+            Some(&var) => var,
+            None => {
+                let var = self.fresh_var();
+                self.uid_assigments.insert(uid, var);
+                var
+            }
+        }
+    }
+
+    /// Converts a [`Ty<N, Uid>`] into a [`Ty<N, TyVar>`].
+    fn rebind(&mut self, ty: &Ty<N, Uid>) -> Arc<Ty<N, TyVar>>
+    where
+        N: Clone,
+    {
+        let matrix = self.rebind_matrix(&ty.matrix);
+        let prefix = ty
+            .prefix
+            .iter()
+            .map(|&uid| self.get_or_assign_var(uid))
+            .collect();
+
+        Arc::new(Ty { prefix, matrix })
+    }
+
+    /// Converts a [`TyMatrix<N, Uid>`] into a [`TyMatrix<N, TyVar>`].
+    fn rebind_matrix(
+        &mut self,
+        ty: &TyMatrix<N, Uid>,
+    ) -> Arc<TyMatrix<N, TyVar>>
+    where
+        N: Clone,
+    {
+        Arc::new(match ty {
+            TyMatrix::Prim(prim_ty) => TyMatrix::Prim(*prim_ty),
+            TyMatrix::Var(uid) => TyMatrix::Var(self.get_or_assign_var(*uid)),
+            TyMatrix::Tuple(elems) => TyMatrix::Tuple(
+                elems.iter().map(|ty| self.rebind_matrix(ty)).collect(),
+            ),
+            TyMatrix::Named { name, args } => TyMatrix::Named {
+                name: name.clone(),
+                args: args.iter().map(|ty| self.rebind_matrix(ty)).collect(),
+            },
+            TyMatrix::Fn { domain, codomain } => TyMatrix::Fn {
+                domain: domain
+                    .iter()
+                    .map(|ty| self.rebind_matrix(ty))
+                    .collect(),
+                codomain: self.rebind_matrix(codomain),
+            },
+        })
     }
 }
 
