@@ -19,7 +19,7 @@ use std::{
 };
 
 use crate::{
-    env::{Res, TypeId, resolve::BoundResult},
+    env::{Res, TypeId},
     span::{Span, SpanBox, SpanSeq, Spanned},
     symbol::Symbol,
     unique::Uid,
@@ -275,9 +275,13 @@ impl<N, V> Ty<N, V> {
     }
 
     pub fn prim(matrix: PrimTy) -> Self {
+        Self::unquantified(Arc::new(TyMatrix::Prim(matrix)))
+    }
+
+    pub fn unquantified(matrix: Arc<TyMatrix<N, V>>) -> Self {
         Self {
             prefix: Default::default(),
-            matrix: Arc::new(TyMatrix::Prim(matrix)),
+            matrix,
         }
     }
 }
@@ -353,18 +357,6 @@ impl<N> Ty<N, Uid> {
 impl<N> TyMatrix<N, Uid> {
     pub fn fresh_var() -> Self {
         Self::Var(Uid::fresh())
-    }
-}
-
-impl<V> Ty<BoundResult, V> {
-    /// Quick constructor for a [`Ty`] wrapping a [`TypeId`] when
-    /// `N = BoundResult`.
-    pub fn result_of_type_id(
-        ty: TypeId,
-        content: Spanned<Symbol>,
-        args: Box<[Arc<Self>]>,
-    ) -> Self {
-        todo!()
     }
 }
 
