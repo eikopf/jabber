@@ -23,8 +23,11 @@ use std::{collections::HashMap, sync::Arc};
 use ena::unify::{InPlace, UnificationTable, UnifyKey};
 
 use crate::{
-    ast::{common::ViSp, typed as ast},
-    env::{Env, Res, Term, TypeId, resolve::BoundResult},
+    ast::{
+        common::ViSp,
+        typed::{self as ast, Ty, TyMatrix},
+    },
+    env::{Env, Res, Term, resolve::BoundResult},
     span::Spanned,
     symbol::Symbol,
     unique::Uid,
@@ -39,23 +42,15 @@ pub type TypedEnv = Env<
 >;
 
 #[derive(Debug, Clone)]
-pub enum TypingError {
-    Overconstrained,
-    Underconstrained,
+pub enum TypingError<N> {
+    DidNotUnify(Arc<TyMatrix<N>>, Arc<TyMatrix<N>>),
+    OccursIn(Uid, Arc<TyMatrix<N>>),
 }
-
-// NOTE: the concrete thing that `typecheck` needs to do is to produce either a
-// list of errors OR a set of assignments for unification variables so that we
-// can replace those types directly in another pass
 
 // TODO: main entry point for typechecking
 
-pub fn typecheck(env: &TypedEnv) -> Result<(), Vec<TypingError>> {
-    let mut typer = Typer {
-        env,
-        errors: Vec::new(),
-        context: Default::default(),
-    };
+pub fn typecheck<N>(env: &TypedEnv) -> Result<(), Vec<TypingError<N>>> {
+    let mut typer: Typer<'_, N> = Typer::new(env);
 
     for id in env.term_id_iter() {
         let term = env.get_term(id);
@@ -65,75 +60,186 @@ pub fn typecheck(env: &TypedEnv) -> Result<(), Vec<TypingError>> {
     todo!();
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
-struct UnifVar(Uid);
+// WARNING: MASSIVE FUCKING PROBLEM ALERT
+// the UnificationTable is backed by a contiguous vector, which is indexed by
+// the values produced by `UnifyKey::index`. that means type variables _cannot_
+// use `Uid`, and must instead be generated linearly strictly when necessary.
+//
+// NOTE: i think the solution here is probably not to alter the `lower`
+// implementation again (thank fucking god), but just to process types from
+// the `Uid` representation to a `TypeVar` representation during typechecking.
 
-impl From<Uid> for UnifVar {
-    fn from(value: Uid) -> Self {
-        Self(value)
-    }
-}
-
-impl From<UnifVar> for Uid {
-    fn from(value: UnifVar) -> Self {
-        value.0
-    }
-}
-
-impl std::fmt::Debug for UnifVar {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        <Uid as std::fmt::Debug>::fmt(&self.0, f)
-    }
-}
-
-impl UnifyKey for UnifVar {
+impl UnifyKey for Uid {
     type Value = ();
 
     fn index(&self) -> u32 {
-        self.0.into()
+        (*self).into()
     }
 
     fn from_index(u: u32) -> Self {
         assert!(u != 0);
-        unsafe { UnifVar(Uid::from_raw(u)) }
+        unsafe { Uid::from_raw(u) }
     }
 
     fn tag() -> &'static str {
-        "UnifVar"
+        "Uid"
     }
 }
 
-struct Typer<'a> {
+pub struct Typer<'a, N> {
     env: &'a TypedEnv,
-    errors: Vec<TypingError>,
-    context: UnificationTable<InPlace<UnifVar>>,
+    errors: Vec<TypingError<N>>,
+    assignments: HashMap<Uid, Arc<Ty<N>>>,
+    unifier: UnificationTable<InPlace<Uid>>,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum CheckResult {
-    Success,
-    Failure,
-}
+type TyResult<N> = Result<Arc<Ty<N>>, TypingError<N>>;
+type UnitResult<N> = Result<(), TypingError<N>>;
 
-type TyResult<T> = Result<T, TypingError>;
+impl<'a, N> Typer<'a, N> {
+    pub fn new(env: &'a TypedEnv) -> Self {
+        Self {
+            env,
+            errors: Default::default(),
+            assignments: Default::default(),
+            unifier: Default::default(),
+        }
+    }
 
-impl Typer<'_> {
-    fn type_term(&mut self, term: &Term<Spanned<ast::Term<BoundResult, Uid>>>) {
+    pub fn type_term(
+        &mut self,
+        term: &Term<Spanned<ast::Term<BoundResult, Uid>>>,
+    ) {
         todo!()
     }
 
-    fn check(
+    pub fn check(
         &mut self,
-        expr: &ast::Expr<BoundResult, Uid>,
-        ty: Arc<ast::Ty<TypeId, Uid>>,
-    ) -> TyResult<CheckResult> {
+        expr: &ast::Expr<N>,
+        ty: Arc<Ty<N>>,
+    ) -> TyResult<N> {
         todo!()
     }
 
-    fn infer(
-        &mut self,
-        expr: &ast::Expr<BoundResult, Uid>,
-    ) -> TyResult<Arc<ast::Ty<TypeId, Uid>>> {
+    pub fn infer(&mut self, expr: &ast::Expr<N>) -> TyResult<N> {
         todo!()
+    }
+
+    pub fn unify(&mut self, t1: Arc<Ty<N>>, t2: Arc<Ty<N>>) {
+        let res = self.unify_matrices(t1.matrix.clone(), t2.matrix.clone());
+
+        if let Err(error) = res {
+            self.errors.push(error);
+        }
+    }
+
+    fn unify_matrices(
+        &mut self,
+        t1: Arc<TyMatrix<N>>,
+        t2: Arc<TyMatrix<N>>,
+    ) -> UnitResult<N> {
+        match (t1.as_ref(), t2.as_ref()) {
+            (TyMatrix::Prim(p1), TyMatrix::Prim(p2)) if p1 == p2 => Ok(()),
+            (TyMatrix::Var(v1), TyMatrix::Var(v2)) => {
+                self.unifier.union(*v1, *v2);
+                Ok(())
+            }
+            (_, TyMatrix::Var(var)) => self.unify_var_value(*var, t1),
+            (TyMatrix::Var(var), _) => self.unify_var_value(*var, t2),
+            _ => Err(TypingError::DidNotUnify(t1, t2)),
+        }
+    }
+
+    fn unify_var_value(
+        &mut self,
+        var: Uid,
+        value: Arc<TyMatrix<N>>,
+    ) -> UnitResult<N> {
+        if !occurs_check(&var, value.as_ref()) {
+            self.assign_var(var, value);
+            Ok(())
+        } else {
+            Err(TypingError::OccursIn(var, value))
+        }
+    }
+
+    fn assign_var(&mut self, var: Uid, matrix: Arc<TyMatrix<N>>) {
+        // grab the representative element for `var`.
+        let repr = self.unifier.find(var);
+
+        // TODO: correct this to handle the case where `repr` has an
+        // assignment, in which case it should be instantiated
+
+        //let ty = Arc::new(Ty::unquantified(matrix));
+        //self.assignments.insert(repr, ty);
+
+        todo!()
+    }
+
+    fn instantiate(&self, ty: &Ty<N>) -> Arc<TyMatrix<N>>
+    where
+        N: Clone,
+    {
+        let mut substitution = HashMap::default();
+
+        for &var in &ty.prefix {
+            substitution.insert(var, Arc::new(TyMatrix::fresh_var()));
+        }
+
+        apply_substitution(&substitution, ty.matrix.clone())
+    }
+
+    fn lookup_var(&mut self, var: Uid) -> Option<Arc<Ty<N>>> {
+        let repr = self.unifier.find(var);
+        self.assignments.get(&repr).cloned()
+    }
+}
+
+/// Returns `true` if and only if `var` occurs in `ty`.
+fn occurs_check<N, V: Eq>(var: &V, ty: &TyMatrix<N, V>) -> bool {
+    match ty {
+        TyMatrix::Prim(_) => false,
+        TyMatrix::Var(v) => v == var,
+        TyMatrix::Tuple(elems) => elems.iter().any(|ty| occurs_check(var, ty)),
+        TyMatrix::Named { name: _, args } => {
+            args.iter().any(|ty| occurs_check(var, ty))
+        }
+        TyMatrix::Fn { domain, codomain } => {
+            domain.iter().any(|ty| occurs_check(var, ty))
+                || occurs_check(var, codomain)
+        }
+    }
+}
+
+fn apply_substitution<N: Clone>(
+    substitution: &HashMap<Uid, Arc<TyMatrix<N>>>,
+    ty: Arc<TyMatrix<N>>,
+) -> Arc<TyMatrix<N>> {
+    match ty.as_ref() {
+        TyMatrix::Prim(_) => ty,
+        TyMatrix::Var(var) => substitution.get(var).cloned().unwrap_or(ty),
+        TyMatrix::Tuple(elems) => Arc::new(ast::TyMatrix::Tuple(
+            elems
+                .iter()
+                .cloned()
+                .map(|ty| apply_substitution(substitution, ty))
+                .collect(),
+        )),
+        TyMatrix::Named { name, args } => Arc::new(ast::TyMatrix::Named {
+            name: name.clone(),
+            args: args
+                .iter()
+                .cloned()
+                .map(|ty| apply_substitution(substitution, ty))
+                .collect(),
+        }),
+        TyMatrix::Fn { domain, codomain } => Arc::new(ast::TyMatrix::Fn {
+            domain: domain
+                .iter()
+                .cloned()
+                .map(|ty| apply_substitution(substitution, ty))
+                .collect(),
+            codomain: apply_substitution(substitution, codomain.clone()),
+        }),
     }
 }
