@@ -279,14 +279,17 @@ impl<N, V> Ty<N, V> {
     }
 
     pub fn prim(matrix: PrimTy) -> Self {
-        Self::unquantified(Arc::new(TyMatrix::Prim(matrix)))
+        Self {
+            matrix: Arc::new(TyMatrix::Prim(matrix)),
+            prefix: Default::default(),
+        }
     }
 
-    pub fn unquantified(matrix: Arc<TyMatrix<N, V>>) -> Self {
-        Self {
+    pub fn unquantified(matrix: Arc<TyMatrix<N, V>>) -> Arc<Self> {
+        Arc::new(Self {
             prefix: Default::default(),
             matrix,
-        }
+        })
     }
 }
 
