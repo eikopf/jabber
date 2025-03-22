@@ -176,7 +176,7 @@ impl<'a> TypeLowerer<'a> {
     }
 
     /// Projects a mutable reference to `self` into a [`TyReifier`].
-    pub fn reifier<'r>(&'r mut self) -> TyReifier<'r> {
+    pub fn reifier(&mut self) -> TyReifier<'_> {
         TyReifier::new(self.module, self.ty_params, self.errors)
     }
 
@@ -208,7 +208,7 @@ impl<'a> TypeLowerer<'a> {
                 }
 
                 // variable binding checks
-                let bound_vars = rhs_ty.bound_vars();
+                let bound_vars = rhs_ty.bound_vars().clone();
                 self.check_bound_type_variables(&params, bound_vars);
 
                 // alias recursiveness check
@@ -262,14 +262,14 @@ impl<'a> TypeLowerer<'a> {
                                 .values()
                                 .flat_map(|field| field.ty.bound_vars())
                             {
-                                bound_vars.insert(var);
+                                bound_vars.insert(*var);
                             }
                         }
                         ast::TyConstrKind::Tuple { elems, fn_ty: _ } => {
                             for var in
                                 elems.iter().flat_map(|ty| ty.bound_vars())
                             {
-                                bound_vars.insert(var);
+                                bound_vars.insert(*var);
                             }
                         }
                     }
@@ -458,7 +458,7 @@ impl<'a> TermLowerer<'a> {
     }
 
     /// Projects a mutable reference to `self` into a [`TyReifier`].
-    pub fn reifier<'r>(&'r mut self) -> TyReifier<'r> {
+    pub fn reifier(&mut self) -> TyReifier<'_> {
         TyReifier::new(self.module, self.ty_params, self.errors)
     }
 
@@ -921,15 +921,6 @@ impl<'a> TyReifier<'a> {
         matrix: Arc<ast::TyMatrix<BoundResult>>,
     ) -> Arc<ast::Ty<BoundResult>> {
         let Self { prefix, .. } = self;
-        Arc::new(ast::Ty { prefix, matrix })
-    }
-
-    /// Partially clones `self` to convert an [`ast::TyMatrix`] into an [`ast::Ty`].
-    pub fn quantify_cloned(
-        &self,
-        matrix: Arc<ast::TyMatrix<BoundResult>>,
-    ) -> Arc<ast::Ty<BoundResult>> {
-        let prefix = self.prefix.clone();
         Arc::new(ast::Ty { prefix, matrix })
     }
 

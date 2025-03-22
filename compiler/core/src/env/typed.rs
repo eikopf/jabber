@@ -20,7 +20,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use ena::unify::{InPlace, UnificationTable, UnifyKey, UnifyValue};
+use ena::unify::{InPlace, UnificationTable, UnifyKey};
 
 use crate::{
     ast::{common::ViSp, typed as ast},
@@ -87,7 +87,7 @@ impl std::fmt::Debug for UnifVar {
 }
 
 impl UnifyKey for UnifVar {
-    type Value = UnifVal;
+    type Value = ();
 
     fn index(&self) -> u32 {
         self.0.into()
@@ -100,106 +100,6 @@ impl UnifyKey for UnifVar {
 
     fn tag() -> &'static str {
         "UnifVar"
-    }
-}
-
-// TODO: UnifVal should not be a newtype over Arc<Ty>, it should be a recursive
-// enum so the UnifyValue impl will actually make sense
-
-// the unification impl should go something like:
-// 1. normalize types, converting them into UnifVals in the process.
-// 2. do unification of UnifVals as normal
-// 3. once type checking is done, zonk everything all at once
-
-// NOTE: this is a weird mess: i need to stop, breathe, and actually figure out
-// what a reasonable architecture looks like here. also, there are some checks
-// that still need to be done (e.g. checking type aliases are non-recursive) so
-// perhaps the lowering implementation needs another look?
-
-#[derive(Debug, Clone)]
-struct UnifVal(Arc<ast::Ty<TypeId, Uid>>);
-
-#[derive(Debug, Clone)]
-struct UnifError(UnifVal, UnifVal);
-
-impl UnifyValue for UnifVal {
-    type Error = UnifError;
-
-    fn unify_values(t1: &Self, t2: &Self) -> Result<Self, Self::Error> {
-        match (t1.0.as_ref(), t2.0.as_ref()) {
-            // never unification
-            (_, ast::Ty::Prim(ast::PrimTy::Never)) => Ok(t1.clone()),
-            (ast::Ty::Prim(ast::PrimTy::Never), _) => Ok(t2.clone()),
-
-            // identical primitive unification
-            (ast::Ty::Prim(p1), ast::Ty::Prim(p2)) if p1 == p2 => {
-                Ok(t1.clone())
-            }
-
-            // TODO: implement var unification
-
-            // equal length tuple unification
-            (ast::Ty::Tuple(lhs), ast::Ty::Tuple(rhs))
-                if lhs.len() == rhs.len() =>
-            {
-                let elems = lhs
-                    .iter()
-                    .zip(rhs)
-                    .map(|(l, r)| {
-                        UnifVal::unify_values(
-                            &UnifVal(l.clone()),
-                            &UnifVal(r.clone()),
-                        )
-                    })
-                    .try_fold(Vec::with_capacity(lhs.len()), |mut v, next| {
-                        v.push(next?.0);
-                        Ok(v)
-                    })?
-                    .into_boxed_slice();
-
-                Ok(UnifVal(Arc::new(ast::Ty::Tuple(elems))))
-            }
-
-            // equal-sized domain function unification
-            (
-                ast::Ty::Fn {
-                    domain: d1,
-                    codomain: c1,
-                },
-                ast::Ty::Fn {
-                    domain: d2,
-                    codomain: c2,
-                },
-            ) if d1.len() == d2.len() => {
-                let domain = d1
-                    .iter()
-                    .zip(d2)
-                    .map(|(l, r)| {
-                        UnifVal::unify_values(
-                            &UnifVal(l.clone()),
-                            &UnifVal(r.clone()),
-                        )
-                    })
-                    .try_fold(Vec::with_capacity(d1.len()), |mut v, next| {
-                        v.push(next?.0);
-                        Ok(v)
-                    })?
-                    .into_boxed_slice();
-
-                let codomain = UnifVal::unify_values(
-                    &UnifVal(c1.clone()),
-                    &UnifVal(c2.clone()),
-                )?
-                .0;
-
-                Ok(UnifVal(Arc::new(ast::Ty::Fn { domain, codomain })))
-            }
-
-            // TODO: implement named type unification
-
-            // default to a unification error
-            _ => Err(UnifError(t1.clone(), t2.clone())),
-        }
     }
 }
 

@@ -274,6 +274,10 @@ impl<N, V> Ty<N, V> {
         }
     }
 
+    pub fn bound_vars(&self) -> &HashSet<V> {
+        &self.prefix
+    }
+
     pub fn prim(matrix: PrimTy) -> Self {
         Self::unquantified(Arc::new(TyMatrix::Prim(matrix)))
     }
@@ -292,19 +296,35 @@ impl<N: Clone, V> Ty<N, V> {
     where
         F: Fn(&N) -> bool + Clone,
     {
-        todo!()
+        self.matrix.names_with(cmp)
     }
 }
 
 impl<N, V: Hash + Eq + Clone> Ty<N, V> {
-    pub fn bound_vars(&self) -> HashSet<V> {
-        todo!()
-    }
-
     /// Returns `true` if and only if `self` does not contain unquantified
     /// type variables.
     pub fn is_concrete(&self) -> bool {
-        todo!()
+        fn rec<N, V: Hash + Eq + Clone>(
+            prefix: &HashSet<V>,
+            matrix: &TyMatrix<N, V>,
+        ) -> bool {
+            match matrix {
+                TyMatrix::Prim(_) => true,
+                TyMatrix::Var(var) => prefix.contains(var),
+                TyMatrix::Tuple(elems) => {
+                    elems.iter().all(|elem| rec(prefix, elem))
+                }
+                TyMatrix::Named { name: _, args } => {
+                    args.iter().all(|arg| rec(prefix, arg))
+                }
+                TyMatrix::Fn { domain, codomain } => {
+                    domain.iter().all(|elem| rec(prefix, elem))
+                        && rec(prefix, codomain)
+                }
+            }
+        }
+
+        rec(&self.prefix, &self.matrix)
     }
 }
 
@@ -350,6 +370,43 @@ impl<N> Ty<N, Uid> {
         Self {
             prefix: Default::default(),
             matrix,
+        }
+    }
+}
+
+impl<N: Clone, V> TyMatrix<N, V> {
+    /// Returns the names in `self` for which `cmp` returns `true`.
+    pub fn names_with<F>(&self, cmp: F) -> Vec<N>
+    where
+        F: Fn(&N) -> bool + Clone,
+    {
+        match self {
+            TyMatrix::Prim(_) | TyMatrix::Var(_) => vec![],
+            TyMatrix::Tuple(elems) => elems
+                .iter()
+                .flat_map(|elem| elem.names_with(cmp.clone()))
+                .collect(),
+            TyMatrix::Named { name, args } => {
+                let mut names = vec![];
+
+                if cmp(name) {
+                    names.push(name.clone());
+                }
+
+                let tail =
+                    args.iter().flat_map(|arg| arg.names_with(cmp.clone()));
+
+                names.extend(tail);
+                names
+            }
+            TyMatrix::Fn { domain, codomain } => {
+                let mut names: Vec<_> = domain
+                    .iter()
+                    .flat_map(|elem| elem.names_with(cmp.clone()))
+                    .collect();
+                names.extend(codomain.names_with(cmp.clone()));
+                names
+            }
         }
     }
 }
