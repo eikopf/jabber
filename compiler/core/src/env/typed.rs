@@ -18,7 +18,7 @@
 //!
 //! `TODO: write about typechecking impl`
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, hash::Hash, sync::Arc};
 
 use ena::unify::{InPlace, UnificationTable, UnifyKey};
 
@@ -27,7 +27,7 @@ use crate::{
         common::ViSp,
         typed::{self as ast, Ty, TyMatrix},
     },
-    env::{Env, Res, Term, resolve::BoundResult},
+    env::{Env, Res, resolve::BoundResult},
     span::Spanned,
     symbol::Symbol,
     unique::Uid,
@@ -43,8 +43,8 @@ pub type TypedEnv = Env<
 
 #[derive(Debug, Clone)]
 pub enum TypingError<N> {
-    DidNotUnify(Arc<TyMatrix<N>>, Arc<TyMatrix<N>>),
-    OccursIn(Uid, Arc<TyMatrix<N>>),
+    DidNotUnify(Arc<TyMatrix<N, TyVar>>, Arc<TyMatrix<N, TyVar>>),
+    OccursIn(TyVar, Arc<TyMatrix<N, TyVar>>),
 }
 
 // TODO: main entry point for typechecking
@@ -54,46 +54,41 @@ pub fn typecheck<N>(env: &TypedEnv) -> Result<(), Vec<TypingError<N>>> {
 
     for id in env.term_id_iter() {
         let term = env.get_term(id);
-        typer.type_term(term);
+        todo!();
     }
 
     todo!();
 }
 
-// WARNING: MASSIVE FUCKING PROBLEM ALERT
-// the UnificationTable is backed by a contiguous vector, which is indexed by
-// the values produced by `UnifyKey::index`. that means type variables _cannot_
-// use `Uid`, and must instead be generated linearly strictly when necessary.
-//
-// NOTE: i think the solution here is probably not to alter the `lower`
-// implementation again (thank fucking god), but just to process types from
-// the `Uid` representation to a `TypeVar` representation during typechecking.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TyVar(u32);
 
-impl UnifyKey for Uid {
+impl UnifyKey for TyVar {
     type Value = ();
 
     fn index(&self) -> u32 {
-        (*self).into()
+        self.0
     }
 
     fn from_index(u: u32) -> Self {
-        assert!(u != 0);
-        unsafe { Uid::from_raw(u) }
+        Self(u)
     }
 
     fn tag() -> &'static str {
-        "Uid"
+        "TyVar"
     }
 }
 
 pub struct Typer<'a, N> {
     env: &'a TypedEnv,
     errors: Vec<TypingError<N>>,
-    assignments: HashMap<Uid, Arc<Ty<N>>>,
-    unifier: UnificationTable<InPlace<Uid>>,
+    unifier: UnificationTable<InPlace<TyVar>>,
+    var_assignments: HashMap<TyVar, Arc<Ty<N, TyVar>>>,
+    uid_assigments: HashMap<Uid, TyVar>,
+    latest_index: u32,
 }
 
-type TyResult<N> = Result<Arc<Ty<N>>, TypingError<N>>;
+type TyResult<N> = Result<Arc<Ty<N, TyVar>>, TypingError<N>>;
 type UnitResult<N> = Result<(), TypingError<N>>;
 
 impl<'a, N> Typer<'a, N> {
@@ -101,22 +96,17 @@ impl<'a, N> Typer<'a, N> {
         Self {
             env,
             errors: Default::default(),
-            assignments: Default::default(),
             unifier: Default::default(),
+            var_assignments: Default::default(),
+            uid_assigments: Default::default(),
+            latest_index: 0,
         }
-    }
-
-    pub fn type_term(
-        &mut self,
-        term: &Term<Spanned<ast::Term<BoundResult, Uid>>>,
-    ) {
-        todo!()
     }
 
     pub fn check(
         &mut self,
         expr: &ast::Expr<N>,
-        ty: Arc<Ty<N>>,
+        ty: Arc<Ty<N, TyVar>>,
     ) -> TyResult<N> {
         todo!()
     }
@@ -125,7 +115,7 @@ impl<'a, N> Typer<'a, N> {
         todo!()
     }
 
-    pub fn unify(&mut self, t1: Arc<Ty<N>>, t2: Arc<Ty<N>>) {
+    pub fn unify(&mut self, t1: Arc<Ty<N, TyVar>>, t2: Arc<Ty<N, TyVar>>) {
         let res = self.unify_matrices(t1.matrix.clone(), t2.matrix.clone());
 
         if let Err(error) = res {
@@ -135,8 +125,8 @@ impl<'a, N> Typer<'a, N> {
 
     fn unify_matrices(
         &mut self,
-        t1: Arc<TyMatrix<N>>,
-        t2: Arc<TyMatrix<N>>,
+        t1: Arc<TyMatrix<N, TyVar>>,
+        t2: Arc<TyMatrix<N, TyVar>>,
     ) -> UnitResult<N> {
         match (t1.as_ref(), t2.as_ref()) {
             (TyMatrix::Prim(p1), TyMatrix::Prim(p2)) if p1 == p2 => Ok(()),
@@ -152,8 +142,8 @@ impl<'a, N> Typer<'a, N> {
 
     fn unify_var_value(
         &mut self,
-        var: Uid,
-        value: Arc<TyMatrix<N>>,
+        var: TyVar,
+        value: Arc<TyMatrix<N, TyVar>>,
     ) -> UnitResult<N> {
         if !occurs_check(&var, value.as_ref()) {
             self.assign_var(var, value);
@@ -163,7 +153,7 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
-    fn assign_var(&mut self, var: Uid, matrix: Arc<TyMatrix<N>>) {
+    fn assign_var(&mut self, var: TyVar, matrix: Arc<TyMatrix<N, TyVar>>) {
         // grab the representative element for `var`.
         let repr = self.unifier.find(var);
 
@@ -176,22 +166,29 @@ impl<'a, N> Typer<'a, N> {
         todo!()
     }
 
-    fn instantiate(&self, ty: &Ty<N>) -> Arc<TyMatrix<N>>
+    fn instantiate(&mut self, ty: &Ty<N, TyVar>) -> Arc<TyMatrix<N, TyVar>>
     where
         N: Clone,
     {
         let mut substitution = HashMap::default();
 
         for &var in &ty.prefix {
-            substitution.insert(var, Arc::new(TyMatrix::fresh_var()));
+            substitution.insert(var, Arc::new(TyMatrix::Var(self.fresh_var())));
         }
 
         apply_substitution(&substitution, ty.matrix.clone())
     }
 
-    fn lookup_var(&mut self, var: Uid) -> Option<Arc<Ty<N>>> {
+    fn lookup_var(&mut self, var: TyVar) -> Option<Arc<Ty<N, TyVar>>> {
         let repr = self.unifier.find(var);
-        self.assignments.get(&repr).cloned()
+        self.var_assignments.get(&repr).cloned()
+    }
+
+    fn fresh_var(&mut self) -> TyVar {
+        assert_ne!(self.latest_index, u32::MAX);
+
+        self.latest_index += 1;
+        TyVar(self.latest_index)
     }
 }
 
@@ -211,10 +208,10 @@ fn occurs_check<N, V: Eq>(var: &V, ty: &TyMatrix<N, V>) -> bool {
     }
 }
 
-fn apply_substitution<N: Clone>(
-    substitution: &HashMap<Uid, Arc<TyMatrix<N>>>,
-    ty: Arc<TyMatrix<N>>,
-) -> Arc<TyMatrix<N>> {
+fn apply_substitution<N: Clone, V: Hash + Eq>(
+    substitution: &HashMap<V, Arc<TyMatrix<N, V>>>,
+    ty: Arc<TyMatrix<N, V>>,
+) -> Arc<TyMatrix<N, V>> {
     match ty.as_ref() {
         TyMatrix::Prim(_) => ty,
         TyMatrix::Var(var) => substitution.get(var).cloned().unwrap_or(ty),
