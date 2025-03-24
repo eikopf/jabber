@@ -50,6 +50,43 @@ pub enum Res {
     Module(ModId),
 }
 
+/// A trait for fallibly obtaining the singular [`Res`] within `self`.
+pub trait TryGetRes {
+    type Error;
+
+    fn try_get_res(&self) -> Result<Res, Self::Error>;
+}
+
+impl TryGetRes for Res {
+    type Error = std::convert::Infallible;
+
+    fn try_get_res(&self) -> Result<Res, Self::Error> {
+        Ok(*self)
+    }
+}
+
+impl<T: TryGetRes> TryGetRes for Option<T> {
+    type Error = ();
+
+    fn try_get_res(&self) -> Result<Res, Self::Error> {
+        match self {
+            Some(t) => t.try_get_res().map_err(|_| ()),
+            None => Err(()),
+        }
+    }
+}
+
+impl<T: TryGetRes, E> TryGetRes for Result<T, E> {
+    type Error = ();
+
+    fn try_get_res(&self) -> Result<Res, Self::Error> {
+        match self.as_ref() {
+            Ok(t) => t.try_get_res().map_err(|_| ()),
+            Err(_) => Err(()),
+        }
+    }
+}
+
 impl Res {
     pub fn as_module(self) -> Option<ModId> {
         if let Self::Module(v) = self {
@@ -146,37 +183,37 @@ pub struct Env<
 #[derive(Debug, Clone)]
 pub struct Package {
     /// The version of this package.
-    version: semver::Version,
+    pub version: semver::Version,
     /// The root module in this package's module tree.
-    root_module: ModId,
+    pub root_module: ModId,
     /// The immediate dependencies of this package.
-    dependencies: Box<[Symbol]>,
+    pub dependencies: Box<[Symbol]>,
 }
 
 /// An entry in the `modules` table of an [`Env`].
 #[derive(Debug, Clone)]
 pub struct Module<I> {
-    name: Symbol,
-    parent: Option<ModId>,
-    file: FileId,
-    package: Symbol,
-    items: I,
+    pub name: Symbol,
+    pub parent: Option<ModId>,
+    pub file: FileId,
+    pub package: Symbol,
+    pub items: I,
 }
 
 /// An entry in the `terms` table of an [`Env`].
 #[derive(Debug, Clone)]
 pub struct Term<T> {
-    name: Symbol,
-    module: ModId,
-    ast: T,
+    pub name: Symbol,
+    pub module: ModId,
+    pub ast: T,
 }
 
 /// An entry in the `types` table of an [`Env`].
 #[derive(Debug, Clone)]
 pub struct Type<T> {
-    name: Symbol,
-    module: ModId,
-    ast: T,
+    pub name: Symbol,
+    pub module: ModId,
+    pub ast: T,
 }
 
 /// A located [`Symbol`] in an [`Env`].
@@ -204,6 +241,16 @@ pub enum ResValue<'a, Te, Ty, V> {
     StructType(&'a Type<Ty>),
     TyConstr { ty: &'a Type<Ty>, name: Symbol },
     Mod(&'a Module<HashMap<Symbol, V>>),
+}
+
+impl<'a, Te, Ty, V> ResValue<'a, Te, Ty, V> {
+    pub fn as_type(&self) -> Option<&'a Type<Ty>> {
+        if let Self::Type(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 impl<Te, Ty> Env<Te, Ty, HashMap<Symbol, ViSp<Res>>> {
