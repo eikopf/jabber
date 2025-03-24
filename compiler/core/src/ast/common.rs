@@ -64,3 +64,33 @@ impl<T> Vis<T> {
         Visibility::Pub(Span::ZERO).with(item)
     }
 }
+
+/// Defines _equivalence_ of names for the implementing type.
+pub trait NameEquiv<Rhs = Self> {
+    /// Returns `true` iff `self` is equivalent to `rhs`.
+    fn equiv(&self, rhs: &Rhs) -> bool;
+}
+
+impl<N, M> NameEquiv<Option<M>> for Option<N>
+where
+    N: NameEquiv<M>,
+{
+    fn equiv(&self, rhs: &Option<M>) -> bool {
+        match (self, rhs) {
+            (Some(lhs), Some(rhs)) => lhs.equiv(rhs),
+            _ => false,
+        }
+    }
+}
+
+impl<N1, N2, E1, E2> NameEquiv<Result<N2, E2>> for Result<N1, E1>
+where
+    N1: NameEquiv<N2>,
+{
+    fn equiv(&self, rhs: &Result<N2, E2>) -> bool {
+        match (self, rhs) {
+            (Ok(lhs), Ok(rhs)) => lhs.equiv(rhs),
+            _ => false,
+        }
+    }
+}

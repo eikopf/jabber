@@ -9,7 +9,7 @@ use crate::{
     unique::Uid,
 };
 
-use super::common::Qualifier;
+use super::common::{NameEquiv, Qualifier};
 
 pub use super::attr::{Attr, AttrArg, AttrName};
 
@@ -347,6 +347,24 @@ pub enum Bound {
     Global(GlobalBinding),
 }
 
+impl NameEquiv for Bound {
+    fn equiv(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            // reflexive kind equivalence
+            (Self::Local(lhs), Self::Local(rhs)) => lhs.equiv(rhs),
+            (Self::Path(lhs), Self::Path(rhs)) => lhs.equiv(rhs),
+            (Self::Global(lhs), Self::Global(rhs)) => lhs.equiv(rhs),
+
+            // global-path equivalence
+            (Self::Global(lhs), Self::Path(rhs)) => lhs.equiv(rhs),
+            (Self::Path(lhs), Self::Global(rhs)) => lhs.equiv(rhs),
+
+            // default to inequivalence
+            _ => false,
+        }
+    }
+}
+
 impl From<GlobalBinding> for Bound {
     fn from(v: GlobalBinding) -> Self {
         Self::Global(v)
@@ -486,4 +504,10 @@ pub type PathBinding = Name<Res, Path>;
 pub struct Name<I, C = Symbol> {
     pub content: Spanned<C>,
     pub id: I,
+}
+
+impl<I: Eq, C, D> NameEquiv<Name<I, D>> for Name<I, C> {
+    fn equiv(&self, rhs: &Name<I, D>) -> bool {
+        self.id == rhs.id
+    }
 }
