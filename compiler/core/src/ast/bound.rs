@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    env::{Res, TypeId},
+    env::{Res, TryGetRes, TypeId},
     span::{Span, SpanBox, SpanSeq, Spanned},
     symbol::Symbol,
     unique::Uid,
@@ -347,6 +347,18 @@ pub enum Bound {
     Global(GlobalBinding),
 }
 
+impl TryGetRes for Bound {
+    type Error = ();
+
+    fn try_get_res(&self) -> Result<Res, Self::Error> {
+        match self {
+            Self::Local(_) => Err(()),
+            Self::Path(binding) => binding.try_get_res().map_err(|_| ()),
+            Self::Global(binding) => binding.try_get_res().map_err(|_| ()),
+        }
+    }
+}
+
 impl NameEquiv for Bound {
     fn equiv(&self, rhs: &Self) -> bool {
         match (self, rhs) {
@@ -504,6 +516,14 @@ pub type PathBinding = Name<Res, Path>;
 pub struct Name<I, C = Symbol> {
     pub content: Spanned<C>,
     pub id: I,
+}
+
+impl<I: TryGetRes, C> TryGetRes for Name<I, C> {
+    type Error = <I as TryGetRes>::Error;
+
+    fn try_get_res(&self) -> Result<Res, Self::Error> {
+        self.id.try_get_res()
+    }
 }
 
 impl<I: Eq, C, D> NameEquiv<Name<I, D>> for Name<I, C> {
