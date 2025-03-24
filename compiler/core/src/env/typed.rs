@@ -24,7 +24,7 @@ use ena::unify::{InPlace, UnificationTable, UnifyKey};
 
 use crate::{
     ast::{
-        common::ViSp,
+        common::{NameEquiv, ViSp},
         typed::{self as ast, Ty, TyMatrix},
     },
     env::{Env, Res, resolve::BoundResult},
@@ -115,29 +115,98 @@ impl<'a, N> Typer<'a, N> {
         todo!()
     }
 
-    pub fn unify(&mut self, t1: Arc<Ty<N, TyVar>>, t2: Arc<Ty<N, TyVar>>) {
-        let res = self.unify_matrices(t1.matrix.clone(), t2.matrix.clone());
-
-        if let Err(error) = res {
-            self.errors.push(error);
-        }
+    pub fn unify(
+        &mut self,
+        t1: Arc<Ty<N, TyVar>>,
+        t2: Arc<Ty<N, TyVar>>,
+    ) -> UnitResult<N>
+    where
+        N: NameEquiv,
+    {
+        self.unify_matrices(t1.matrix.clone(), t2.matrix.clone())
     }
-
-    // TODO: finish implementing unification
 
     fn unify_matrices(
         &mut self,
         t1: Arc<TyMatrix<N, TyVar>>,
         t2: Arc<TyMatrix<N, TyVar>>,
-    ) -> UnitResult<N> {
+    ) -> UnitResult<N>
+    where
+        N: NameEquiv,
+    {
         match (t1.as_ref(), t2.as_ref()) {
+            // identical primitives
             (TyMatrix::Prim(p1), TyMatrix::Prim(p2)) if p1 == p2 => Ok(()),
+
+            // variable-variable
             (TyMatrix::Var(v1), TyMatrix::Var(v2)) => {
                 self.unifier.union(*v1, *v2);
                 Ok(())
             }
+
+            // value-variable & variable-value
             (_, TyMatrix::Var(var)) => self.unify_var_value(*var, t1),
             (TyMatrix::Var(var), _) => self.unify_var_value(*var, t2),
+
+            // equal-length tuples
+            (TyMatrix::Tuple(elems1), TyMatrix::Tuple(elems2))
+                if elems1.len() == elems2.len() =>
+            {
+                for (l, r) in elems1.iter().zip(elems2) {
+                    self.unify_matrices(l.clone(), r.clone())?;
+                }
+
+                Ok(())
+            }
+
+            // function-function
+            (
+                TyMatrix::Fn {
+                    domain: d1,
+                    codomain: c1,
+                },
+                TyMatrix::Fn {
+                    domain: d2,
+                    codomain: c2,
+                },
+            ) => {
+                // we need to check that either
+                // 1. d1.len() == d2.len(), or;
+                // 2. d1 and d2 can both be treated as unit domains.
+
+                if d1.len() == d2.len() {
+                    for (l, r) in d1.iter().zip(d2) {
+                        self.unify_matrices(l.clone(), r.clone())?;
+                    }
+
+                    self.unify_matrices(c1.clone(), c2.clone())
+                } else if is_unit_domain(d1) && is_unit_domain(d2) {
+                    self.unify_matrices(c1.clone(), c2.clone())
+                } else {
+                    Err(TypingError::DidNotUnify(t1, t2))
+                }
+            }
+
+            // named-named
+            (
+                TyMatrix::Named { name: n1, args: a1 },
+                TyMatrix::Named { name: n2, args: a2 },
+            ) => {
+                // we have to check for equivalence of n1 and n2, but precisely
+                // what _equivalence_ means here should depend on N; hence we
+                // use the NameEquiv trait to check for equivalence. if they
+                // are equivalent then we unify a1 and a2 pointwise
+
+                if N::equiv(n1, n2) && a1.len() == a2.len() {
+                    for (l, r) in a1.iter().zip(a2) {
+                        self.unify_matrices(l.clone(), r.clone())?;
+                    }
+
+                    Ok(())
+                } else {
+                    Err(TypingError::DidNotUnify(t1, t2))
+                }
+            }
             _ => Err(TypingError::DidNotUnify(t1, t2)),
         }
     }
@@ -146,7 +215,10 @@ impl<'a, N> Typer<'a, N> {
         &mut self,
         var: TyVar,
         value: Arc<TyMatrix<N, TyVar>>,
-    ) -> UnitResult<N> {
+    ) -> UnitResult<N>
+    where
+        N: NameEquiv,
+    {
         if !occurs_check(&var, value.as_ref()) {
             self.assign_var(var, value);
             Ok(())
@@ -155,14 +227,17 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
-    fn assign_var(&mut self, var: TyVar, ty: Arc<TyMatrix<N, TyVar>>) {
+    fn assign_var(&mut self, var: TyVar, ty: Arc<TyMatrix<N, TyVar>>)
+    where
+        N: NameEquiv,
+    {
         // grab the representative element for `var`.
         let repr = self.unifier.find(var);
 
         // check for a preexisting assignment
         if let Some(current_ty) = self.lookup_var(repr) {
             // unify to check consistency with current_ty
-            self.unify(current_ty, Ty::unquantified(ty));
+            assert!(self.unify(current_ty, Ty::unquantified(ty)).is_ok());
         } else {
             // otherwise just create the new assignment
             self.var_assignments.insert(repr, Ty::unquantified(ty));
@@ -299,5 +374,18 @@ fn apply_substitution<N: Clone, V: Hash + Eq>(
                 .collect(),
             codomain: apply_substitution(substitution, codomain.clone()),
         }),
+    }
+}
+
+/// Given a list of type matrices, determines whether it can be treated as
+/// equivalent to the unit type in the domain of a function type. This is
+/// the case if and only if either
+/// 1. the domain has no members, or;
+/// 2. the domain has exactly one member, and this member is `()`.
+fn is_unit_domain<N, V>(domain: &[Arc<TyMatrix<N, V>>]) -> bool {
+    match domain {
+        [] => true,
+        [_, _, ..] => false,
+        [ty] => matches!(ty.as_ref(), TyMatrix::Prim(ast::PrimTy::Unit)),
     }
 }
