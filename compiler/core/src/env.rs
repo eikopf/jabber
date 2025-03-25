@@ -208,12 +208,48 @@ pub struct Term<T> {
     pub ast: T,
 }
 
+impl<T> Term<T> {
+    pub fn as_ref(&self) -> Term<&T> {
+        Term {
+            name: self.name,
+            module: self.module,
+            ast: &self.ast,
+        }
+    }
+
+    pub fn map<U>(self, op: impl FnOnce(T) -> U) -> Term<U> {
+        Term {
+            name: self.name,
+            module: self.module,
+            ast: op(self.ast),
+        }
+    }
+}
+
 /// An entry in the `types` table of an [`Env`].
 #[derive(Debug, Clone)]
 pub struct Type<T> {
     pub name: Symbol,
     pub module: ModId,
     pub ast: T,
+}
+
+impl<T> Type<T> {
+    pub fn as_ref(&self) -> Type<&T> {
+        Type {
+            name: self.name,
+            module: self.module,
+            ast: &self.ast,
+        }
+    }
+
+    pub fn map<U>(self, op: impl FnOnce(T) -> U) -> Type<U> {
+        Type {
+            name: self.name,
+            module: self.module,
+            ast: op(self.ast),
+        }
+    }
 }
 
 /// A located [`Symbol`] in an [`Env`].
