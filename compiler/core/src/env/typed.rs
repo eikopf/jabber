@@ -55,8 +55,8 @@ pub fn typecheck<N>(env: &TypedEnv<N>) -> Result<(), Vec<TypingError<N>>> {
     let mut typer: Typer<'_, N> = Typer::new(env);
 
     for id in env.term_id_iter() {
-        let term = env.get_term(id);
-        todo!();
+        let term = env.get_term(id).as_ref().map(Spanned::as_ref);
+        typer.type_term(term);
     }
 
     todo!();
@@ -101,6 +101,10 @@ impl<'a, N> Typer<'a, N> {
             var_assignments: Default::default(),
             uid_assigments: Default::default(),
         }
+    }
+
+    pub fn type_term(&mut self, term: super::Term<Spanned<&ast::Term<N>>>) {
+        todo!()
     }
 
     pub fn check(
