@@ -33,11 +33,13 @@ use crate::{
     unique::Uid,
 };
 
+use super::TryGetRes;
+
 pub mod lower;
 
-pub type TypedEnv = Env<
-    Spanned<ast::Term<BoundResult>>,
-    Spanned<ast::Type<BoundResult>>,
+pub type TypedEnv<N = BoundResult> = Env<
+    Spanned<ast::Term<N>>,
+    Spanned<ast::Type<N>>,
     HashMap<Symbol, ViSp<Res>>,
 >;
 
@@ -49,7 +51,7 @@ pub enum TypingError<N> {
 
 // TODO: main entry point for typechecking
 
-pub fn typecheck<N>(env: &TypedEnv) -> Result<(), Vec<TypingError<N>>> {
+pub fn typecheck<N>(env: &TypedEnv<N>) -> Result<(), Vec<TypingError<N>>> {
     let mut typer: Typer<'_, N> = Typer::new(env);
 
     for id in env.term_id_iter() {
@@ -80,26 +82,24 @@ impl UnifyKey for TyVar {
 }
 
 pub struct Typer<'a, N> {
-    env: &'a TypedEnv,
+    env: &'a TypedEnv<N>,
     errors: Vec<TypingError<N>>,
     unifier: UnificationTable<InPlace<TyVar>>,
     var_assignments: HashMap<TyVar, Arc<Ty<N, TyVar>>>,
     uid_assigments: HashMap<Uid, TyVar>,
-    latest_index: u32,
 }
 
 type TyResult<N> = Result<Arc<Ty<N, TyVar>>, TypingError<N>>;
 type UnitResult<N> = Result<(), TypingError<N>>;
 
 impl<'a, N> Typer<'a, N> {
-    pub fn new(env: &'a TypedEnv) -> Self {
+    pub fn new(env: &'a TypedEnv<N>) -> Self {
         Self {
             env,
             errors: Default::default(),
             unifier: Default::default(),
             var_assignments: Default::default(),
             uid_assigments: Default::default(),
-            latest_index: 0,
         }
     }
 
@@ -211,6 +211,84 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
+    /// Recursively expands type aliases in the given `ty`, guaranteeing that
+    /// the result is in a canonical form. Note that this includes normalization
+    /// of functions with unit-equivalent domains to unary functions of the
+    /// unit domain.
+    ///
+    /// We assume that `self.env` does not contain any recursive aliases, since
+    /// otherwise this function cannot guarantee termination.
+    fn normalize(
+        &mut self,
+        ty: &Arc<TyMatrix<N, TyVar>>,
+    ) -> Option<Arc<TyMatrix<N, TyVar>>>
+    where
+        N: TryGetRes + Clone,
+    {
+        match ty.as_ref() {
+            TyMatrix::Prim(_) | TyMatrix::Var(_) => Some(ty.clone()),
+            TyMatrix::Tuple(elems) => Some(Arc::new(TyMatrix::Tuple(
+                elems
+                    .iter()
+                    .try_fold(vec![], |mut elems, ty| {
+                        let elem = self.normalize(ty)?;
+                        elems.push(elem);
+                        Some(elems)
+                    })?
+                    .into_boxed_slice(),
+            ))),
+            TyMatrix::Fn { domain, codomain } => Some(Arc::new(TyMatrix::Fn {
+                domain: domain
+                    .iter()
+                    .try_fold(vec![], |mut elems, ty| {
+                        let elem = self.normalize(ty)?;
+                        elems.push(elem);
+                        Some(elems)
+                    })?
+                    .into_boxed_slice(),
+                codomain: self.normalize(codomain)?,
+            })),
+            TyMatrix::Named { name, args } => {
+                let res: Res = name.try_get_res().ok()?;
+                let ast = &self.env.get_res(res).as_type()?.ast;
+                let params = &ast.params;
+                let kind = &ast.kind;
+
+                Some(match kind {
+                    // normalize the alias
+                    ast::TypeKind::Alias { rhs_ty, .. } => {
+                        // sanity check
+                        assert_eq!(params.len(), args.len());
+
+                        let substitution: HashMap<_, _> = params
+                            .iter()
+                            .zip(args)
+                            .map(|(param, arg)| {
+                                let ty_var = self.get_or_assign_var(param.id);
+                                (ty_var, arg.clone())
+                            })
+                            .collect();
+
+                        let rhs_matrix = self.rebind(rhs_ty).matrix.clone();
+                        apply_substitution(&substitution, rhs_matrix)
+                    }
+                    // otherwise recurse as normal
+                    _ => Arc::new(TyMatrix::Named {
+                        name: name.clone(),
+                        args: args
+                            .iter()
+                            .try_fold(vec![], |mut args, ty| {
+                                let arg = self.normalize(ty)?;
+                                args.push(arg);
+                                Some(args)
+                            })?
+                            .into_boxed_slice(),
+                    }),
+                })
+            }
+        }
+    }
+
     fn unify_var_value(
         &mut self,
         var: TyVar,
@@ -263,10 +341,7 @@ impl<'a, N> Typer<'a, N> {
     }
 
     fn fresh_var(&mut self) -> TyVar {
-        assert_ne!(self.latest_index, u32::MAX);
-
-        self.latest_index += 1;
-        TyVar(self.latest_index)
+        self.unifier.new_key(())
     }
 
     // UID CONVERSION METHODS
