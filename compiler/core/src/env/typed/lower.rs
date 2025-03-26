@@ -77,6 +77,45 @@ pub enum TyLowerError {
     },
 }
 
+pub type LoweredType<N, V = Uid> = Type<Spanned<ast::Type<N, V>>>;
+pub type DeclTypeMap<N, V = Uid> = HashMap<Res, Arc<ast::Ty<N, V>>>;
+
+/// Collects the following type information from the given `env`:
+/// 1. The lowered type declarations (field 0).
+/// 2. The annotated type for each [`Res`] (field 1).
+/// 3. Any errors encountered (field 3).
+pub fn collect_types<N>(
+    env: &ResEnv,
+) -> (Vec<LoweredType<N>>, DeclTypeMap<N>, Vec<TyLowerError>) {
+    let (types, errors) = lower_types(env);
+
+    todo!()
+}
+
+/// Lowers the type declarations in the `env` to their typed representation.
+/// This information is primarily used by [`collect_types()`].
+pub fn lower_types(
+    env: &ResEnv,
+) -> (Vec<LoweredType<BoundResult>>, Vec<TyLowerError>) {
+    let mut errors = Vec::new();
+    let mut types = Vec::with_capacity(env.types.len());
+
+    for id in env.type_id_iter() {
+        let Type { name, module, ast } = env.get_type(id).as_ref();
+        let ty_name = ast.name();
+        let params: HashSet<_> =
+            ast.params().iter().map(|binding| binding.id).collect();
+        let mut lowerer =
+            TypeLowerer::new(module, id, ty_name, &params, &mut errors);
+
+        // HACK: this clone can probably be avoided!
+        let ast = lowerer.lower_type(ast.clone());
+        types.push(Type { name, module, ast });
+    }
+
+    (types, errors)
+}
+
 pub fn lower(
     Env {
         files,
@@ -137,20 +176,10 @@ pub fn lower(
         terms
     };
 
-    (
-        Env {
-            files,
-            packages,
-            modules,
-            terms,
-            types,
-            interner,
-        },
-        errors,
-    )
+    todo!()
 }
 
-struct TypeLowerer<'a> {
+pub struct TypeLowerer<'a> {
     module: ModId,
     id: TypeId,
     ty_name: Name<Res>,
@@ -438,7 +467,7 @@ impl<'a> TypeLowerer<'a> {
     }
 }
 
-struct TermLowerer<'a> {
+pub struct TermLowerer<'a> {
     module: ModId,
     ty_params: &'a mut HashSet<Uid>,
     errors: &'a mut Vec<TyLowerError>,
@@ -807,7 +836,7 @@ fn generate_unit_expr() -> Typed<ast::Expr<BoundResult>, BoundResult> {
 
 // TYPE AST REIFICATION
 
-struct TyReifier<'a> {
+pub struct TyReifier<'a> {
     /// The current module.
     module: ModId,
     /// The type parameters in scope.
