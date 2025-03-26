@@ -232,6 +232,15 @@ pub struct Typed<T, N = Bound, V = Uid> {
     pub ty: Arc<Ty<N, V>>,
 }
 
+impl<T, N, V> Typed<T, N, V> {
+    pub fn as_ref(&self) -> Typed<&T, N, V> {
+        Typed {
+            item: &self.item,
+            ty: self.ty.clone(), // this is bad design!
+        }
+    }
+}
+
 impl<T, N, V> std::ops::Deref for Typed<T, N, V> {
     type Target = T;
 
