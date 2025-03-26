@@ -16,7 +16,17 @@
 //! elements of the type system, and the 2013 paper is authoritative on the
 //! high-level implementation details.
 //!
-//! `TODO: write about typechecking impl`
+//! We proceed in two passes: first
+//! 1. collection, and then;
+//! 2. inference and unification.
+//!
+//! The first pass visits declarations (terms and types) but not their bodies,
+//! reifying type annotations where possible and assigning fresh type variables
+//! otherwise.
+//!
+//! The second pass infers the type of the body of each term, unifying with the
+//! type obtained in the previous pass. These inferred types are then
+//! generalized to make them properly generic.
 
 use std::{collections::HashMap, hash::Hash, sync::Arc};
 
@@ -24,8 +34,9 @@ use ena::unify::{InPlace, UnificationTable, UnifyKey};
 
 use crate::{
     ast::{
+        bound::{self, Bound, Name},
         common::{NameEquiv, ViSp},
-        typed::{self as ast, Ty, TyMatrix},
+        typed::{self as ast, Ty, TyMatrix, Typed},
     },
     env::{Env, Res, resolve::BoundResult},
     span::Spanned,
@@ -33,33 +44,63 @@ use crate::{
     unique::Uid,
 };
 
-use super::TryGetRes;
+use super::{TryGetRes, resolve::ResEnv};
 
 pub mod lower;
 
+/// A typechecked [`Env`].
 pub type TypedEnv<N = BoundResult> = Env<
-    Spanned<ast::Term<N>>,
-    Spanned<ast::Type<N>>,
+    Spanned<ast::Term<N, TyVar>>,
+    Spanned<ast::Type<N, Uid>>,
     HashMap<Symbol, ViSp<Res>>,
 >;
 
 #[derive(Debug, Clone)]
-pub enum TypingError<N> {
-    DidNotUnify(Arc<TyMatrix<N, TyVar>>, Arc<TyMatrix<N, TyVar>>),
-    OccursIn(TyVar, Arc<TyMatrix<N, TyVar>>),
+pub enum TypingError<N, V = TyVar> {
+    Lower(lower::TyLowerError),
+    DidNotUnify(Arc<TyMatrix<N, V>>, Arc<TyMatrix<N, V>>),
+    OccursIn(V, Arc<TyMatrix<N, V>>),
+    UnboundName(N),
 }
 
-// TODO: main entry point for typechecking
+// TODO: we have roughly three tasks here:
+// 1. rescue the `lower` implementation to implement the first pass
+// 2. write the second pass in this module
+// 3. refactor to remove old dead code and redundant boilerplate
+// when this is complete, you MUST write at least one test
 
-pub fn typecheck<N>(env: &TypedEnv<N>) -> Result<(), Vec<TypingError<N>>> {
-    let mut typer: Typer<'_, N> = Typer::new(env);
+// NOTE: main entry point for typechecking
 
-    for id in env.term_id_iter() {
-        let term = env.get_term(id).as_ref().map(Spanned::as_ref);
-        typer.type_term(term);
+pub fn typecheck(
+    env: ResEnv,
+) -> Result<TypedEnv<BoundResult>, (ResEnv, Vec<TypingError<BoundResult>>)> {
+    // first pass
+    let (types, decl_types, errors) = lower::collect_types(&env);
+
+    let mut errors = errors.into_iter().map(TypingError::Lower).collect();
+    let mut typer = Typer::new(&types, &decl_types, &mut errors);
+
+    // second pass
+    let mut terms = Vec::with_capacity(env.terms.len());
+    for term_id in env.term_id_iter() {
+        let untyped_term = env.get_term(term_id).as_ref().map(Spanned::as_ref);
+
+        if let Some(term) = typer.type_term(untyped_term) {
+            terms.push(term)
+        }
     }
 
-    todo!();
+    match errors.len() {
+        0 => Ok(Env {
+            types,
+            terms,
+            files: env.files,
+            modules: env.modules,
+            interner: env.interner,
+            packages: env.packages,
+        }),
+        _ => Err((env, errors)),
+    }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -81,30 +122,129 @@ impl UnifyKey for TyVar {
     }
 }
 
-pub struct Typer<'a, N> {
-    env: &'a TypedEnv<N>,
-    errors: Vec<TypingError<N>>,
-    unifier: UnificationTable<InPlace<TyVar>>,
-    var_assignments: HashMap<TyVar, Arc<Ty<N, TyVar>>>,
-    uid_assigments: HashMap<Uid, TyVar>,
+/// An index into a [`Typer`].
+#[derive(Debug, Clone, Copy)]
+pub enum TyperIndex {
+    Res(Res),
+    Uid(Uid),
 }
 
-type TyResult<N> = Result<Arc<Ty<N, TyVar>>, TypingError<N>>;
-type UnitResult<N> = Result<(), TypingError<N>>;
+pub trait TryGetTyperIndex {
+    type Error;
+
+    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error>;
+}
+
+impl TryGetTyperIndex for Res {
+    type Error = std::convert::Infallible;
+
+    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
+        Ok(TyperIndex::Res(*self))
+    }
+}
+
+impl TryGetTyperIndex for Uid {
+    type Error = std::convert::Infallible;
+
+    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
+        Ok(TyperIndex::Uid(*self))
+    }
+}
+
+impl<I: TryGetTyperIndex, C> TryGetTyperIndex for Name<I, C> {
+    type Error = I::Error;
+
+    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
+        self.id.try_get_typer_index()
+    }
+}
+
+impl TryGetTyperIndex for Bound {
+    type Error = std::convert::Infallible;
+
+    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
+        match self {
+            Bound::Local(name) => name.try_get_typer_index(),
+            Bound::Path(name) => name.try_get_typer_index(),
+            Bound::Global(name) => name.try_get_typer_index(),
+        }
+    }
+}
+
+impl<T: TryGetTyperIndex, E> TryGetTyperIndex for Result<T, E> {
+    type Error = Option<T::Error>;
+
+    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
+        match self {
+            Ok(inner) => inner.try_get_typer_index().map_err(Some),
+            Err(_) => Err(None),
+        }
+    }
+}
+
+type TyExprResult<N, V = TyVar> =
+    Result<Spanned<Typed<ast::Expr<N, V>, N, V>>, TypingError<N, V>>;
+
+type InferResult<N, V = TyVar> = Result<
+    (Spanned<Typed<ast::Expr<N, V>, N, V>>, Arc<Ty<N, V>>),
+    TypingError<N, V>,
+>;
+
+type TyResult<N, V = TyVar> = Result<Arc<Ty<N, V>>, TypingError<N, V>>;
+type UnitResult<N, V = TyVar> = Result<(), TypingError<N, V>>;
+
+pub struct Typer<'a, N> {
+    /// The lowered type declarations.
+    types: &'a [lower::LoweredType<N, Uid>],
+    /// A map from [`Res`] values to their types.
+    decl_types: &'a lower::DeclTypeMap<N, Uid>,
+    /// Accumulated errors.
+    errors: &'a mut Vec<TypingError<N>>,
+    /// Equivalence classes of [`TyVar`].
+    unifier: UnificationTable<InPlace<TyVar>>,
+    /// A mapping from type variables to types.
+    var_assignments: HashMap<TyVar, Arc<Ty<N, TyVar>>>,
+    /// A mapping from [`Uid`] to [`TyVar`] in type expressions.
+    uid_assigments: HashMap<Uid, TyVar>,
+    /// The type judgements associated with local variables.
+    local_var_types: HashMap<Uid, Arc<Ty<N, TyVar>>>,
+}
 
 impl<'a, N> Typer<'a, N> {
-    pub fn new(env: &'a TypedEnv<N>) -> Self {
+    pub fn new(
+        types: &'a [lower::LoweredType<N>],
+        decl_types: &'a lower::DeclTypeMap<N>,
+        errors: &'a mut Vec<TypingError<N>>,
+    ) -> Self {
         Self {
-            env,
-            errors: Default::default(),
+            types,
+            decl_types,
+            errors,
             unifier: Default::default(),
             var_assignments: Default::default(),
             uid_assigments: Default::default(),
+            local_var_types: Default::default(),
         }
     }
 
-    pub fn type_term(&mut self, term: super::Term<Spanned<&ast::Term<N>>>) {
+    /// Types the given term, returning `Some(..)` if and only if no errors
+    /// occurred while typechecking.
+    pub fn type_term(
+        &mut self,
+        term: super::Term<Spanned<&bound::Term<N>>>,
+    ) -> Option<super::Term<Spanned<ast::Term<N, TyVar>>>> {
         todo!()
+    }
+
+    pub fn typecheck_expr(
+        &mut self,
+        expr: Spanned<&bound::Expr<N>>,
+    ) -> TyExprResult<N>
+    where
+        N: TryGetTyperIndex + Clone,
+    {
+        let (typed_expr, _ty) = self.infer(expr)?;
+        Ok(typed_expr)
     }
 
     pub fn check(
@@ -115,8 +255,47 @@ impl<'a, N> Typer<'a, N> {
         todo!()
     }
 
-    pub fn infer(&mut self, expr: &ast::Expr<N>) -> TyResult<N> {
-        todo!()
+    pub fn infer(
+        &mut self,
+        Spanned { item, span }: Spanned<&bound::Expr<N>>,
+    ) -> InferResult<N>
+    where
+        N: TryGetTyperIndex + Clone,
+    {
+        match item {
+            bound::Expr::Name(name) => {
+                let ty = name
+                    .try_get_typer_index()
+                    .ok()
+                    .and_then(|index| self.lookup_index(index));
+
+                match ty {
+                    Some(ty) => {
+                        let expr = ast::Expr::Name(name.clone());
+                        Ok((span.with(ty.with(expr)), ty))
+                    }
+                    None => Err(TypingError::UnboundName(name.clone())),
+                }
+            }
+            bound::Expr::Literal(literal_expr) => todo!(),
+            bound::Expr::List(_) => todo!(),
+            bound::Expr::Tuple(_) => todo!(),
+            bound::Expr::Block(block) => todo!(),
+            bound::Expr::RecordConstr { name, fields, base } => todo!(),
+            bound::Expr::RecordField { item, field } => todo!(),
+            bound::Expr::TupleField { item, field } => todo!(),
+            bound::Expr::Lambda { params, body } => todo!(),
+            bound::Expr::Call { callee, args, kind } => todo!(),
+            bound::Expr::LazyAnd { operator, lhs, rhs } => todo!(),
+            bound::Expr::LazyOr { operator, lhs, rhs } => todo!(),
+            bound::Expr::Mutate { operator, lhs, rhs } => todo!(),
+            bound::Expr::Match { scrutinee, arms } => todo!(),
+            bound::Expr::IfElse {
+                condition,
+                consequence,
+                alternative,
+            } => todo!(),
+        }
     }
 
     pub fn unify(
@@ -215,6 +394,13 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
+    fn lookup_index(&mut self, index: TyperIndex) -> Option<Arc<Ty<N, TyVar>>> {
+        match index {
+            TyperIndex::Uid(uid) => self.local_var_types.get(&uid).cloned(),
+            TyperIndex::Res(res) => todo!(),
+        }
+    }
+
     /// Recursively expands type aliases in the given `ty`, guaranteeing that
     /// the result is in a canonical form. Note that this includes normalization
     /// of functions with unit-equivalent domains to unary functions of the
@@ -254,7 +440,7 @@ impl<'a, N> Typer<'a, N> {
             })),
             TyMatrix::Named { name, args } => {
                 let res: Res = name.try_get_res().ok()?;
-                let ast = &self.env.get_res(res).as_type()?.ast;
+                let ast = &self.types[res.as_type()?.0].ast;
                 let params = &ast.params;
                 let kind = &ast.kind;
 
