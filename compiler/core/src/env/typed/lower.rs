@@ -31,7 +31,7 @@ use std::{
 use crate::{
     ast::typed::{Bound, Name},
     env::{
-        Env, ModId, Res, TypeId,
+        Env, ModId, Res, TermId, TypeId,
         resolve::{BoundResult, ResEnv},
     },
     symbol::Symbol,
@@ -78,18 +78,33 @@ pub enum TyLowerError {
 }
 
 pub type LoweredType<N, V = Uid> = Type<Spanned<ast::Type<N, V>>>;
-pub type DeclTypeMap<N, V = Uid> = HashMap<Res, Arc<ast::Ty<N, V>>>;
+pub type TermTypeMap<N, V = Uid> = HashMap<TermId, Arc<ast::Ty<N, V>>>;
 
 /// Collects the following type information from the given `env`:
 /// 1. The lowered type declarations (field 0).
-/// 2. The annotated type for each [`Res`] (field 1).
+/// 2. The annotated type for each [`TermId`] (field 1).
 /// 3. Any errors encountered (field 3).
-pub fn collect_types<N>(
+pub fn collect_types(
     env: &ResEnv,
-) -> (Vec<LoweredType<N>>, DeclTypeMap<N>, Vec<TyLowerError>) {
-    let (types, errors) = lower_types(env);
+) -> (
+    Vec<LoweredType<BoundResult>>,
+    TermTypeMap<BoundResult>,
+    Vec<TyLowerError>,
+) {
+    let (types, mut errors) = lower_types(env);
 
-    todo!()
+    let mut term_types = HashMap::with_capacity(env.terms.len());
+
+    for term_id in env.term_id_iter() {
+        let Term { module, ast, .. } = env.get_term(term_id).as_ref();
+        let mut ty_params = HashSet::new();
+        let mut lowerer = TermLowerer::new(module, &mut ty_params, &mut errors);
+
+        let ty = lowerer.get_annotated_ty(ast.item());
+        term_types.insert(term_id, ty);
+    }
+
+    (types, term_types, errors)
 }
 
 /// Lowers the type declarations in the `env` to their typed representation.
@@ -109,6 +124,7 @@ pub fn lower_types(
             TypeLowerer::new(module, id, ty_name, &params, &mut errors);
 
         // HACK: this clone can probably be avoided!
+        // TODO: make lower_type take a reference instead of a value
         let ast = lowerer.lower_type(ast.clone());
         types.push(Type { name, module, ast });
     }
@@ -491,6 +507,37 @@ impl<'a> TermLowerer<'a> {
         TyReifier::new(self.module, self.ty_params, self.errors)
     }
 
+    // TODO: this can probably be replaced by a method on TyReifier,
+    // which would allow us to delete TermLowerer and its methods
+    // entirely
+    pub fn get_annotated_ty(
+        &mut self,
+        term: &bound::Term<BoundResult>,
+    ) -> Arc<ast::Ty<BoundResult>> {
+        let mut reifier = self.reifier();
+        let matrix = match term {
+            bound::Term::Fn(bound::Fn {
+                params, return_ty, ..
+            }) => reifier.reify_fn_ty_annotation(
+                params,
+                return_ty.as_ref().map(Spanned::as_ref),
+            ),
+            bound::Term::ExternFn(bound::ExternFn {
+                params,
+                return_ty,
+                ..
+            }) => reifier.reify_fn_ty_annotation(
+                params,
+                return_ty.as_ref().map(Spanned::as_ref),
+            ),
+            bound::Term::Const(bound::Const { ty, .. }) => {
+                reifier.reify_option_ty_matrix(ty.as_ref().map(Spanned::as_ref))
+            }
+        };
+
+        reifier.quantify(matrix)
+    }
+
     pub fn lower_term(
         &mut self,
         Spanned { item, span }: Spanned<bound::Term<BoundResult>>,
@@ -515,7 +562,7 @@ impl<'a> TermLowerer<'a> {
                 let kind = ast::TermKind::Fn {
                     params: self.lower_params(params),
                     body: self.lower_expr(*body),
-                    return_ty,
+                    return_ty_ast: return_ty,
                 };
 
                 (attrs, name, ty, kind)
@@ -537,7 +584,7 @@ impl<'a> TermLowerer<'a> {
 
                 let kind = ast::TermKind::ExternFn {
                     params: self.lower_params(params),
-                    return_ty,
+                    return_ty_ast: return_ty,
                 };
 
                 (attrs, name, ty, kind)
@@ -964,74 +1011,5 @@ impl<'a> TyReifier<'a> {
             errors,
             prefix: Default::default(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        cst::Parser,
-        env::{
-            import_res::ImportResEnv, resolve::resolve, unbound::UnboundEnv,
-        },
-        package as pkg,
-    };
-    use std::{path::PathBuf, str::FromStr};
-
-    #[test]
-    fn build_lowered_env_from_core() {
-        // load package CSTs
-        let path = PathBuf::from_str("../../libs/core").unwrap();
-        let package = pkg::Package::load_files(path).unwrap();
-        let mut parser = Parser::new().unwrap();
-
-        // lower CSTs to unbound_lowered::Ast
-        let package = package
-            .map_modules(|file| parser.parse(file))
-            .transpose()
-            .unwrap()
-            .map_modules(crate::ast::unbound::Ast::try_from)
-            .transpose()
-            .unwrap()
-            .map_modules(crate::ast::unbound_lowered::Ast::from);
-
-        // build unbound env
-        let mut env = UnboundEnv::new();
-        let (_core_symbol, ingest_warnings, ingest_errors) =
-            env.consume_package(package, Box::new([]));
-
-        dbg!(ingest_warnings);
-        dbg!(ingest_errors);
-
-        // build import_res env
-        let (env, errors) = ImportResEnv::from_unbound_env(env);
-        dbg!(errors.len());
-
-        let mut warnings = Vec::new();
-        let mut errors = Vec::new();
-
-        // build resolved env
-        let env = resolve(env, &mut warnings, &mut errors);
-
-        // lower to typed env
-        let (mut env, lower_errors) = super::lower(env);
-
-        // REF MODULE INSPECTION
-
-        let ref_ = env.interner.intern_static("ref");
-        let ref_mod_id = env.magic_core_submodule(ref_).unwrap();
-        let ref_mod = env.get_module(ref_mod_id);
-
-        for (sym, item) in ref_mod.items.clone() {
-            let name = env.interner.resolve(sym).unwrap();
-            let (_vis, _span, res) = item.spread();
-
-            let res_value = env.get_res(res);
-
-            eprintln!("{} ({:?})\n{:?}\n\n", name, res, res_value);
-        }
-
-        dbg![lower_errors];
-        panic!();
     }
 }
