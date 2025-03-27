@@ -45,6 +45,15 @@ pub struct Type<N = Bound, V = Uid, A = ResAttr> {
     pub kind: TypeKind<N, V>,
 }
 
+impl<N, V, A> Type<N, V, A> {
+    pub fn constrs(&self) -> Option<&HashMap<Symbol, Spanned<TyConstr<N, V>>>> {
+        match &self.kind {
+            TypeKind::Adt { constrs, .. } => Some(constrs),
+            _ => None,
+        }
+    }
+}
+
 /// The kind of a [`Type`] together with any specific elements belonging to
 /// each kind.
 #[derive(Debug, Clone)]
@@ -65,6 +74,16 @@ pub struct TyConstr<N = Bound, V = Uid> {
     pub name: Spanned<Symbol>,
     pub ast: Spanned<TyConstrAst<N>>,
     pub kind: TyConstrKind<N, V>,
+}
+
+impl<N, V> TyConstr<N, V> {
+    pub fn get_ty(&self) -> Option<Arc<Ty<N, V>>> {
+        match &self.kind {
+            TyConstrKind::Record(_) => None,
+            TyConstrKind::Unit(ty) => Some(ty.clone()),
+            TyConstrKind::Tuple { fn_ty, .. } => Some(fn_ty.clone()),
+        }
+    }
 }
 
 /// The kind of constructor, inferred during lowering from the [`super::bound`]
