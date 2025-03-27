@@ -472,10 +472,24 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
-    fn lookup_index(&mut self, index: TyperIndex) -> Option<Arc<Ty<N, TyVar>>> {
+    fn lookup_index(&mut self, index: TyperIndex) -> Option<Arc<Ty<N, TyVar>>>
+    where
+        N: Clone,
+    {
         match index {
             TyperIndex::Uid(uid) => self.local_var_types.get(&uid).cloned(),
-            TyperIndex::Res(res) => todo!(),
+            TyperIndex::Res(Res::Term(id)) => {
+                self.term_types.get(&id).map(|ty| self.rebind(ty))
+            }
+            TyperIndex::Res(Res::TyConstr { ty, name }) => self.types[ty.0]
+                .ast
+                .constrs()
+                .and_then(|constrs| constrs.get(&name))
+                .and_then(|constr| constr.get_ty())
+                .map(|ty| self.rebind(ty.as_ref())),
+            TyperIndex::Res(_) => {
+                panic!("a variable was bound to a module or type")
+            }
         }
     }
 
