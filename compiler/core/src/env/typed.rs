@@ -35,16 +35,16 @@ use ena::unify::{InPlace, UnificationTable, UnifyKey};
 use crate::{
     ast::{
         bound::{self, Bound, Name},
-        common::{NameEquiv, ViSp},
+        common::{NameEquiv, ViSp, Vis},
         typed::{self as ast, Ty, TyMatrix, Typed},
     },
     env::{Env, Res, resolve::BoundResult},
-    span::Spanned,
+    span::{SpanSeq, Spanned},
     symbol::Symbol,
     unique::Uid,
 };
 
-use super::{TryGetRes, resolve::ResEnv};
+use super::{Term, TermId, TryGetRes, resolve::ResEnv};
 
 pub mod lower;
 
@@ -61,6 +61,8 @@ pub enum TypingError<N, V = TyVar> {
     DidNotUnify(Arc<TyMatrix<N, V>>, Arc<TyMatrix<N, V>>),
     OccursIn(V, Arc<TyMatrix<N, V>>),
     UnboundName(N),
+    ExternFnTyIsNotConcrete { id: TermId, ty: Arc<Ty<N, V>> },
+    PubTermTyIsNotConcrete { id: TermId },
 }
 
 // TODO: we have roughly three tasks here:
@@ -69,24 +71,25 @@ pub enum TypingError<N, V = TyVar> {
 // 3. refactor to remove old dead code and redundant boilerplate
 // when this is complete, you MUST write at least one test
 
-// NOTE: main entry point for typechecking
-
 pub fn typecheck(
     env: ResEnv,
 ) -> Result<TypedEnv<BoundResult>, (ResEnv, Vec<TypingError<BoundResult>>)> {
     // first pass
-    let (types, decl_types, errors) = lower::collect_types(&env);
+    let (types, term_types, errors) = lower::collect_types(&env);
 
     let mut errors = errors.into_iter().map(TypingError::Lower).collect();
-    let mut typer = Typer::new(&types, &decl_types, &mut errors);
+    let mut typer = Typer::new(&types, &term_types, &mut errors);
+
+    typer.check_public_term_annotations(&env);
 
     // second pass
     let mut terms = Vec::with_capacity(env.terms.len());
     for term_id in env.term_id_iter() {
         let untyped_term = env.get_term(term_id).as_ref().map(Spanned::as_ref);
 
-        if let Some(term) = typer.type_term(untyped_term) {
-            terms.push(term)
+        match typer.type_term(term_id, untyped_term) {
+            Ok(term) => terms.push(term),
+            Err(error) => typer.errors.push(error),
         }
     }
 
@@ -196,14 +199,14 @@ type UnitResult<N, V = TyVar> = Result<(), TypingError<N, V>>;
 pub struct Typer<'a, N> {
     /// The lowered type declarations.
     types: &'a [lower::LoweredType<N, Uid>],
-    /// A map from [`Res`] values to their types.
-    decl_types: &'a lower::DeclTypeMap<N, Uid>,
+    /// A map from terms to their types.
+    term_types: &'a lower::TermTypeMap<N, Uid>,
     /// Accumulated errors.
     errors: &'a mut Vec<TypingError<N>>,
     /// Equivalence classes of [`TyVar`].
     unifier: UnificationTable<InPlace<TyVar>>,
     /// A mapping from type variables to types.
-    var_assignments: HashMap<TyVar, Arc<Ty<N, TyVar>>>,
+    var_assignments: HashMap<TyVar, Arc<TyMatrix<N, TyVar>>>,
     /// A mapping from [`Uid`] to [`TyVar`] in type expressions.
     uid_assigments: HashMap<Uid, TyVar>,
     /// The type judgements associated with local variables.
@@ -213,12 +216,12 @@ pub struct Typer<'a, N> {
 impl<'a, N> Typer<'a, N> {
     pub fn new(
         types: &'a [lower::LoweredType<N>],
-        decl_types: &'a lower::DeclTypeMap<N>,
+        term_types: &'a lower::TermTypeMap<N>,
         errors: &'a mut Vec<TypingError<N>>,
     ) -> Self {
         Self {
             types,
-            decl_types,
+            term_types,
             errors,
             unifier: Default::default(),
             var_assignments: Default::default(),
@@ -231,9 +234,84 @@ impl<'a, N> Typer<'a, N> {
     /// occurred while typechecking.
     pub fn type_term(
         &mut self,
-        term: super::Term<Spanned<&bound::Term<N>>>,
-    ) -> Option<super::Term<Spanned<ast::Term<N, TyVar>>>> {
-        todo!()
+        id: TermId,
+        Term { name, module, ast }: Term<Spanned<&bound::Term<N>>>,
+    ) -> Result<Term<Spanned<ast::Term<N, TyVar>>>, TypingError<N>>
+    where
+        N: TryGetTyperIndex + NameEquiv + Clone,
+    {
+        let annotation = self.term_types.get(&id).cloned().unwrap();
+        let annotated_ty = self.rebind(&annotation);
+
+        let ast = ast.span.with(match ast.item() {
+            bound::Term::Fn(bound::Fn {
+                attrs,
+                name,
+                params,
+                return_ty,
+                body,
+            }) => {
+                let params = self.lower_params(params);
+                let (body, ty) = self.infer(body.as_ref().as_ref())?;
+                self.unify(ty.clone(), annotated_ty)?;
+
+                ast::Term {
+                    attrs: attrs.clone(),
+                    name: *name,
+                    ty,
+                    kind: ast::TermKind::Fn {
+                        params,
+                        return_ty_ast: return_ty.clone(),
+                        body,
+                    },
+                }
+            }
+            bound::Term::ExternFn(bound::ExternFn {
+                attrs,
+                name,
+                params,
+                return_ty,
+            }) => {
+                let params = self.lower_params(params);
+                let ty = annotated_ty;
+
+                if !ty.is_concrete() {
+                    let ty = ty.clone();
+                    Err(TypingError::ExternFnTyIsNotConcrete { id, ty })?;
+                }
+
+                ast::Term {
+                    attrs: attrs.clone(),
+                    name: *name,
+                    ty,
+                    kind: ast::TermKind::ExternFn {
+                        params,
+                        return_ty_ast: return_ty.clone(),
+                    },
+                }
+            }
+            bound::Term::Const(bound::Const {
+                attrs,
+                name,
+                ty: ty_ast,
+                value,
+            }) => {
+                let (value, ty) = self.infer(value.as_ref())?;
+                self.unify(ty.clone(), annotated_ty)?;
+
+                ast::Term {
+                    attrs: attrs.clone(),
+                    name: *name,
+                    ty,
+                    kind: ast::TermKind::Const {
+                        ty_ast: ty_ast.clone(),
+                        value,
+                    },
+                }
+            }
+        });
+
+        Ok(Term { name, module, ast })
     }
 
     pub fn typecheck_expr(
@@ -401,6 +479,13 @@ impl<'a, N> Typer<'a, N> {
         }
     }
 
+    fn lower_params(
+        &mut self,
+        params: &[Spanned<bound::Parameter<N>>],
+    ) -> SpanSeq<ast::Parameter<N>> {
+        todo!()
+    }
+
     /// Recursively expands type aliases in the given `ty`, guaranteeing that
     /// the result is in a canonical form. Note that this includes normalization
     /// of functions with unit-equivalent domains to unary functions of the
@@ -505,10 +590,10 @@ impl<'a, N> Typer<'a, N> {
         // check for a preexisting assignment
         if let Some(current_ty) = self.lookup_var(repr) {
             // unify to check consistency with current_ty
-            assert!(self.unify(current_ty, Ty::unquantified(ty)).is_ok());
+            assert!(self.unify_matrices(current_ty, ty).is_ok());
         } else {
             // otherwise just create the new assignment
-            self.var_assignments.insert(repr, Ty::unquantified(ty));
+            self.var_assignments.insert(repr, ty);
         }
     }
 
@@ -525,13 +610,77 @@ impl<'a, N> Typer<'a, N> {
         apply_substitution(&substitution, ty.matrix.clone())
     }
 
-    fn lookup_var(&mut self, var: TyVar) -> Option<Arc<Ty<N, TyVar>>> {
+    fn zonk(&mut self, ty: &Ty<N, TyVar>) -> Arc<Ty<N, TyVar>>
+    where
+        N: Clone,
+    {
+        let matrix = self.zonk_matrix(ty.matrix.clone());
+        Arc::new(Ty {
+            prefix: ty.prefix.clone(),
+            matrix,
+        })
+    }
+
+    fn zonk_matrix(
+        &mut self,
+        matrix: Arc<TyMatrix<N, TyVar>>,
+    ) -> Arc<TyMatrix<N, TyVar>>
+    where
+        N: Clone,
+    {
+        match matrix.as_ref() {
+            TyMatrix::Prim(_) => matrix,
+            TyMatrix::Var(var) => {
+                self.var_assignments.get(var).cloned().unwrap_or(matrix)
+            }
+            TyMatrix::Tuple(tys) => Arc::new(TyMatrix::Tuple(
+                tys.iter().cloned().map(|ty| self.zonk_matrix(ty)).collect(),
+            )),
+            TyMatrix::Named { name, args } => Arc::new(TyMatrix::Named {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .cloned()
+                    .map(|arg| self.zonk_matrix(arg))
+                    .collect(),
+            }),
+            TyMatrix::Fn { domain, codomain } => Arc::new(TyMatrix::Fn {
+                domain: domain
+                    .iter()
+                    .cloned()
+                    .map(|ty| self.zonk_matrix(ty))
+                    .collect(),
+                codomain: self.zonk_matrix(codomain.clone()),
+            }),
+        }
+    }
+
+    fn lookup_var(&mut self, var: TyVar) -> Option<Arc<TyMatrix<N, TyVar>>> {
         let repr = self.unifier.find(var);
         self.var_assignments.get(&repr).cloned()
     }
 
     fn fresh_var(&mut self) -> TyVar {
         self.unifier.new_key(())
+    }
+
+    /// Checks every public term in `env` to see if its annotation is
+    /// concrete, emitting errors if this is not the case.
+    fn check_public_term_annotations(&mut self, env: &ResEnv) {
+        for id in env.term_id_iter() {
+            let Term { name, module, .. } = env.get_term(id);
+            let is_public = env
+                .get_module(*module)
+                .items
+                .get(name)
+                .map(Vis::is_visible)
+                .unwrap_or(false);
+
+            if is_public && !self.term_types.get(&id).unwrap().is_concrete() {
+                let error = TypingError::PubTermTyIsNotConcrete { id };
+                self.errors.push(error);
+            }
+        }
     }
 
     // UID CONVERSION METHODS
@@ -652,5 +801,73 @@ fn is_unit_domain<N, V>(domain: &[Arc<TyMatrix<N, V>>]) -> bool {
         [] => true,
         [_, _, ..] => false,
         [ty] => matches!(ty.as_ref(), TyMatrix::Prim(ast::PrimTy::Unit)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        cst::Parser,
+        env::{
+            import_res::ImportResEnv, resolve::resolve, unbound::UnboundEnv,
+        },
+        package as pkg,
+    };
+    use std::{path::PathBuf, str::FromStr};
+
+    #[test]
+    fn build_lowered_env_from_core() {
+        // load package CSTs
+        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let package = pkg::Package::load_files(path).unwrap();
+        let mut parser = Parser::new().unwrap();
+
+        // lower CSTs to unbound_lowered::Ast
+        let package = package
+            .map_modules(|file| parser.parse(file))
+            .transpose()
+            .unwrap()
+            .map_modules(crate::ast::unbound::Ast::try_from)
+            .transpose()
+            .unwrap()
+            .map_modules(crate::ast::unbound_lowered::Ast::from);
+
+        // build unbound env
+        let mut env = UnboundEnv::new();
+        let (_core_symbol, ingest_warnings, ingest_errors) =
+            env.consume_package(package, Box::new([]));
+
+        dbg!(ingest_warnings);
+        dbg!(ingest_errors);
+
+        // build import_res env
+        let (env, errors) = ImportResEnv::from_unbound_env(env);
+        dbg!(errors.len());
+
+        let mut warnings = Vec::new();
+        let mut errors = Vec::new();
+
+        // build resolved env
+        let env = resolve(env, &mut warnings, &mut errors);
+
+        // lower to typed env
+        let mut env = super::typecheck(env).unwrap();
+
+        // REF MODULE INSPECTION
+
+        let ref_ = env.interner.intern_static("ref");
+        let ref_mod_id = env.magic_core_submodule(ref_).unwrap();
+        let ref_mod = env.get_module(ref_mod_id);
+
+        for (sym, item) in ref_mod.items.clone() {
+            let name = env.interner.resolve(sym).unwrap();
+            let (_vis, _span, res) = item.spread();
+
+            let res_value = env.get_res(res);
+
+            eprintln!("{} ({:?})\n{:?}\n\n", name, res, res_value);
+        }
+
+        panic!();
     }
 }

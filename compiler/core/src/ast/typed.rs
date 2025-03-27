@@ -124,12 +124,12 @@ pub struct Term<N = Bound, V = Uid, A = ResAttr> {
 pub enum TermKind<N = Bound, V = Uid> {
     Fn {
         params: SpanSeq<Parameter<N>>,
-        return_ty: Option<Spanned<TyAst<N>>>,
+        return_ty_ast: Option<Spanned<TyAst<N>>>,
         body: Spanned<Typed<Expr<N, V>, N, V>>,
     },
     ExternFn {
         params: SpanSeq<Parameter<N>>,
-        return_ty: Option<Spanned<TyAst<N>>>,
+        return_ty_ast: Option<Spanned<TyAst<N>>>,
     },
     Const {
         ty_ast: Option<Spanned<TyAst<N>>>,
@@ -299,6 +299,10 @@ impl<N, V> Ty<N, V> {
             prefix: Default::default(),
             matrix,
         })
+    }
+
+    pub fn is_unquantified(&self) -> bool {
+        self.prefix.is_empty()
     }
 }
 
