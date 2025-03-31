@@ -340,7 +340,7 @@ pub enum Ty<N = Bound> {
 
 // NAMES
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Bound {
     Local(LocalBinding),
     Path(PathBinding),
@@ -433,7 +433,7 @@ impl Bound {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NameContent {
     Ident(Symbol),
     Path(Path),
@@ -461,7 +461,7 @@ impl From<Symbol> for NameContent {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub qualifier: Option<Spanned<Qualifier>>,
     pub elements: SpanSeq<Symbol>,

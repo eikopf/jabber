@@ -36,7 +36,7 @@ pub struct FileId(pub(super) usize);
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ModId(pub(super) usize);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Res {
     Term(TermId),
     Type(TypeId),
