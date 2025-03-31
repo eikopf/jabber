@@ -27,7 +27,7 @@ use crate::{
 
 pub use super::bound::{
     BindingId, Bound, CallExprKind, GlobalBinding, LiteralExpr, LocalBinding,
-    Name, NameContent, Path, PathBinding, Pattern, ResAttr, Ty as TyAst,
+    Name, NameContent, Path, PathBinding, ResAttr, Ty as TyAst,
     TyConstr as TyConstrAst,
 };
 
@@ -142,12 +142,12 @@ pub struct Term<N = Bound, V = Uid, A = ResAttr> {
 #[derive(Debug, Clone)]
 pub enum TermKind<N = Bound, V = Uid> {
     Fn {
-        params: SpanSeq<Parameter<N>>,
+        params: SpanSeq<Parameter<N, V>>,
         return_ty_ast: Option<Spanned<TyAst<N>>>,
         body: Spanned<Typed<Expr<N, V>, N, V>>,
     },
     ExternFn {
-        params: SpanSeq<Parameter<N>>,
+        params: SpanSeq<Parameter<N, V>>,
         return_ty_ast: Option<Spanned<TyAst<N>>>,
     },
     Const {
@@ -184,7 +184,7 @@ pub enum Expr<N = Bound, V = Uid> {
     },
     Lambda {
         annotation: Arc<Ty<N, V>>,
-        params: SpanSeq<Parameter<N>>,
+        params: SpanSeq<Parameter<N, V>>,
         body: TySpanBox<Self, N, V>,
     },
     Call {
@@ -213,7 +213,7 @@ pub struct RecordExprField<N = Bound, V = Uid> {
 /// optional type annotation.
 #[derive(Debug, Clone)]
 pub struct LetStmtLhs<N = Bound> {
-    pub pattern: Spanned<Pattern<N>>,
+    pub pattern: Spanned<Pattern>,
     pub ty_ast: Option<Spanned<TyAst<N>>>,
 }
 
@@ -227,16 +227,44 @@ pub enum BuiltinOperator {
 
 #[derive(Debug, Clone)]
 pub struct MatchArm<N = Bound, V = Uid> {
-    pub pattern: Spanned<Pattern<N>>,
+    pub pattern: Spanned<Pattern>,
     pub body: Spanned<Typed<Expr<N, V>, N, V>>,
 }
 
 // PATTERNS
 
 #[derive(Debug, Clone)]
-pub struct Parameter<N = Bound> {
-    pub pattern: Spanned<Pattern<N>>,
+pub struct Parameter<N = Bound, V = Uid> {
+    pub pattern: Spanned<Pattern>,
+    pub ty: Arc<Ty<N, V>>,
     pub ty_ast: Option<Spanned<TyAst<N>>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TyConstrIndex {
+    pub ty: TypeId,
+    pub name: Symbol,
+}
+
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    Wildcard,
+    Literal(LiteralExpr),
+    Name(Name<Uid>),
+    Tuple(SpanSeq<Self>),
+    List(SpanSeq<Self>),
+    UnitConstr {
+        name: Name<TyConstrIndex, Bound>,
+    },
+    TupleConstr {
+        name: Name<TyConstrIndex, Bound>,
+        elems: SpanSeq<Self>,
+    },
+    RecordConstr {
+        name: Name<TyConstrIndex, Bound>,
+        fields: (),
+        rest: Option<Span>,
+    },
 }
 
 // PROPER TYPES

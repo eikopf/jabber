@@ -2,7 +2,7 @@
 
 use crate::span::{Span, Spanned};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Qualifier {
     Super,
     Self_,
