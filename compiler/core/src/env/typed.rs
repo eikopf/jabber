@@ -88,14 +88,22 @@ pub enum TypingError<N, V = TyVar> {
     TypeInNamePattern {
         id: TypeId,
         span: Span,
+        module: ModId,
     },
     TermInNamePattern {
         id: TermId,
         span: Span,
+        module: ModId,
     },
     NonUnitConstrInUnitConstrPattern {
         constr: ast::TyConstrIndex,
         span: Span,
+        module: ModId,
+    },
+    OpaqueTypeConstrPattern {
+        constr: ast::TyConstrIndex,
+        span: Span,
+        module: ModId,
     },
 }
 
@@ -580,18 +588,31 @@ impl<'a> Typer<'a> {
                     let (constr, id) = match *id {
                         // regular constructors
                         Res::TyConstr { ty: id, name } => {
-                            let constr = self
-                                .get_type(id)
-                                .ast
-                                .constrs()
-                                .and_then(|constrs| constrs.get(&name))
-                                .unwrap();
-
+                            let ast = &self.get_type(id).ast;
                             let id = ast::TyConstrIndex { ty: id, name };
 
-                            Ok((constr, id))
+                            match &ast.kind {
+                                ast::TypeKind::Adt { opacity, constrs } => {
+                                    match opacity {
+                                        Some(_) => Err(TypingError::OpaqueTypeConstrPattern {
+                                            constr: id,
+                                            span,
+                                            module: self.current_module.unwrap(),
+                                        }),
+                                        None => Ok((
+                                            constrs.get(&name).unwrap(),
+                                            id,
+                                        )),
+                                    }
+                                }
+                                _ => panic!(
+                                    "tried to get a type constructor from a non-ADT type decl"
+                                ),
+                            }
                         }
                         // unit struct constructors
+                        // NOTE: struct types are guaranteed to be non-opaque ADTs (see
+                        // ast::unbound_lowered::SymType::is_struct)
                         Res::StructType(id) => {
                             let ty_decl = self.get_type(id);
                             let name = ty_decl.name;
@@ -606,12 +627,16 @@ impl<'a> Typer<'a> {
                             Ok((constr, id))
                         }
                         // otherwise emit errors
-                        Res::Term(id) => {
-                            Err(TypingError::TermInNamePattern { id, span })
-                        }
-                        Res::Type(id) => {
-                            Err(TypingError::TypeInNamePattern { id, span })
-                        }
+                        Res::Term(id) => Err(TypingError::TermInNamePattern {
+                            id,
+                            span,
+                            module: self.current_module.unwrap(),
+                        }),
+                        Res::Type(id) => Err(TypingError::TypeInNamePattern {
+                            id,
+                            span,
+                            module: self.current_module.unwrap(),
+                        }),
                         // we panic here, since something would have to have gone
                         // critically wrong in an earlier path
                         Res::Module(_) => {
@@ -639,6 +664,7 @@ impl<'a> Typer<'a> {
                             Err(TypingError::NonUnitConstrInUnitConstrPattern {
                                 constr: id,
                                 span,
+                                module: self.current_module.unwrap(),
                             })
                         }
                     }
@@ -772,9 +798,13 @@ impl<'a> Typer<'a> {
                             .collect();
 
                         let rhs_matrix = rhs_ty.matrix.clone();
-                        apply_substitution(&substitution, rhs_matrix, |var| {
-                            self.get_or_assign_var(*var)
-                        })
+                        let mut rebinder =
+                            |var: &Uid| self.get_or_assign_var(*var);
+                        apply_substitution(
+                            &substitution,
+                            rhs_matrix,
+                            &mut rebinder,
+                        )
                     }
                     // otherwise recurse as normal
                     _ => Arc::new(TyMatrix::Named {
@@ -834,7 +864,8 @@ impl<'a> Typer<'a> {
             substitution.insert(var, Arc::new(TyMatrix::Var(self.fresh_var())));
         }
 
-        apply_substitution(&substitution, ty.matrix.clone(), |var| *var)
+        let mut rebinder = |var: &TyVar| *var;
+        apply_substitution(&substitution, ty.matrix.clone(), &mut rebinder)
     }
 
     fn instantiate_uid(
@@ -847,9 +878,8 @@ impl<'a> Typer<'a> {
             substitution.insert(var, Arc::new(TyMatrix::Var(self.fresh_var())));
         }
 
-        apply_substitution(&substitution, ty.matrix.clone(), |&var| {
-            self.get_or_assign_var(var)
-        })
+        let mut rebinder = |&var: &Uid| self.get_or_assign_var(var);
+        apply_substitution(&substitution, ty.matrix.clone(), &mut rebinder)
     }
 
     fn zonk(
@@ -997,22 +1027,27 @@ fn occurs_check<N, V: Eq>(var: &V, ty: &TyMatrix<N, V>) -> bool {
     }
 }
 
-fn apply_substitution<N: Clone, V1: Hash + Eq, V2>(
+fn apply_substitution<N, F, V1, V2>(
     substitution: &HashMap<V1, Arc<TyMatrix<N, V2>>>,
     ty: Arc<TyMatrix<N, V1>>,
-    mut rebinder: impl FnMut(&V1) -> V2,
-) -> Arc<TyMatrix<N, V2>> {
+    rebinder: &mut F,
+) -> Arc<TyMatrix<N, V2>>
+where
+    N: Clone,
+    V1: Hash + Eq,
+    F: FnMut(&V1) -> V2,
+{
     match ty.as_ref() {
         TyMatrix::Prim(prim_ty) => Arc::new(TyMatrix::Prim(*prim_ty)),
         TyMatrix::Var(var) => substitution
-            .get(&var)
+            .get(var)
             .cloned()
             .unwrap_or_else(|| Arc::new(TyMatrix::Var(rebinder(var)))),
         TyMatrix::Tuple(elems) => Arc::new(ast::TyMatrix::Tuple(
             elems
                 .iter()
                 .cloned()
-                .map(|ty| apply_substitution(substitution, ty, &mut rebinder))
+                .map(|ty| apply_substitution(substitution, ty, rebinder))
                 .collect(),
         )),
         TyMatrix::Named { name, args } => Arc::new(ast::TyMatrix::Named {
@@ -1020,14 +1055,14 @@ fn apply_substitution<N: Clone, V1: Hash + Eq, V2>(
             args: args
                 .iter()
                 .cloned()
-                .map(|ty| apply_substitution(substitution, ty, &mut rebinder))
+                .map(|ty| apply_substitution(substitution, ty, rebinder))
                 .collect(),
         }),
         TyMatrix::Fn { domain, codomain } => Arc::new(ast::TyMatrix::Fn {
             domain: domain
                 .iter()
                 .cloned()
-                .map(|ty| apply_substitution(substitution, ty, &mut rebinder))
+                .map(|ty| apply_substitution(substitution, ty, rebinder))
                 .collect(),
             codomain: apply_substitution(
                 substitution,
