@@ -1,6 +1,7 @@
 //! Generic R6RS Scheme IR.
 
 use crate::symbol::{StringInterner, Symbol};
+use pretty::{Doc, RcDoc};
 use recursion::{Collapsible, Expandable, MappableFrame, PartiallyApplied};
 
 #[derive(Debug, Clone)]
@@ -159,44 +160,107 @@ impl MappableFrame for ExprFrame<PartiallyApplied> {
     }
 }
 
-impl ExprFrame<String> {
-    pub fn print_to_string(self, interner: &mut StringInterner) -> String {
+impl ExprFrame<RcDoc<'static, ()>> {
+    pub fn to_doc(
+        self,
+        interner: &mut StringInterner,
+    ) -> Option<RcDoc<'static, ()>> {
         match self {
             ExprFrame::Define { name, body } => {
-                let name = interner.resolve(name).unwrap();
-                format!("(define {} {})", name, body)
+                let name = interner.resolve(name)?;
+                Some(
+                    RcDoc::text("(")
+                        .append(RcDoc::text("define"))
+                        .append(RcDoc::softline())
+                        .append(RcDoc::as_string(name))
+                        .append(RcDoc::line().append(body).nest(1))
+                        .append(RcDoc::text(")")),
+                )
             }
             ExprFrame::Let { bindings, body } => {
                 let bindings = bindings
-                    .into_iter()
-                    .map(|(name, value)| {
-                        format!(
-                            "[{} {}]",
-                            interner.resolve(name).unwrap(),
-                            value
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                format!("(let [{}] {})", bindings.join(" "), body)
+                    .iter()
+                    .cloned()
+                    .try_fold(
+                        Vec::with_capacity(bindings.len()),
+                        |mut bindings, (name, value)| {
+                            let name = interner.resolve(name)?;
+                            let doc = RcDoc::text("[")
+                                .append(RcDoc::as_string(name))
+                                .append(RcDoc::space())
+                                .append(value)
+                                .append(RcDoc::text("]"));
+                            bindings.push(doc);
+                            Some(bindings)
+                        },
+                    )?
+                    .into_boxed_slice();
+
+                Some(
+                    RcDoc::text("(")
+                        .append(RcDoc::text("let"))
+                        .append(RcDoc::softline())
+                        .append(RcDoc::text("["))
+                        .append(RcDoc::intersperse(bindings, RcDoc::line()))
+                        .append(RcDoc::text("]"))
+                        .append(RcDoc::hardline().append(body).nest(1))
+                        .append(RcDoc::text(")")),
+                )
             }
-            ExprFrame::Call { callee, args } => {
-                format!("({} {})", callee, args.join(" "))
-            }
+            ExprFrame::Call { callee, args } => Some(
+                RcDoc::text("(")
+                    .append(callee)
+                    .append(RcDoc::softline())
+                    .append(RcDoc::intersperse(args, RcDoc::space()).group())
+                    .append(")"),
+            ),
             ExprFrame::Lambda { args, body } => {
                 let args = args
                     .iter()
-                    .map(|arg| interner.resolve(*arg).unwrap())
-                    .collect::<Vec<_>>();
-                format!("(lambda [{}] {})", args.join(" "), body)
+                    .try_fold(
+                        Vec::with_capacity(args.len()),
+                        |mut args, arg| {
+                            let arg = interner.resolve(*arg)?;
+                            args.push(RcDoc::as_string(arg));
+                            Some(args)
+                        },
+                    )?
+                    .into_boxed_slice();
+
+                Some(
+                    RcDoc::text("(")
+                        .append(RcDoc::text("lambda"))
+                        .append(RcDoc::space())
+                        .append(RcDoc::group(
+                            RcDoc::text("[")
+                                .append(RcDoc::intersperse(
+                                    args,
+                                    RcDoc::space(),
+                                ))
+                                .append(RcDoc::text("]")),
+                        ))
+                        .append(RcDoc::line().append(body).nest(1))
+                        .append(RcDoc::text(")")),
+                )
             }
-            ExprFrame::List(elems) => format!("'({})", elems.join(" ")),
-            ExprFrame::Vector(elems) => format!("'#({})", elems.join(" ")),
-            ExprFrame::Literal(literal) => {
-                literal.print_to_string(interner).unwrap()
+            ExprFrame::List(elems) => Some(
+                RcDoc::text("'(")
+                    .append(RcDoc::intersperse(elems, Doc::space()))
+                    .append(RcDoc::text(")"))
+                    .group(),
+            ),
+            ExprFrame::Vector(elems) => Some(
+                RcDoc::text("'#(")
+                    .append(RcDoc::intersperse(elems, Doc::space()))
+                    .append(RcDoc::text(")"))
+                    .group(),
+            ),
+            ExprFrame::Literal(literal) => literal.to_doc(interner),
+            ExprFrame::Builtin(builtin) => {
+                Some(RcDoc::as_string(builtin.identifier()))
             }
-            ExprFrame::Builtin(builtin) => String::from(builtin.identifier()),
-            ExprFrame::Variable(var) => {
-                String::from(interner.resolve(var).unwrap())
+            ExprFrame::Variable(symbol) => {
+                Some(RcDoc::as_string(interner.resolve(symbol)?))
             }
         }
     }
@@ -222,25 +286,29 @@ pub enum Literal {
 }
 
 impl Literal {
-    pub fn print_to_string(
+    pub fn to_doc(
         &self,
         interner: &mut StringInterner,
-    ) -> Option<String> {
-        match self {
-            Literal::True => Some(String::from("#t")),
-            Literal::False => Some(String::from("#f")),
-            Literal::Char(_) => todo!(),
+    ) -> Option<RcDoc<'static, ()>> {
+        Some(match self {
+            Literal::True => RcDoc::text("#t"),
+            Literal::False => RcDoc::text("#f"),
+            Literal::Char(value) => RcDoc::as_string(format!("#\\{value}")),
             Literal::String(content) => {
                 let content = interner.resolve(*content)?;
-                Some(format!("\"{}\"", content))
+                RcDoc::text("\"")
+                    .append(RcDoc::as_string(content))
+                    .append(RcDoc::text("\""))
+                    .group()
             }
             Literal::Symbol(symbol) => {
                 let symbol = interner.resolve(*symbol)?;
-                Some(format!("'{}", symbol))
+                // TODO: verify `symbol` is a valid R6RS symbol
+                RcDoc::text("'").append(RcDoc::as_string(symbol)).group()
             }
-            Literal::UInt(value) => Some(format!("{}", value)),
-            Literal::Float(value) => Some(format!("{}", value)),
-        }
+            Literal::UInt(value) => RcDoc::as_string(format!("{value}")),
+            Literal::Float(value) => RcDoc::as_string(format!("{value}")),
+        })
     }
 }
 
@@ -421,7 +489,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recursion_expr_impls() {
+    fn simple_doc_printing() {
         let mut interner = crate::symbol::StringInterner::new();
         let x = interner.intern_static("x");
         let y = interner.intern_static("y");
@@ -439,9 +507,10 @@ mod tests {
             }),
         };
 
-        let repr =
-            expr.collapse_frames(|frame| frame.print_to_string(&mut interner));
+        let doc =
+            expr.collapse_frames(|frame| frame.to_doc(&mut interner).unwrap());
 
-        assert_eq!(repr, "(define add (lambda [x y] (+ x y)))");
+        let repr = format!("{}", doc.pretty(80));
+        assert_eq!(repr, "(define add\n (lambda [x y]\n  (+ x y)))");
     }
 }
