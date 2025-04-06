@@ -671,14 +671,40 @@ impl<'a> Typer<'a> {
                 }
                 // if the name is local, make a binding for the type
                 Ok(Bound::Local(name @ Name { id, .. })) => {
-                    // associate this uid with the given type
-                    self.local_var_types.insert(*id, ty);
+                    if !self.local_var_types.contains_key(id) {
+                        self.local_var_types.insert(*id, ty);
+                    }
+
                     Ok(span.with(ast::Pattern::Name(*name)))
                 }
                 Err(_) => panic!("unbound AST name:\n{:?}", name),
             },
-            bound::Pattern::Tuple(elems) => todo!(),
-            bound::Pattern::List(_) => todo!(),
+            bound::Pattern::Tuple(elems) => {
+                let mut subpatterns = Vec::with_capacity(elems.len());
+                let mut tys = Vec::with_capacity(elems.len());
+
+                // for each subpattern
+                for elem in elems {
+                    // generate a fresh type variable and check against it
+                    let elem_ty = Arc::new(TyMatrix::Var(self.fresh_var()));
+                    let subpattern = self.check_pattern(
+                        elem.as_ref(),
+                        Ty::unquantified(elem_ty.clone()),
+                    )?;
+
+                    tys.push(elem_ty);
+                    subpatterns.push(subpattern);
+                }
+
+                let tys = tys.into_boxed_slice();
+                let subpatterns = subpatterns.into_boxed_slice();
+
+                // build a tuple from the subpattern types and unify
+                let tuple_ty = Arc::new(TyMatrix::Tuple(tys));
+                self.unify_matrices(ty.matrix.clone(), tuple_ty)?;
+                Ok(span.with(ast::Pattern::Tuple(subpatterns)))
+            }
+            bound::Pattern::List(elems) => todo!(),
             bound::Pattern::Cons { head, tail } => todo!(),
             bound::Pattern::TupleConstr { name, elems } => todo!(),
             bound::Pattern::RecordConstr { name, fields, rest } => todo!(),
