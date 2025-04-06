@@ -1,6 +1,7 @@
 //! The core compiler implementation for Jabber.
 
 pub mod ast;
+pub mod codegen;
 pub mod cst;
 pub mod env;
 pub mod literal;
