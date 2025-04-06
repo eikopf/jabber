@@ -10,9 +10,9 @@ use thiserror::Error;
 use crate::source_file::SourceFile;
 
 use super::{
+    JABBER_FILE_EXTENSION, Module, PACKAGE_METADATA_FILE, PACKAGE_SOURCE_DIR,
+    Package,
     metadata::{Metadata, MetadataLoadError},
-    Module, Package, JABBER_FILE_EXTENSION, PACKAGE_METADATA_FILE,
-    PACKAGE_SOURCE_DIR,
 };
 
 impl Package<SourceFile> {
@@ -122,12 +122,12 @@ mod tests {
 
     use semver::Version;
 
-    use crate::package::{metadata::PackageKind, Module, Package};
+    use crate::package::{Module, Package, metadata::PackageKind};
 
     #[test]
     fn load_jabber_core_lib() {
         // path loading
-        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let path = PathBuf::from_str("../libs/core").unwrap();
         let package = Package::load_paths(path.clone()).unwrap();
         dbg!(&package);
 

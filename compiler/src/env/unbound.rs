@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn build_unbound_env_from_core() {
-        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let path = PathBuf::from_str("../libs/core").unwrap();
         let package = pkg::Package::load_files(path).unwrap();
         let mut parser = Parser::new().unwrap();
 

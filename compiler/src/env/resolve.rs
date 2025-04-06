@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    import_res::ImportResEnv, Env, Loc, ModId, Name, Res, ResError, ResWarning,
-    Term, TermId, Type, TypeId,
+    Env, Loc, ModId, Name, Res, ResError, ResWarning, Term, TermId, Type,
+    TypeId, import_res::ImportResEnv,
 };
 
 /// The type of names in the resolved tree, which may either be a [`ast::Bound`]
@@ -2163,7 +2163,7 @@ impl<'a> Resolver<'a> {
                                 },
                             ),
                             path: span.with(path),
-                        })
+                        });
                     }
                     // no such name in scope
                     None => {
@@ -2171,7 +2171,7 @@ impl<'a> Resolver<'a> {
                             module: self.module,
                             error: LocalPathResError::ElementDne(*head),
                             path: span.with(path),
-                        })
+                        });
                     }
                 };
 
@@ -2449,7 +2449,7 @@ mod tests {
     #[test]
     fn build_resolved_env_from_core() {
         // load package CSTs
-        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let path = PathBuf::from_str("../libs/core").unwrap();
         let package = pkg::Package::load_files(path).unwrap();
         let mut parser = Parser::new().unwrap();
 
