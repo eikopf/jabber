@@ -1126,7 +1126,7 @@ mod tests {
     #[test]
     fn build_lowered_env_from_core() {
         // load package CSTs
-        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let path = PathBuf::from_str("../libs/core").unwrap();
         let package = pkg::Package::load_files(path).unwrap();
         let mut parser = Parser::new().unwrap();
 

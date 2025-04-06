@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    unbound::UnboundEnv, Env, FileId, Loc, ModId, Module, Name, Res, Type,
-    TypeId,
+    Env, FileId, Loc, ModId, Module, Name, Res, Type, TypeId,
+    unbound::UnboundEnv,
 };
 
 /// An environment where imports have been resolved and type constructor name
@@ -905,7 +905,7 @@ mod tests {
 
     #[test]
     fn build_import_res_env_from_core() {
-        let path = PathBuf::from_str("../../libs/core").unwrap();
+        let path = PathBuf::from_str("../libs/core").unwrap();
         let package = pkg::Package::load_files(path).unwrap();
         let mut parser = Parser::new().unwrap();
 
@@ -960,7 +960,5 @@ mod tests {
         }
 
         dbg!(&env.interner);
-
-        //panic!();
     }
 }
