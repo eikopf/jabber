@@ -338,6 +338,28 @@ pub enum Ty<N = Bound> {
     },
 }
 
+impl<N> Ty<N> {
+    pub fn for_each_name<F>(&self, op: &mut F)
+    where
+        F: FnMut(&N),
+    {
+        match self {
+            Ty::Tuple(elems) => {
+                elems.iter().for_each(|ty| ty.for_each_name(op));
+            }
+            Ty::Named { name, args } => {
+                op(name);
+                args.iter().for_each(|ty| ty.for_each_name(op));
+            }
+            Ty::Fn { domain, codomain } => {
+                domain.iter().for_each(|ty| ty.for_each_name(op));
+                codomain.for_each_name(op);
+            }
+            _ => (),
+        }
+    }
+}
+
 // NAMES
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]

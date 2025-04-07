@@ -48,51 +48,22 @@ use crate::{
     span::{Span, SpanBox, SpanSeq, Spanned},
 };
 
-use super::{TryGetTyperIndex, TyVar, TyperIndex, TypingError};
+use super::{TyVar, TypingError};
 
-#[derive(Debug, Clone)]
-pub enum TyLowerError {
-    /// A public term has a non-concrete type.
-    NonConcretePubTermTy { name: Symbol, module: ModId },
-    /// An alias has a non-concrete right-hand side.
-    NonConcreteAliasRhs { name: Symbol, module: ModId },
-    /// A type parameter in the definition of a type declaration is unbound.
-    PhantomTypeParameter { name: Name<Uid>, module: ModId },
-    /// A type parameter in the body of a type declaration is unbound.
-    UnboundTypeParameter {
-        ty: Name<Res>,
-        param: Uid,
-        module: ModId,
-    },
-    /// A type alias is recursive.
-    RecursiveAliasDecl {
-        alias: Name<Res>,
-        rhs_occurrence: Bound,
-        module: ModId,
-    },
-    UsedTyParamAsPolytype {
-        param: Name<Uid>,
-        span: Span,
-        module: ModId,
-    },
-}
-
-pub type LoweredType<N, V = Uid> = Type<Spanned<ast::Type<N, V>>>;
-pub type TermTypeMap<N, V = Uid> = HashMap<TermId, Arc<ast::Ty<N, V>>>;
+pub type LoweredType<V = Uid> = Type<Spanned<ast::Type<V>>>;
+pub type TermTypeMap<V = Uid> = HashMap<TermId, Arc<ast::Ty<V>>>;
+pub type LowerPassData<V = Uid> = (Vec<LoweredType<V>>, TermTypeMap<V>);
 
 /// Collects the following type information from the given `env`:
 /// 1. The lowered type declarations (field 0).
 /// 2. The annotated type for each [`TermId`] (field 1).
 /// 3. Any errors encountered (field 3).
-pub fn collect_types(
+pub fn try_collect_types(
     env: &ResEnv,
-) -> (
-    Vec<LoweredType<BoundResult>>,
-    TermTypeMap<BoundResult>,
-    Vec<TypingError<BoundResult>>,
-) {
-    let (types, mut errors) = lower_types(env);
+) -> Result<LowerPassData, Vec<TypingError>> {
+    let types = try_lower_types(env)?;
 
+    let mut errors = Vec::new();
     let mut term_types = HashMap::with_capacity(env.terms.len());
 
     for term_id in env.term_id_iter() {
@@ -104,54 +75,55 @@ pub fn collect_types(
         term_types.insert(term_id, ty);
     }
 
-    (types, term_types, errors)
+    if errors.is_empty() {
+        Ok((types, term_types))
+    } else {
+        Err(errors)
+    }
 }
 
 /// Lowers the type declarations in the `env` to their typed representation.
-/// This information is primarily used by [`collect_types()`].
-pub fn lower_types(
+/// This information is primarily used by [`try_collect_types()`].
+pub fn try_lower_types(
     env: &ResEnv,
-) -> (Vec<LoweredType<BoundResult>>, Vec<TypingError<BoundResult>>) {
+) -> Result<Vec<LoweredType>, Vec<TypingError>> {
     let mut errors = Vec::new();
     let mut types = Vec::with_capacity(env.types.len());
 
     for id in env.type_id_iter() {
         let Type { name, module, ast } = env.get_type(id).as_ref();
-        let ty_name = ast.name();
         let params: HashSet<_> =
             ast.params().iter().map(|binding| binding.id).collect();
-        let mut lowerer =
-            TypeLowerer::new(module, id, ty_name, &params, &mut errors);
+        let mut lowerer = TypeLowerer::new(module, id, &params, &mut errors);
 
-        // HACK: this clone can probably be avoided!
-        // TODO: make lower_type take a reference instead of a value
-        let ast = lowerer.lower_type(ast.clone());
+        let ast = lowerer.lower_type(ast.as_ref());
         types.push(Type { name, module, ast });
     }
 
-    (types, errors)
+    if errors.is_empty() {
+        Ok(types)
+    } else {
+        Err(errors)
+    }
 }
 
 pub struct TypeLowerer<'a> {
     module: ModId,
     id: TypeId,
-    ty_name: Name<Res>,
     ty_params: &'a HashSet<Uid>,
-    errors: &'a mut Vec<TypingError<BoundResult>>,
+    errors: &'a mut Vec<TypingError>,
 }
 
 impl<'a> TypeLowerer<'a> {
     pub fn new(
         module: ModId,
         id: TypeId,
-        ty_name: Name<Res>,
         ty_params: &'a HashSet<Uid>,
-        errors: &'a mut Vec<TypingError<BoundResult>>,
+        errors: &'a mut Vec<TypingError>,
     ) -> Self {
         Self {
             module,
             id,
-            ty_name,
             ty_params,
             errors,
         }
@@ -164,8 +136,8 @@ impl<'a> TypeLowerer<'a> {
 
     pub fn lower_type(
         &mut self,
-        Spanned { item, span }: Spanned<bound::Type<BoundResult>>,
-    ) -> Spanned<ast::Type<BoundResult>> {
+        Spanned { item, span }: Spanned<&bound::Type<BoundResult>>,
+    ) -> Spanned<ast::Type> {
         let (attrs, name, params, kind) = match item {
             bound::Type::Alias(bound::TypeAlias {
                 attrs,
@@ -173,6 +145,27 @@ impl<'a> TypeLowerer<'a> {
                 params,
                 ty,
             }) => {
+                // alias recursiveness check
+                let mut recurrences = Vec::new();
+                let mut finder = |inner_name: &BoundResult| {
+                    if let Ok(bound) = inner_name.as_ref() {
+                        if bound.as_res().is_some_and(|res| res == name.id) {
+                            recurrences.push(bound.clone());
+                        }
+                    }
+                };
+
+                ty.item().for_each_name(&mut finder);
+
+                for rec in recurrences {
+                    let error = TypingError::RecursiveAliasRhs {
+                        id: self.id,
+                        occurrence: rec.span(),
+                    };
+
+                    self.errors.push(error);
+                }
+
                 let rhs_ty = {
                     let mut reifier = self.reifier();
                     let matrix = reifier.reify_ty_matrix(ty.as_ref());
@@ -188,30 +181,14 @@ impl<'a> TypeLowerer<'a> {
 
                 // variable binding checks
                 let bound_vars = rhs_ty.bound_vars().clone();
-                self.check_bound_type_variables(&params, bound_vars);
-
-                // alias recursiveness check
-                let alias_occurences = rhs_ty.names_with(|bound_result| {
-                    bound_result.as_ref().is_ok_and(|res_name| {
-                        res_name.as_res() == Some(name.id)
-                    })
-                });
-
-                for occurrence in alias_occurences {
-                    let error = TypingError::RecursiveAliasRhs {
-                        id: self.id,
-                        occurrence,
-                    };
-
-                    self.errors.push(error);
-                }
+                self.check_bound_type_variables(params, bound_vars);
 
                 (
                     attrs,
                     name,
                     params,
                     ast::TypeKind::Alias {
-                        rhs_ast: ty,
+                        rhs_ast: ty.clone(),
                         rhs_ty,
                     },
                 )
@@ -223,7 +200,7 @@ impl<'a> TypeLowerer<'a> {
                 params,
                 constructors,
             }) => {
-                let constrs = self.lower_constructors(constructors, &params);
+                let constrs = self.lower_constructors(constructors, params);
 
                 // aggregate bound type variables over all constructors and
                 // perform binding check
@@ -252,9 +229,17 @@ impl<'a> TypeLowerer<'a> {
                     }
                 }
 
-                self.check_bound_type_variables(&params, bound_vars);
+                self.check_bound_type_variables(params, bound_vars);
 
-                (attrs, name, params, ast::TypeKind::Adt { opacity, constrs })
+                (
+                    attrs,
+                    name,
+                    params,
+                    ast::TypeKind::Adt {
+                        opacity: *opacity,
+                        constrs,
+                    },
+                )
             }
             bound::Type::Extern(bound::ExternType {
                 attrs,
@@ -264,9 +249,9 @@ impl<'a> TypeLowerer<'a> {
         };
 
         span.with(ast::Type {
-            attrs,
-            name,
-            params,
+            attrs: attrs.clone(),
+            name: *name,
+            params: params.clone(),
             kind,
         })
     }
@@ -285,7 +270,7 @@ impl<'a> TypeLowerer<'a> {
             if !bound_vars.contains(&param.id) {
                 let error = TypingError::PhantomTypeParameter {
                     id: self.id,
-                    param: Ok(Bound::Local(*param)),
+                    param: *param,
                 };
 
                 self.errors.push(error);
@@ -295,12 +280,11 @@ impl<'a> TypeLowerer<'a> {
         }
 
         for var in bound_vars {
-            let error =
-                TypingError::Lower(TyLowerError::UnboundTypeParameter {
-                    ty: self.ty_name,
-                    param: var,
-                    module: self.module,
-                });
+            let error = TypingError::UnboundTypeParameter {
+                id: self.id,
+                // the error printer will have to search for corresponding spans
+                param_id: var,
+            };
 
             self.errors.push(error);
         }
@@ -308,11 +292,9 @@ impl<'a> TypeLowerer<'a> {
 
     pub fn lower_constructors(
         &mut self,
-        constrs: HashMap<Symbol, Spanned<bound::TyConstr<BoundResult>>>,
+        constrs: &HashMap<Symbol, Spanned<bound::TyConstr<BoundResult>>>,
         params: &[Name<Uid>],
-    ) -> HashMap<Symbol, Spanned<ast::TyConstr<BoundResult>>> {
-        assert!(self.ty_name.id.is_type());
-
+    ) -> HashMap<Symbol, Spanned<ast::TyConstr>> {
         let (prefix, args) = {
             let mut prefix = HashSet::with_capacity(params.len());
             let mut args = Vec::with_capacity(params.len());
@@ -325,10 +307,10 @@ impl<'a> TypeLowerer<'a> {
             (prefix, args.into_boxed_slice())
         };
 
-        let matrix = {
-            let name = Ok(Bound::Global(self.ty_name));
-            Arc::new(ast::TyMatrix::Named { name, args })
-        };
+        let matrix = Arc::new(ast::TyMatrix::Named {
+            name: self.id,
+            args,
+        });
 
         let ty = Arc::new(ast::Ty {
             prefix: prefix.clone(),
@@ -336,7 +318,7 @@ impl<'a> TypeLowerer<'a> {
         });
 
         constrs
-            .into_iter()
+            .iter()
             .map(|(symbol, ast)| {
                 let name = ast.name;
 
@@ -409,8 +391,12 @@ impl<'a> TypeLowerer<'a> {
                     }
                 };
 
-                let constr = ast.span.with(ast::TyConstr { name, kind, ast });
-                (symbol, constr)
+                let constr = ast.span.with(ast::TyConstr {
+                    name,
+                    kind,
+                    ast: ast.clone(),
+                });
+                (*symbol, constr)
             })
             .collect()
     }
@@ -419,14 +405,14 @@ impl<'a> TypeLowerer<'a> {
 pub struct TermLowerer<'a> {
     module: ModId,
     ty_params: &'a mut HashSet<Uid>,
-    errors: &'a mut Vec<TypingError<BoundResult>>,
+    errors: &'a mut Vec<TypingError>,
 }
 
 impl<'a> TermLowerer<'a> {
     pub fn new(
         module: ModId,
         ty_params: &'a mut HashSet<Uid>,
-        errors: &'a mut Vec<TypingError<BoundResult>>,
+        errors: &'a mut Vec<TypingError>,
     ) -> Self {
         Self {
             module,
@@ -443,7 +429,7 @@ impl<'a> TermLowerer<'a> {
     pub fn get_annotated_ty(
         &mut self,
         term: &bound::Term<BoundResult>,
-    ) -> Arc<ast::Ty<BoundResult>> {
+    ) -> Arc<ast::Ty> {
         let mut reifier = self.reifier();
         let matrix = match term {
             bound::Term::Fn(bound::Fn {
@@ -471,7 +457,7 @@ impl<'a> TermLowerer<'a> {
     pub fn lower_term(
         &mut self,
         Spanned { item, span }: Spanned<bound::Term<BoundResult>>,
-    ) -> Spanned<ast::Term<BoundResult>> {
+    ) -> Spanned<ast::Term> {
         let (attrs, name, ty, kind) = match item {
             bound::Term::Fn(bound::Fn {
                 attrs,
@@ -553,18 +539,19 @@ impl<'a> TermLowerer<'a> {
     pub fn lower_params(
         &mut self,
         _: SpanSeq<bound::Parameter<BoundResult>>,
-    ) -> SpanSeq<ast::Parameter<BoundResult>> {
+    ) -> SpanSeq<ast::Parameter> {
         todo!()
     }
 
     pub fn lower_expr(
         &mut self,
         Spanned { item, span }: Spanned<bound::Expr<BoundResult>>,
-    ) -> Spanned<Typed<ast::Expr<BoundResult>, BoundResult>> {
+    ) -> Spanned<Typed<ast::Expr>> {
         span.with(match item {
             bound::Expr::Name(name) => {
-                let ty = Arc::new(ast::Ty::fresh_unbound());
-                ty.with(ast::Expr::Name(name))
+                //let ty = Arc::new(ast::Ty::fresh_unbound());
+                //ty.with(ast::Expr::Name(name))
+                todo!()
             }
             bound::Expr::Literal(literal_expr) => {
                 let ty = Arc::new(ast::Ty::prim(match &literal_expr {
@@ -606,11 +593,11 @@ impl<'a> TermLowerer<'a> {
             bound::Expr::Block(block) => self
                 .lower_block_rec(block.statements.as_ref(), block.return_expr),
             bound::Expr::RecordConstr {
-                name,
+                name: _,
                 fields: untyped_fields,
                 base,
             } => {
-                let fields = untyped_fields
+                let _fields: Vec<_> = untyped_fields
                     .into_iter()
                     .map(
                         |Spanned {
@@ -624,10 +611,11 @@ impl<'a> TermLowerer<'a> {
                     )
                     .collect();
 
-                let base =
+                let _base =
                     base.map(|base| self.lower_expr(*base)).map(Box::new);
-                let ty = Arc::new(ast::Ty::fresh_unbound());
-                ty.with(ast::Expr::RecordConstr { name, fields, base })
+                let _ty = Arc::new(ast::Ty::fresh_unbound());
+                //ty.with(ast::Expr::RecordConstr { name, fields, base })
+                todo!()
             }
             bound::Expr::RecordField { item, field } => {
                 let item = Box::new(self.lower_expr(*item));
@@ -698,8 +686,12 @@ impl<'a> TermLowerer<'a> {
                     .into_iter()
                     .map(
                         |Spanned {
-                             span,
-                             item: bound::MatchArm { pattern, body },
+                             span: _,
+                             item:
+                                 bound::MatchArm {
+                                     pattern: _,
+                                     body: _,
+                                 },
                          }| {
                             //let body = self.lower_expr(body);
                             //let arm = ast::MatchArm { pattern, body };
@@ -763,7 +755,7 @@ impl<'a> TermLowerer<'a> {
         &mut self,
         stmts: &[Spanned<bound::Stmt<BoundResult>>],
         body: Option<SpanBox<bound::Expr<BoundResult>>>,
-    ) -> Typed<ast::Expr<BoundResult>, BoundResult> {
+    ) -> Typed<ast::Expr> {
         match stmts {
             [] => match body {
                 Some(expr) => self.lower_expr(*expr).item,
@@ -804,14 +796,14 @@ impl<'a> TermLowerer<'a> {
     }
 }
 
-fn generate_unit_expr() -> Typed<ast::Expr<BoundResult>, BoundResult> {
+fn generate_unit_expr() -> Typed<ast::Expr> {
     let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
     ty.with(ast::Expr::Literal(ast::LiteralExpr::Unit))
 }
 
 // TYPE AST REIFICATION
 
-pub struct TyReifier<'a, N = BoundResult, V = TyVar> {
+pub struct TyReifier<'a, V = TyVar> {
     /// The current module.
     module: ModId,
     /// The type parameters in scope. If this is `None`, then type parameter
@@ -823,17 +815,15 @@ pub struct TyReifier<'a, N = BoundResult, V = TyVar> {
     /// The universally quantified prefix of the reified type.
     prefix: HashSet<Uid>,
     /// The errors that occurred while reifying.
-    errors: &'a mut Vec<TypingError<N, V>>,
+    errors: &'a mut Vec<TypingError<V>>,
 }
 
-impl<'a, N: Hash + Eq + Clone + TryGetTyperIndex, V: Hash + Eq + Clone>
-    TyReifier<'a, N, V>
-{
+impl<'a, V: Hash + Eq + Clone> TyReifier<'a, V> {
     /// Reifies a [`bound::Ty`] into an [`ast::TyMatrix`].
     pub fn reify_ty_matrix(
         &mut self,
-        Spanned { span, item }: Spanned<&ast::TyAst<N>>,
-    ) -> Arc<ast::TyMatrix<N>> {
+        Spanned { span, item }: Spanned<&ast::TyAst<BoundResult>>,
+    ) -> Arc<ast::TyMatrix> {
         Arc::new(match item {
             bound::Ty::Infer => ast::TyMatrix::fresh_var(),
             bound::Ty::Never => ast::TyMatrix::Prim(ast::PrimTy::Never),
@@ -858,35 +848,63 @@ impl<'a, N: Hash + Eq + Clone + TryGetTyperIndex, V: Hash + Eq + Clone>
                 codomain: self.reify_ty_matrix(codomain.as_ref().as_ref()),
             },
             bound::Ty::Named { name, args } => {
-                // if name is locally bound, it must be a parameter
-                if let Some(TyperIndex::Uid(id)) =
-                    name.try_get_typer_index().ok()
-                {
-                    // if the id is known to be a type parameter but it has been
-                    // used with arguments, this is an error
-                    if self.ty_params.is_some_and(|params| params.contains(&id))
-                        && !args.is_empty()
-                    {
-                        let error = TypingError::UsedTyParamAsPolytype {
-                            param: name.clone(),
-                            module: self.module,
-                            span,
-                        };
+                match name.as_ref() {
+                    Ok(Bound::Local(name)) => {
+                        // if the id is known to be a type parameter but it has been
+                        // used with arguments, this is an error
+                        if self
+                            .ty_params
+                            .is_some_and(|params| params.contains(&name.id))
+                            && !args.is_empty()
+                        {
+                            let error = TypingError::UsedTyParamAsPolytype {
+                                param: *name,
+                                module: self.module,
+                                span,
+                            };
 
-                        self.errors.push(error);
+                            self.errors.push(error);
+                        }
+
+                        // add the id to the prefix and return
+                        self.prefix.insert(name.id);
+                        ast::TyMatrix::Var(name.id)
                     }
-
-                    // add the id to the prefix and return
-                    self.prefix.insert(id);
-                    ast::TyMatrix::Var(id)
-                } else {
-                    // otherwise just process the name as expected
-                    ast::TyMatrix::Named {
-                        name: name.clone(),
-                        args: args
-                            .iter()
-                            .map(|arg| self.reify_ty_matrix(arg.as_ref()))
-                            .collect(),
+                    // otherwise this is a named type, and we proceed as expected
+                    Ok(
+                        bound @ Bound::Path(Name { id, .. })
+                        | bound @ Bound::Global(Name { id, .. }),
+                    ) => {
+                        match id.as_type() {
+                            Some(name) => ast::TyMatrix::Named {
+                                name,
+                                args: args
+                                    .iter()
+                                    .map(|arg| {
+                                        self.reify_ty_matrix(arg.as_ref())
+                                    })
+                                    .collect(),
+                            },
+                            None => {
+                                // if id is not a TypeId, we emit an error and return garbage
+                                let error = TypingError::BadResInNameTy {
+                                    module: self.module,
+                                    span: bound.span(),
+                                    res: *id,
+                                };
+                                self.errors.push(error);
+                                garbage_ty_matrix()
+                            }
+                        }
+                    }
+                    // if we get an error, throw an error! emit some garbage as well
+                    Err(content) => {
+                        let error = TypingError::UnresolvedName {
+                            module: self.module,
+                            name_content: content.clone(),
+                        };
+                        self.errors.push(error);
+                        garbage_ty_matrix()
                     }
                 }
             }
@@ -900,8 +918,8 @@ impl<'a, N: Hash + Eq + Clone + TryGetTyperIndex, V: Hash + Eq + Clone>
     /// This is the same behaviour as the `_` inference placeholder.
     pub fn reify_option_ty_matrix(
         &mut self,
-        ast: Option<Spanned<&ast::TyAst<N>>>,
-    ) -> Arc<ast::TyMatrix<N>> {
+        ast: Option<Spanned<&ast::TyAst<BoundResult>>>,
+    ) -> Arc<ast::TyMatrix> {
         match ast {
             Some(ast) => self.reify_ty_matrix(ast),
             None => Arc::new(ast::TyMatrix::fresh_var()),
@@ -911,9 +929,9 @@ impl<'a, N: Hash + Eq + Clone + TryGetTyperIndex, V: Hash + Eq + Clone>
     /// Reifies the annotations of a function declaration into a type.
     pub fn reify_fn_ty_annotation(
         &mut self,
-        parameters: &[Spanned<bound::Parameter<N>>],
-        return_ty: Option<Spanned<&ast::TyAst<N>>>,
-    ) -> Arc<ast::TyMatrix<N>> {
+        parameters: &[Spanned<bound::Parameter<BoundResult>>],
+        return_ty: Option<Spanned<&ast::TyAst<BoundResult>>>,
+    ) -> Arc<ast::TyMatrix> {
         Arc::new(ast::TyMatrix::Fn {
             domain: parameters
                 .iter()
@@ -928,7 +946,7 @@ impl<'a, N: Hash + Eq + Clone + TryGetTyperIndex, V: Hash + Eq + Clone>
     }
 
     /// Consumes `self` to convert an [`ast::TyMatrix`] into an [`ast::Ty`].
-    pub fn quantify(self, matrix: Arc<ast::TyMatrix<N>>) -> Arc<ast::Ty<N>> {
+    pub fn quantify(self, matrix: Arc<ast::TyMatrix>) -> Arc<ast::Ty> {
         let Self { prefix, .. } = self;
         Arc::new(ast::Ty { prefix, matrix })
     }
@@ -936,7 +954,7 @@ impl<'a, N: Hash + Eq + Clone + TryGetTyperIndex, V: Hash + Eq + Clone>
     pub fn new(
         module: ModId,
         ty_params: Option<&'a HashSet<Uid>>,
-        errors: &'a mut Vec<TypingError<N, V>>,
+        errors: &'a mut Vec<TypingError<V>>,
     ) -> Self {
         Self {
             module,
@@ -945,4 +963,8 @@ impl<'a, N: Hash + Eq + Clone + TryGetTyperIndex, V: Hash + Eq + Clone>
             prefix: Default::default(),
         }
     }
+}
+
+fn garbage_ty_matrix<V>() -> ast::TyMatrix<V> {
+    ast::TyMatrix::Prim(ast::PrimTy::Never)
 }

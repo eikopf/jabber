@@ -19,7 +19,7 @@ use std::{
 };
 
 use crate::{
-    env::{Res, TypeId},
+    env::{Res, TypeId, resolve::BoundResult},
     span::{Span, SpanBox, SpanSeq, Spanned},
     symbol::Symbol,
     unique::Uid,
@@ -38,17 +38,17 @@ pub use super::bound::{
 /// Based on the value of `kind`, this struct will represent either an ADT,
 /// a type alias, or an external type declaration.
 #[derive(Debug, Clone)]
-pub struct Type<N = Bound, V = Uid, A = ResAttr> {
+pub struct Type<V = Uid, A = ResAttr> {
     pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
     pub params: Box<[LocalBinding]>,
-    pub kind: TypeKind<N, V>,
+    pub kind: TypeKind<V>,
 }
 
-impl<N, V, A> Type<N, V, A> {
-    pub fn constrs(&self) -> Option<&HashMap<Symbol, Spanned<TyConstr<N, V>>>> {
+impl<V, A> Type<V, A> {
+    pub fn constrs(&self) -> Option<&HashMap<Symbol, Spanned<TyConstr<V>>>> {
         match &self.kind {
-            TypeKind::Adt { constrs, .. } => Some(constrs),
+            TypeKind::Adt { constrs, .. } => Some(&constrs),
             _ => None,
         }
     }
@@ -57,31 +57,31 @@ impl<N, V, A> Type<N, V, A> {
 /// The kind of a [`Type`] together with any specific elements belonging to
 /// each kind.
 #[derive(Debug, Clone)]
-pub enum TypeKind<N = Bound, V = Uid> {
+pub enum TypeKind<V = Uid> {
     Alias {
-        rhs_ast: Spanned<TyAst<N>>,
-        rhs_ty: Arc<Ty<N, V>>,
+        rhs_ast: Spanned<TyAst<BoundResult>>,
+        rhs_ty: Arc<Ty<V>>,
     },
     Adt {
         opacity: Option<Span>,
-        constrs: HashMap<Symbol, Spanned<TyConstr<N, V>>>,
+        constrs: HashMap<Symbol, Spanned<TyConstr<V>>>,
     },
     Extern,
 }
 
 #[derive(Debug, Clone)]
-pub struct TyConstr<N = Bound, V = Uid> {
+pub struct TyConstr<V = Uid> {
     pub name: Spanned<Symbol>,
-    pub ast: Spanned<TyConstrAst<N>>,
-    pub kind: TyConstrKind<N, V>,
+    pub ast: Spanned<TyConstrAst<BoundResult>>,
+    pub kind: TyConstrKind<V>,
 }
 
-impl<N, V> TyConstr<N, V> {
-    pub fn get_ty(&self) -> Option<Arc<Ty<N, V>>> {
+impl<V> TyConstr<V> {
+    pub fn get_ty(&self) -> Option<&Arc<Ty<V>>> {
         match &self.kind {
             TyConstrKind::Record(_) => None,
-            TyConstrKind::Unit(ty) => Some(ty.clone()),
-            TyConstrKind::Tuple { fn_ty, .. } => Some(fn_ty.clone()),
+            TyConstrKind::Unit(ty) => Some(ty),
+            TyConstrKind::Tuple { fn_ty, .. } => Some(fn_ty),
         }
     }
 }
@@ -109,112 +109,112 @@ impl<N, V> TyConstr<N, V> {
 /// types of the fields of the constructor for checking against record exprs
 /// and record patterns.
 #[derive(Debug, Clone)]
-pub enum TyConstrKind<N = Bound, V = Uid> {
+pub enum TyConstrKind<V = Uid> {
     /// A constant constructor.
-    Unit(Arc<Ty<N, V>>),
+    Unit(Arc<Ty<V>>),
     /// A record constructor.
-    Record(HashMap<Symbol, RecordField<N, V>>),
+    Record(HashMap<Symbol, RecordField<V>>),
     /// A tuple constructor.
     Tuple {
         /// The element types of the constructor.
-        elems: Box<[Arc<Ty<N, V>>]>,
+        elems: Box<[Arc<Ty<V>>]>,
         /// The type of the constructor as a function. This is the type of the
         /// constructor when it is referred to by name, e.g. in a call expr.
-        fn_ty: Arc<Ty<N, V>>,
+        fn_ty: Arc<Ty<V>>,
     },
 }
 
 #[derive(Debug, Clone)]
-pub struct RecordField<N = Bound, V = Uid> {
+pub struct RecordField<V = Uid> {
     pub mutability: Option<Span>,
     pub name: Spanned<Symbol>,
-    pub ty: Arc<Ty<N, V>>,
+    pub ty: Arc<Ty<V>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Term<N = Bound, V = Uid, A = ResAttr> {
+pub struct Term<V = Uid, A = ResAttr> {
     pub attrs: SpanSeq<A>,
     pub name: Name<Res>,
-    pub ty: Arc<Ty<N, V>>,
-    pub kind: TermKind<N, V>,
+    pub ty: Arc<Ty<V>>,
+    pub kind: TermKind<V>,
 }
 
 #[derive(Debug, Clone)]
-pub enum TermKind<N = Bound, V = Uid> {
+pub enum TermKind<V = Uid> {
     Fn {
-        params: SpanSeq<Parameter<N, V>>,
-        return_ty_ast: Option<Spanned<TyAst<N>>>,
-        body: Spanned<Typed<Expr<N, V>, N, V>>,
+        params: SpanSeq<Parameter<V>>,
+        return_ty_ast: Option<Spanned<TyAst<BoundResult>>>,
+        body: Spanned<Typed<Expr<V>, V>>,
     },
     ExternFn {
-        params: SpanSeq<Parameter<N, V>>,
-        return_ty_ast: Option<Spanned<TyAst<N>>>,
+        params: SpanSeq<Parameter<V>>,
+        return_ty_ast: Option<Spanned<TyAst<BoundResult>>>,
     },
     Const {
-        ty_ast: Option<Spanned<TyAst<N>>>,
-        value: Spanned<Typed<Expr<N, V>, N, V>>,
+        ty_ast: Option<Spanned<TyAst<BoundResult>>>,
+        value: Spanned<Typed<Expr<V>, V>>,
     },
 }
 
 // EXPRESSIONS
 
 #[derive(Debug, Clone)]
-pub enum Expr<N = Bound, V = Uid> {
-    Name(N),
+pub enum Expr<V = Uid> {
+    Name(Bound),
     Literal(LiteralExpr),
-    List(TySpanSeq<Self, N, V>),
-    Tuple(TySpanSeq<Self, N, V>),
+    List(TySpanSeq<Self, V>),
+    Tuple(TySpanSeq<Self, V>),
     LetIn {
-        lhs: Option<LetStmtLhs<N>>,
-        rhs: TySpanBox<Self, N, V>,
-        body: TyBox<Self, N, V>,
+        lhs: Option<LetStmtLhs>,
+        rhs: TySpanBox<Self, V>,
+        body: TyBox<Self, V>,
     },
     RecordConstr {
-        name: N,
-        fields: SpanSeq<RecordExprField<N, V>>,
-        base: Option<TySpanBox<Self, N, V>>,
+        name: Bound,
+        fields: SpanSeq<RecordExprField<V>>,
+        base: Option<TySpanBox<Self, V>>,
     },
     RecordField {
-        item: TySpanBox<Self, N, V>,
+        item: TySpanBox<Self, V>,
         field: Spanned<Symbol>,
     },
     TupleField {
-        item: TySpanBox<Self, N, V>,
+        item: TySpanBox<Self, V>,
         field: Spanned<Option<u32>>,
     },
     Lambda {
-        annotation: Arc<Ty<N, V>>,
-        params: SpanSeq<Parameter<N, V>>,
-        body: TySpanBox<Self, N, V>,
+        annotation: Arc<Ty<V>>,
+        params: SpanSeq<Parameter<V>>,
+        body: TySpanBox<Self, V>,
     },
     Call {
-        callee: TySpanBox<Self, N, V>,
-        args: TySpanSeq<Self, N, V>,
+        callee: TySpanBox<Self, V>,
+        args: TySpanSeq<Self, V>,
         kind: CallExprKind,
     },
     Builtin {
         operator: Spanned<BuiltinOperator>,
-        lhs: TySpanBox<Self, N, V>,
-        rhs: TySpanBox<Self, N, V>,
+        lhs: TySpanBox<Self, V>,
+        rhs: TySpanBox<Self, V>,
     },
     Match {
-        scrutinee: TySpanBox<Self, N, V>,
-        arms: SpanSeq<MatchArm<N, V>>,
+        scrutinee: TySpanBox<Self, V>,
+        arms: SpanSeq<MatchArm<V>>,
     },
 }
 
 #[derive(Debug, Clone)]
-pub struct RecordExprField<N = Bound, V = Uid> {
+pub struct RecordExprField<V = Uid> {
     pub field: Spanned<Symbol>,
-    pub value: Spanned<Typed<Expr<N, V>, N, V>>,
+    pub value: Spanned<Typed<Expr<V>, V>>,
 }
 
 /// The lefthand side of a `let` stmt, consisting of a pattern with an
 /// optional type annotation.
 #[derive(Debug, Clone)]
-pub struct LetStmtLhs<N = Bound> {
+pub struct LetStmtLhs {
     pub pattern: Spanned<Pattern>,
-    pub ty_ast: Option<Spanned<TyAst<N>>>,
+    pub ty_ast: Option<Spanned<TyAst<BoundResult>>>,
 }
 
 /// A builtin operator.
@@ -226,18 +226,18 @@ pub enum BuiltinOperator {
 }
 
 #[derive(Debug, Clone)]
-pub struct MatchArm<N = Bound, V = Uid> {
+pub struct MatchArm<V = Uid> {
     pub pattern: Spanned<Pattern>,
-    pub body: Spanned<Typed<Expr<N, V>, N, V>>,
+    pub body: Spanned<Typed<Expr<V>, V>>,
 }
 
 // PATTERNS
 
 #[derive(Debug, Clone)]
-pub struct Parameter<N = Bound, V = Uid> {
+pub struct Parameter<V = Uid> {
     pub pattern: Spanned<Pattern>,
-    pub ty: Arc<Ty<N, V>>,
-    pub ty_ast: Option<Spanned<TyAst<N>>>,
+    pub ty: Arc<Ty<V>>,
+    pub ty_ast: Option<Spanned<TyAst<BoundResult>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -253,6 +253,10 @@ pub enum Pattern {
     Name(Name<Uid>),
     Tuple(SpanSeq<Self>),
     List(SpanSeq<Self>),
+    Cons {
+        head: SpanBox<Self>,
+        tail: SpanBox<Self>,
+    },
     UnitConstr {
         name: Name<TyConstrIndex, Bound>,
     },
@@ -269,18 +273,18 @@ pub enum Pattern {
 
 // PROPER TYPES
 
-pub type TySpanSeq<T, N, V> = SpanSeq<Typed<T, N, V>>;
-pub type TySpanBox<T, N, V> = SpanBox<Typed<T, N, V>>;
-pub type TyBox<T, N, V> = Box<Typed<T, N, V>>;
+pub type TySpanSeq<T, V> = SpanSeq<Typed<T, V>>;
+pub type TySpanBox<T, V> = SpanBox<Typed<T, V>>;
+pub type TyBox<T, V> = Box<Typed<T, V>>;
 
 #[derive(Debug, Clone)]
-pub struct Typed<T, N = Bound, V = Uid> {
+pub struct Typed<T, V = Uid> {
     pub item: T,
-    pub ty: Arc<Ty<N, V>>,
+    pub ty: Arc<Ty<V>>,
 }
 
-impl<T, N, V> Typed<T, N, V> {
-    pub fn as_ref(&self) -> Typed<&T, N, V> {
+impl<T, V> Typed<T, V> {
+    pub fn as_ref(&self) -> Typed<&T, V> {
         Typed {
             item: &self.item,
             ty: self.ty.clone(), // this is bad design!
@@ -288,7 +292,7 @@ impl<T, N, V> Typed<T, N, V> {
     }
 }
 
-impl<T, N, V> std::ops::Deref for Typed<T, N, V> {
+impl<T, V> std::ops::Deref for Typed<T, V> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -297,15 +301,15 @@ impl<T, N, V> std::ops::Deref for Typed<T, N, V> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Ty<N = TypeId, V = Uid> {
+pub struct Ty<V = Uid> {
     pub prefix: HashSet<V>,
-    pub matrix: Arc<TyMatrix<N, V>>,
+    pub matrix: Arc<TyMatrix<V>>,
 }
 
 /// A type with names of type `N` and variables of type `V`. Recursive variants
 /// are stored with [`Arc`] so cloning can be cheap during unification.
 #[derive(Debug, Clone)]
-pub enum TyMatrix<N = TypeId, V = Uid> {
+pub enum TyMatrix<V = Uid> {
     /// A primitive type.
     Prim(PrimTy),
     /// An existentially-quantified type.
@@ -313,7 +317,10 @@ pub enum TyMatrix<N = TypeId, V = Uid> {
     /// A product of at least two types.
     Tuple(Box<[Arc<Self>]>),
     /// A named type with 0 or more arguments.
-    Named { name: N, args: Box<[Arc<Self>]> },
+    Named {
+        name: TypeId,
+        args: Box<[Arc<Self>]>,
+    },
     /// A function type with a domain of arbitrary arity.
     Fn {
         domain: Box<[Arc<Self>]>,
@@ -321,9 +328,9 @@ pub enum TyMatrix<N = TypeId, V = Uid> {
     },
 }
 
-impl<N, V> Ty<N, V> {
+impl<V> Ty<V> {
     /// Annotates an item with `self`.
-    pub fn with<T>(self: &Arc<Self>, item: T) -> Typed<T, N, V> {
+    pub fn with<T>(self: &Arc<Self>, item: T) -> Typed<T, V> {
         Typed {
             item,
             ty: self.clone(),
@@ -341,7 +348,7 @@ impl<N, V> Ty<N, V> {
         }
     }
 
-    pub fn unquantified(matrix: Arc<TyMatrix<N, V>>) -> Arc<Self> {
+    pub fn unquantified(matrix: Arc<TyMatrix<V>>) -> Arc<Self> {
         Arc::new(Self {
             prefix: Default::default(),
             matrix,
@@ -351,25 +358,23 @@ impl<N, V> Ty<N, V> {
     pub fn is_unquantified(&self) -> bool {
         self.prefix.is_empty()
     }
-}
 
-impl<N: Clone, V> Ty<N, V> {
     /// Returns the names in `self` for which `cmp` returns `true`.
-    pub fn names_with<F>(&self, cmp: F) -> Vec<N>
+    pub fn names_with<F>(&self, cmp: F) -> Vec<TypeId>
     where
-        F: Fn(&N) -> bool + Clone,
+        F: Fn(&TypeId) -> bool + Clone,
     {
         self.matrix.names_with(cmp)
     }
 }
 
-impl<N, V: Hash + Eq + Clone> Ty<N, V> {
+impl<V: Hash + Eq + Clone> Ty<V> {
     /// Returns `true` if and only if `self` does not contain unquantified
     /// type variables.
     pub fn is_concrete(&self) -> bool {
-        fn rec<N, V: Hash + Eq + Clone>(
+        fn rec<V: Hash + Eq + Clone>(
             prefix: &HashSet<V>,
-            matrix: &TyMatrix<N, V>,
+            matrix: &TyMatrix<V>,
         ) -> bool {
             match matrix {
                 TyMatrix::Prim(_) => true,
@@ -391,7 +396,7 @@ impl<N, V: Hash + Eq + Clone> Ty<N, V> {
     }
 }
 
-impl<N> Ty<N, Uid> {
+impl Ty<Uid> {
     pub fn fresh_unbound() -> Self {
         let matrix = Arc::new(TyMatrix::fresh_var());
 
@@ -437,11 +442,11 @@ impl<N> Ty<N, Uid> {
     }
 }
 
-impl<N: Clone, V> TyMatrix<N, V> {
+impl<V> TyMatrix<V> {
     /// Returns the names in `self` for which `cmp` returns `true`.
-    pub fn names_with<F>(&self, cmp: F) -> Vec<N>
+    pub fn names_with<F>(&self, cmp: F) -> Vec<TypeId>
     where
-        F: Fn(&N) -> bool + Clone,
+        F: Fn(&TypeId) -> bool + Clone,
     {
         match self {
             TyMatrix::Prim(_) | TyMatrix::Var(_) => vec![],
@@ -474,7 +479,7 @@ impl<N: Clone, V> TyMatrix<N, V> {
     }
 }
 
-impl<N> TyMatrix<N, Uid> {
+impl TyMatrix<Uid> {
     pub fn fresh_var() -> Self {
         Self::Var(Uid::fresh())
     }
