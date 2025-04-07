@@ -35,7 +35,7 @@ use lower::TyReifier;
 
 use crate::{
     ast::{
-        bound::{self, Bound, Name},
+        bound::{self, Bound, Name, NameContent},
         common::{NameEquiv, ViSp, Vis},
         typed::{self as ast, Ty, TyMatrix, Typed},
     },
@@ -45,26 +45,34 @@ use crate::{
     unique::Uid,
 };
 
-use super::{ModId, Term, TermId, TryGetRes, Type, TypeId, resolve::ResEnv};
+use super::{ModId, Term, TermId, Type, TypeId, resolve::ResEnv};
 
 pub mod lower;
 
 /// A typechecked [`Env`].
-pub type TypedEnv<N = BoundResult> = Env<
-    Spanned<ast::Term<N, TyVar>>,
-    Spanned<ast::Type<N, Uid>>,
+pub type TypedEnv = Env<
+    Spanned<ast::Term<TyVar>>,
+    Spanned<ast::Type<Uid>>,
     HashMap<Symbol, ViSp<Res>>,
 >;
 
 #[derive(Debug, Clone)]
-pub enum TypingError<N, V = TyVar> {
-    Lower(lower::TyLowerError),
-    DidNotUnify(Arc<TyMatrix<N, V>>, Arc<TyMatrix<N, V>>),
-    OccursIn(V, Arc<TyMatrix<N, V>>),
-    UnboundName(N),
+pub enum TypingError<V = TyVar> {
+    /// Found a non-type [`Res`] in a named type.
+    BadResInNameTy {
+        module: ModId,
+        span: Span,
+        res: Res,
+    },
+    UnresolvedName {
+        module: ModId,
+        name_content: Spanned<NameContent>,
+    },
+    DidNotUnify(Arc<TyMatrix<V>>, Arc<TyMatrix<V>>),
+    OccursIn(V, Arc<TyMatrix<V>>),
     ExternFnTyIsNotConcrete {
         id: TermId,
-        ty: Arc<Ty<N, V>>,
+        ty: Arc<Ty<V>>,
     },
     PubTermTyIsNotConcrete {
         id: TermId,
@@ -74,14 +82,18 @@ pub enum TypingError<N, V = TyVar> {
     },
     RecursiveAliasRhs {
         id: TypeId,
-        occurrence: N,
+        occurrence: Span,
+    },
+    UnboundTypeParameter {
+        id: TypeId,
+        param_id: Uid,
     },
     PhantomTypeParameter {
         id: TypeId,
-        param: N,
+        param: Name<Uid>,
     },
     UsedTyParamAsPolytype {
-        param: N,
+        param: Name<Uid>,
         span: Span,
         module: ModId,
     },
@@ -100,26 +112,54 @@ pub enum TypingError<N, V = TyVar> {
         span: Span,
         module: ModId,
     },
+    /// Invalid constructor in a constructor pattern.
+    BadConstrInConstrPattern {
+        span: Span,
+        module: ModId,
+    },
     OpaqueTypeConstrPattern {
+        constr: ast::TyConstrIndex,
+        span: Span,
+        module: ModId,
+    },
+    /// Used a record variant in an expression other than a record constructor expression.
+    DirectRecordVariantExpr {
         constr: ast::TyConstrIndex,
         span: Span,
         module: ModId,
     },
 }
 
-// TODO: we have roughly three tasks here:
-// 1. rescue the `lower` implementation to implement the first pass
-// 2. write the second pass in this module
-// 3. refactor to remove old dead code and redundant boilerplate
-// when this is complete, you MUST write at least one test
-
 pub fn typecheck(
-    env: ResEnv,
-) -> Result<TypedEnv<BoundResult>, (ResEnv, Vec<TypingError<BoundResult>>)> {
+    mut env: ResEnv,
+) -> Result<TypedEnv, (ResEnv, Vec<TypingError>)> {
     // first pass
-    let (types, term_types, mut errors) = lower::collect_types(&env);
+    let (types, term_types) = match lower::try_collect_types(&env) {
+        Ok((types, term_types)) => (types, term_types),
+        Err(errors) => return Err((env, errors)),
+    };
 
-    let mut typer = Typer::new(&types, &term_types, &mut errors);
+    let mut errors = Vec::new();
+
+    // grab the list TypeId so we can use it in patterns
+    let list_id = {
+        let list_mod = env.interner.intern_static("list");
+        let list_symbol = env.interner.intern_static("List");
+        let list_mod_id = env.magic_core_submodule(list_mod).unwrap();
+        let module = env.get_module(list_mod_id);
+        module
+            .items
+            .get(&list_symbol)
+            .unwrap()
+            .item
+            .item
+            .as_type()
+            .unwrap()
+    };
+
+    let first_module = env.terms.first().unwrap().module;
+    let mut typer =
+        Typer::new(&types, list_id, &term_types, &mut errors, first_module);
     typer.check_public_term_annotations(&env);
 
     // second pass
@@ -225,51 +265,54 @@ impl<T: TryGetTyperIndex, E> TryGetTyperIndex for Result<T, E> {
     }
 }
 
-type TyExprResult<N, V = TyVar> =
-    Result<Spanned<Typed<ast::Expr<N, V>, N, V>>, TypingError<N, V>>;
+type TyExprResult<V = TyVar> =
+    Result<Spanned<Typed<ast::Expr<V>, V>>, TypingError<V>>;
 
-type InferResult<N, V = TyVar> = Result<
-    (Spanned<Typed<ast::Expr<N, V>, N, V>>, Arc<Ty<N, V>>),
-    TypingError<N, V>,
->;
+type InferResult<V = TyVar> =
+    Result<(Spanned<Typed<ast::Expr<V>, V>>, Arc<Ty<V>>), TypingError<V>>;
 
-type TyResult<N, V = TyVar> = Result<Arc<Ty<N, V>>, TypingError<N, V>>;
-type UnitResult<N, V = TyVar> = Result<(), TypingError<N, V>>;
+type TyResult<V = TyVar> = Result<Arc<Ty<V>>, TypingError<V>>;
+type UnitResult<V = TyVar> = Result<(), TypingError<V>>;
 
 pub struct Typer<'a> {
     /// The lowered type declarations.
-    types: &'a [lower::LoweredType<BoundResult, Uid>],
+    types: &'a [lower::LoweredType<Uid>],
+    /// The [`TypeId`] of the core.list.List type.
+    list_id: TypeId,
     /// A map from terms to their types.
-    term_types: &'a lower::TermTypeMap<BoundResult, Uid>,
+    term_types: &'a lower::TermTypeMap<Uid>,
     /// Accumulated errors.
-    errors: &'a mut Vec<TypingError<BoundResult>>,
+    errors: &'a mut Vec<TypingError>,
     /// Equivalence classes of [`TyVar`].
     unifier: UnificationTable<InPlace<TyVar>>,
     /// A mapping from type variables to types.
-    var_assignments: HashMap<TyVar, Arc<TyMatrix<BoundResult, TyVar>>>,
+    var_assignments: HashMap<TyVar, Arc<TyMatrix<TyVar>>>,
     /// A mapping from [`Uid`] to [`TyVar`] in type expressions.
     uid_assigments: HashMap<Uid, TyVar>,
     /// The type judgements associated with local variables.
-    local_var_types: HashMap<Uid, Arc<Ty<BoundResult, TyVar>>>,
-    /// The current module, if any.
-    current_module: Option<ModId>,
+    local_var_types: HashMap<Uid, Arc<Ty<TyVar>>>,
+    /// The current module.
+    current_module: ModId,
 }
 
 impl<'a> Typer<'a> {
     pub fn new(
-        types: &'a [lower::LoweredType<BoundResult>],
-        term_types: &'a lower::TermTypeMap<BoundResult>,
-        errors: &'a mut Vec<TypingError<BoundResult>>,
+        types: &'a [lower::LoweredType],
+        list_id: TypeId,
+        term_types: &'a lower::TermTypeMap,
+        errors: &'a mut Vec<TypingError>,
+        current_module: ModId,
     ) -> Self {
         Self {
             types,
+            list_id,
             term_types,
             errors,
             unifier: Default::default(),
             var_assignments: Default::default(),
             uid_assigments: Default::default(),
             local_var_types: Default::default(),
-            current_module: None,
+            current_module,
         }
     }
 
@@ -279,12 +322,9 @@ impl<'a> Typer<'a> {
         &mut self,
         id: TermId,
         Term { name, module, ast }: Term<Spanned<&bound::Term<BoundResult>>>,
-    ) -> Result<
-        Term<Spanned<ast::Term<BoundResult, TyVar>>>,
-        TypingError<BoundResult>,
-    > {
+    ) -> Result<Term<Spanned<ast::Term<TyVar>>>, TypingError> {
         // set current module
-        self.current_module = Some(module);
+        self.current_module = module;
 
         // fetch and rebind annotated type
         let annotation = self.term_types.get(&id).cloned().unwrap();
@@ -364,39 +404,45 @@ impl<'a> Typer<'a> {
     pub fn typecheck_expr(
         &mut self,
         expr: Spanned<&bound::Expr<BoundResult>>,
-    ) -> TyExprResult<BoundResult> {
+    ) -> TyExprResult {
         let (typed_expr, _ty) = self.infer(expr)?;
         Ok(typed_expr)
     }
 
-    pub fn check(
-        &mut self,
-        expr: &ast::Expr<BoundResult>,
-        ty: Arc<Ty<BoundResult, TyVar>>,
-    ) -> TyResult<BoundResult> {
+    pub fn check(&mut self, expr: &ast::Expr, ty: Arc<Ty<TyVar>>) -> TyResult {
         todo!()
     }
 
     pub fn infer(
         &mut self,
         Spanned { item, span }: Spanned<&bound::Expr<BoundResult>>,
-    ) -> InferResult<BoundResult> {
+    ) -> InferResult {
         match item {
-            bound::Expr::Name(name) => {
-                let ty = name
-                    .try_get_typer_index()
-                    .ok()
-                    .and_then(|index| self.lookup_index(index));
-
-                match ty {
-                    Some(ty) => {
-                        let expr = ast::Expr::Name(name.clone());
-                        Ok((span.with(ty.with(expr)), ty))
-                    }
-                    None => Err(TypingError::UnboundName(name.clone())),
+            bound::Expr::Name(name) => match name.as_ref() {
+                Ok(bound @ Bound::Local(Name { id, .. })) => {
+                    let ty_var = self.get_or_assign_var(*id);
+                    let ty = Ty::unquantified(Arc::new(TyMatrix::Var(ty_var)));
+                    let expr = ty.with(ast::Expr::Name(bound.clone()));
+                    Ok((span.with(expr), ty))
                 }
+                Ok(
+                    bound @ Bound::Global(Name { id, .. })
+                    | bound @ Bound::Path(Name { id, .. }),
+                ) => {
+                    let ty = self.lookup_res(*id, (span, self.module()))?;
+                    let expr = ty.with(ast::Expr::Name(bound.clone()));
+                    Ok((span.with(expr), ty))
+                }
+                Err(content) => Err(TypingError::UnresolvedName {
+                    module: self.module(),
+                    name_content: content.clone(),
+                }),
+            },
+            bound::Expr::Literal(literal) => {
+                let Typed { item, ty } = self.infer_literal(span.with(literal));
+                let expr = ast::Expr::Literal(item.item);
+                Ok((span.with(ty.with(expr)), ty))
             }
-            bound::Expr::Literal(literal_expr) => todo!(),
             bound::Expr::List(_) => todo!(),
             bound::Expr::Tuple(_) => todo!(),
             bound::Expr::Block(block) => todo!(),
@@ -419,17 +465,18 @@ impl<'a> Typer<'a> {
 
     pub fn unify(
         &mut self,
-        t1: Arc<Ty<BoundResult, TyVar>>,
-        t2: Arc<Ty<BoundResult, TyVar>>,
-    ) -> UnitResult<BoundResult> {
+        t1: Arc<Ty<TyVar>>,
+        t2: Arc<Ty<TyVar>>,
+    ) -> UnitResult {
         self.unify_matrices(t1.matrix.clone(), t2.matrix.clone())
     }
 
     fn unify_matrices(
         &mut self,
-        t1: Arc<TyMatrix<BoundResult, TyVar>>,
-        t2: Arc<TyMatrix<BoundResult, TyVar>>,
-    ) -> UnitResult<BoundResult> {
+        t1: Arc<TyMatrix<TyVar>>,
+        t2: Arc<TyMatrix<TyVar>>,
+    ) -> UnitResult {
+        // TODO: add normalization
         match (t1.as_ref(), t2.as_ref()) {
             // identical primitives
             (TyMatrix::Prim(p1), TyMatrix::Prim(p2)) if p1 == p2 => Ok(()),
@@ -488,12 +535,8 @@ impl<'a> Typer<'a> {
                 TyMatrix::Named { name: n1, args: a1 },
                 TyMatrix::Named { name: n2, args: a2 },
             ) => {
-                // we have to check for equivalence of n1 and n2, but precisely
-                // what _equivalence_ means here should depend on N; hence we
-                // use the NameEquiv trait to check for equivalence. if they
-                // are equivalent then we unify a1 and a2 pointwise
-
-                if n1.equiv(n2) && a1.len() == a2.len() {
+                // we presume the inputs to be normalized, i.e. aliases have been fully expanded.
+                if n1 == n2 && a1.len() == a2.len() {
                     for (l, r) in a1.iter().zip(a2) {
                         self.unify_matrices(l.clone(), r.clone())?;
                     }
@@ -507,34 +550,35 @@ impl<'a> Typer<'a> {
         }
     }
 
-    fn lookup_index(
-        &mut self,
-        index: TyperIndex,
-    ) -> Option<Arc<Ty<BoundResult, TyVar>>> {
-        match index {
-            TyperIndex::Uid(uid) => self.local_var_types.get(&uid).cloned(),
-            TyperIndex::Res(Res::Term(id)) => {
-                self.term_types.get(&id).map(|ty| self.rebind(ty))
+    fn lookup_res(&mut self, res: Res, blame: (Span, ModId)) -> TyResult {
+        match res {
+            Res::Term(id) => {
+                // all terms are lowered, so this unwrap is fine (if gross)
+                let ty = self.term_types.get(&id).unwrap();
+                Ok(self.rebind(ty))
             }
-            TyperIndex::Res(Res::TyConstr { ty, name }) => self.types[ty.0]
-                .ast
-                .constrs()
-                .and_then(|constrs| constrs.get(&name))
-                .and_then(|constr| constr.get_ty())
-                .map(|ty| self.rebind(ty.as_ref())),
-            TyperIndex::Res(_) => {
-                panic!("a variable was bound to a module or type")
+            Res::TyConstr { ty, name } => {
+                // unwrapping is fine, TyConstr is a guaranteed-correct index
+                let constrs = self.types[ty.0].ast.constrs().unwrap();
+                let constr = constrs.get(&name).unwrap();
+
+                match constr.get_ty() {
+                    Some(ty) => Ok(self.rebind(&ty)),
+                    None => Err(TypingError::DirectRecordVariantExpr {
+                        constr: ast::TyConstrIndex { ty, name },
+                        span: blame.0,
+                        module: blame.1,
+                    }),
+                }
             }
+            _ => panic!("a variable was bound to a module or type"),
         }
     }
 
     fn lower_params(
         &mut self,
         params: &[Spanned<bound::Parameter<BoundResult>>],
-    ) -> Result<
-        SpanSeq<ast::Parameter<BoundResult, TyVar>>,
-        TypingError<BoundResult>,
-    > {
+    ) -> Result<SpanSeq<ast::Parameter<TyVar>>, TypingError> {
         let mut typed_params = Vec::with_capacity(params.len());
 
         for Spanned { span, item } in params.iter().map(Spanned::as_ref) {
@@ -570,8 +614,8 @@ impl<'a> Typer<'a> {
     fn check_pattern(
         &mut self,
         Spanned { item, span }: Spanned<&bound::Pattern<BoundResult>>,
-        ty: Arc<Ty<BoundResult, TyVar>>,
-    ) -> Result<Spanned<ast::Pattern>, TypingError<BoundResult>> {
+        ty: Arc<Ty<TyVar>>,
+    ) -> Result<Spanned<ast::Pattern>, TypingError> {
         match item {
             bound::Pattern::Wildcard => Ok(span.with(ast::Pattern::Wildcard)),
             bound::Pattern::Literal(literal) => {
@@ -597,7 +641,7 @@ impl<'a> Typer<'a> {
                                         Some(_) => Err(TypingError::OpaqueTypeConstrPattern {
                                             constr: id,
                                             span,
-                                            module: self.current_module.unwrap(),
+                                            module: self.module(),
                                         }),
                                         None => Ok((
                                             constrs.get(&name).unwrap(),
@@ -630,12 +674,12 @@ impl<'a> Typer<'a> {
                         Res::Term(id) => Err(TypingError::TermInNamePattern {
                             id,
                             span,
-                            module: self.current_module.unwrap(),
+                            module: self.module(),
                         }),
                         Res::Type(id) => Err(TypingError::TypeInNamePattern {
                             id,
                             span,
-                            module: self.current_module.unwrap(),
+                            module: self.module(),
                         }),
                         // we panic here, since something would have to have gone
                         // critically wrong in an earlier path
@@ -664,7 +708,7 @@ impl<'a> Typer<'a> {
                             Err(TypingError::NonUnitConstrInUnitConstrPattern {
                                 constr: id,
                                 span,
-                                module: self.current_module.unwrap(),
+                                module: self.module(),
                             })
                         }
                     }
@@ -704,9 +748,73 @@ impl<'a> Typer<'a> {
                 self.unify_matrices(ty.matrix.clone(), tuple_ty)?;
                 Ok(span.with(ast::Pattern::Tuple(subpatterns)))
             }
-            bound::Pattern::List(elems) => todo!(),
-            bound::Pattern::Cons { head, tail } => todo!(),
-            bound::Pattern::TupleConstr { name, elems } => todo!(),
+            bound::Pattern::List(elems) => {
+                // the T in List[T]
+                let arg_ty = Arc::new(TyMatrix::Var(self.fresh_var()));
+                let subpatterns = elems
+                    .iter()
+                    .try_fold(
+                        Vec::with_capacity(elems.len()),
+                        |mut pats, pat| {
+                            let pat = self.check_pattern(
+                                pat.as_ref(),
+                                Ty::unquantified(arg_ty.clone()),
+                            )?;
+                            pats.push(pat);
+                            Ok(pats)
+                        },
+                    )?
+                    .into_boxed_slice();
+
+                // build a list type from the argument type and unify
+                let list_ty = Arc::new(TyMatrix::Named {
+                    name: self.list_id,
+                    args: vec![arg_ty].into_boxed_slice(),
+                });
+                self.unify_matrices(ty.matrix.clone(), list_ty)?;
+                Ok(span.with(ast::Pattern::List(subpatterns)))
+            }
+            bound::Pattern::Cons { head, tail } => {
+                // the T in List[T]
+                let arg_ty = Arc::new(TyMatrix::Var(self.fresh_var()));
+
+                // first check against the head of the pattern, implicitly unifying the arg_ty
+                let head = Box::new(self.check_pattern(
+                    head.as_ref().as_ref(),
+                    Ty::unquantified(arg_ty.clone()),
+                )?);
+
+                // then construct the corresponding list type
+                let list_ty = Arc::new(TyMatrix::Named {
+                    name: self.list_id,
+                    args: vec![arg_ty].into_boxed_slice(),
+                });
+
+                // check the tail against this list type
+                let tail = Box::new(self.check_pattern(
+                    tail.as_ref().as_ref(),
+                    Ty::unquantified(list_ty.clone()),
+                )?);
+
+                // then unify against the expected type and return
+                self.unify_matrices(ty.matrix.clone(), list_ty)?;
+                Ok(span.with(ast::Pattern::Cons { head, tail }))
+            }
+            bound::Pattern::TupleConstr { name, elems } => {
+                let constr = match self.try_get_bound_ref(name)?.as_res() {
+                    Some(Res::TyConstr { ty, name }) => {
+                        Ok(ast::TyConstrIndex { ty, name })
+                    }
+                    _ => Err(TypingError::BadConstrInConstrPattern {
+                        span,
+                        module: self.module(),
+                    }),
+                }?;
+
+                // TODO: check constr is a tuple constr and recurse on elements
+
+                todo!()
+            }
             bound::Pattern::RecordConstr { name, fields, rest } => todo!(),
         }
     }
@@ -714,7 +822,7 @@ impl<'a> Typer<'a> {
     fn infer_literal(
         &mut self,
         Spanned { item, span }: Spanned<&bound::LiteralExpr>,
-    ) -> Typed<Spanned<ast::LiteralExpr>, BoundResult, TyVar> {
+    ) -> Typed<Spanned<ast::LiteralExpr>, TyVar> {
         match *item {
             ast::LiteralExpr::Unit => {
                 let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
@@ -752,19 +860,23 @@ impl<'a> Typer<'a> {
         }
     }
 
-    fn reifier(&mut self) -> TyReifier<'_, BoundResult, TyVar>
-    where
-        BoundResult: Eq + Hash + Clone + TryGetTyperIndex,
-    {
+    fn reifier(&mut self) -> TyReifier<'_, TyVar> {
         // NOTE: we only call this method in the type_term path, where the
         // current_module is definitely Some(..).
-        TyReifier::new(self.current_module.unwrap(), None, self.errors)
+        TyReifier::new(self.module(), None, self.errors)
     }
 
-    fn get_type(
-        &self,
-        id: TypeId,
-    ) -> Type<Spanned<&ast::Type<BoundResult, Uid>>> {
+    fn try_get_bound_ref<'t, 'r>(
+        &'t self,
+        res: &'r BoundResult,
+    ) -> Result<&'r Bound, TypingError> {
+        res.as_ref().map_err(|content| TypingError::UnresolvedName {
+            module: self.module(),
+            name_content: content.clone(),
+        })
+    }
+
+    fn get_type(&self, id: TypeId) -> Type<Spanned<&ast::Type<Uid>>> {
         self.types[id.0].as_ref().map(Spanned::as_ref)
     }
 
@@ -777,11 +889,8 @@ impl<'a> Typer<'a> {
     /// otherwise this function cannot guarantee termination.
     fn normalize(
         &mut self,
-        ty: &Arc<TyMatrix<BoundResult, TyVar>>,
-    ) -> Option<Arc<TyMatrix<BoundResult, TyVar>>>
-    where
-        BoundResult: TryGetRes + Clone,
-    {
+        ty: &Arc<TyMatrix<TyVar>>,
+    ) -> Option<Arc<TyMatrix<TyVar>>> {
         match ty.as_ref() {
             TyMatrix::Prim(_) | TyMatrix::Var(_) => Some(ty.clone()),
             TyMatrix::Tuple(elems) => Some(Arc::new(TyMatrix::Tuple(
@@ -806,8 +915,7 @@ impl<'a> Typer<'a> {
                 codomain: self.normalize(codomain)?,
             })),
             TyMatrix::Named { name, args } => {
-                let res: Res = name.try_get_res().ok()?;
-                let ast = &self.types[res.as_type()?.0].ast;
+                let ast = self.get_type(*name).ast;
                 let params = &ast.params;
                 let kind = &ast.kind;
 
@@ -852,8 +960,8 @@ impl<'a> Typer<'a> {
     fn unify_var_value(
         &mut self,
         var: TyVar,
-        value: Arc<TyMatrix<BoundResult, TyVar>>,
-    ) -> UnitResult<BoundResult> {
+        value: Arc<TyMatrix<TyVar>>,
+    ) -> UnitResult {
         if !occurs_check(&var, value.as_ref()) {
             self.assign_var(var, value);
             Ok(())
@@ -862,11 +970,7 @@ impl<'a> Typer<'a> {
         }
     }
 
-    fn assign_var(
-        &mut self,
-        var: TyVar,
-        ty: Arc<TyMatrix<BoundResult, TyVar>>,
-    ) {
+    fn assign_var(&mut self, var: TyVar, ty: Arc<TyMatrix<TyVar>>) {
         // grab the representative element for `var`.
         let repr = self.unifier.find(var);
 
@@ -880,10 +984,7 @@ impl<'a> Typer<'a> {
         }
     }
 
-    fn instantiate(
-        &mut self,
-        ty: &Ty<BoundResult, TyVar>,
-    ) -> Arc<TyMatrix<BoundResult, TyVar>> {
+    fn instantiate(&mut self, ty: &Ty<TyVar>) -> Arc<TyMatrix<TyVar>> {
         let mut substitution = HashMap::with_capacity(ty.prefix.len());
 
         for &var in &ty.prefix {
@@ -894,10 +995,7 @@ impl<'a> Typer<'a> {
         apply_substitution(&substitution, ty.matrix.clone(), &mut rebinder)
     }
 
-    fn instantiate_uid(
-        &mut self,
-        ty: &Ty<BoundResult, Uid>,
-    ) -> Arc<TyMatrix<BoundResult, TyVar>> {
+    fn instantiate_uid(&mut self, ty: &Ty<Uid>) -> Arc<TyMatrix<TyVar>> {
         let mut substitution = HashMap::with_capacity(ty.prefix.len());
 
         for &var in &ty.prefix {
@@ -908,10 +1006,7 @@ impl<'a> Typer<'a> {
         apply_substitution(&substitution, ty.matrix.clone(), &mut rebinder)
     }
 
-    fn zonk(
-        &mut self,
-        ty: &Ty<BoundResult, TyVar>,
-    ) -> Arc<Ty<BoundResult, TyVar>> {
+    fn zonk(&mut self, ty: &Ty<TyVar>) -> Arc<Ty<TyVar>> {
         let matrix = self.zonk_matrix(ty.matrix.clone());
         Arc::new(Ty {
             prefix: ty.prefix.clone(),
@@ -921,8 +1016,8 @@ impl<'a> Typer<'a> {
 
     fn zonk_matrix(
         &mut self,
-        matrix: Arc<TyMatrix<BoundResult, TyVar>>,
-    ) -> Arc<TyMatrix<BoundResult, TyVar>> {
+        matrix: Arc<TyMatrix<TyVar>>,
+    ) -> Arc<TyMatrix<TyVar>> {
         match matrix.as_ref() {
             TyMatrix::Prim(_) => matrix,
             TyMatrix::Var(var) => {
@@ -950,16 +1045,18 @@ impl<'a> Typer<'a> {
         }
     }
 
-    fn lookup_var(
-        &mut self,
-        var: TyVar,
-    ) -> Option<Arc<TyMatrix<BoundResult, TyVar>>> {
+    fn lookup_var(&mut self, var: TyVar) -> Option<Arc<TyMatrix<TyVar>>> {
         let repr = self.unifier.find(var);
         self.var_assignments.get(&repr).cloned()
     }
 
     fn fresh_var(&mut self) -> TyVar {
         self.unifier.new_key(())
+    }
+
+    /// Returns the current module.
+    fn module(&self) -> ModId {
+        self.current_module
     }
 
     /// Checks every public term in `env` to see if its annotation is
@@ -997,10 +1094,7 @@ impl<'a> Typer<'a> {
     }
 
     /// Converts a [`Ty<N, Uid>`] into a [`Ty<N, TyVar>`].
-    fn rebind(
-        &mut self,
-        ty: &Ty<BoundResult, Uid>,
-    ) -> Arc<Ty<BoundResult, TyVar>> {
+    fn rebind(&mut self, ty: &Ty<Uid>) -> Arc<Ty<TyVar>> {
         let matrix = self.rebind_matrix(&ty.matrix);
         let prefix = ty
             .prefix
@@ -1012,10 +1106,7 @@ impl<'a> Typer<'a> {
     }
 
     /// Converts a [`TyMatrix<N, Uid>`] into a [`TyMatrix<N, TyVar>`].
-    fn rebind_matrix(
-        &mut self,
-        ty: &TyMatrix<BoundResult, Uid>,
-    ) -> Arc<TyMatrix<BoundResult, TyVar>> {
+    fn rebind_matrix(&mut self, ty: &TyMatrix<Uid>) -> Arc<TyMatrix<TyVar>> {
         Arc::new(match ty {
             TyMatrix::Prim(prim_ty) => TyMatrix::Prim(*prim_ty),
             TyMatrix::Var(uid) => TyMatrix::Var(self.get_or_assign_var(*uid)),
@@ -1038,7 +1129,7 @@ impl<'a> Typer<'a> {
 }
 
 /// Returns `true` if and only if `var` occurs in `ty`.
-fn occurs_check<N, V: Eq>(var: &V, ty: &TyMatrix<N, V>) -> bool {
+fn occurs_check<V: Eq>(var: &V, ty: &TyMatrix<V>) -> bool {
     match ty {
         TyMatrix::Prim(_) => false,
         TyMatrix::Var(v) => v == var,
@@ -1053,13 +1144,12 @@ fn occurs_check<N, V: Eq>(var: &V, ty: &TyMatrix<N, V>) -> bool {
     }
 }
 
-fn apply_substitution<N, F, V1, V2>(
-    substitution: &HashMap<V1, Arc<TyMatrix<N, V2>>>,
-    ty: Arc<TyMatrix<N, V1>>,
+fn apply_substitution<F, V1, V2>(
+    substitution: &HashMap<V1, Arc<TyMatrix<V2>>>,
+    ty: Arc<TyMatrix<V1>>,
     rebinder: &mut F,
-) -> Arc<TyMatrix<N, V2>>
+) -> Arc<TyMatrix<V2>>
 where
-    N: Clone,
     V1: Hash + Eq,
     F: FnMut(&V1) -> V2,
 {
@@ -1104,7 +1194,7 @@ where
 /// the case if and only if either
 /// 1. the domain has no members, or;
 /// 2. the domain has exactly one member, and this member is `()`.
-fn is_unit_domain<N, V>(domain: &[Arc<TyMatrix<N, V>>]) -> bool {
+fn is_unit_domain<V>(domain: &[Arc<TyMatrix<V>>]) -> bool {
     match domain {
         [] => true,
         [_, _, ..] => false,
