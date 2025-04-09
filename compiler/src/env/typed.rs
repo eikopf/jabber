@@ -36,7 +36,7 @@ use lower::TyReifier;
 use crate::{
     ast::{
         bound::{self, Bound, Name, NameContent},
-        common::{NameEquiv, ViSp, Vis},
+        common::{ViSp, Vis},
         typed::{self as ast, Ty, TyMatrix, Typed},
     },
     env::{Env, Res, resolve::BoundResult},
@@ -114,6 +114,10 @@ pub enum TypingError<V = TyVar> {
     },
     /// Invalid constructor in a constructor pattern.
     BadConstrInConstrPattern {
+        span: Span,
+        module: ModId,
+    },
+    MissingRecordPatternFields {
         span: Span,
         module: ModId,
     },
@@ -563,7 +567,7 @@ impl<'a> Typer<'a> {
                 let constr = constrs.get(&name).unwrap();
 
                 match constr.get_ty() {
-                    Some(ty) => Ok(self.rebind(&ty)),
+                    Some(ty) => Ok(self.rebind(ty)),
                     None => Err(TypingError::DirectRecordVariantExpr {
                         constr: ast::TyConstrIndex { ty, name },
                         span: blame.0,
@@ -719,7 +723,7 @@ impl<'a> Typer<'a> {
                         self.local_var_types.insert(*id, ty);
                     }
 
-                    Ok(span.with(ast::Pattern::Name(*name)))
+                    Ok(span.with(ast::Pattern::Var(*name)))
                 }
                 Err(_) => panic!("unbound AST name:\n{:?}", name),
             },
@@ -801,7 +805,9 @@ impl<'a> Typer<'a> {
                 Ok(span.with(ast::Pattern::Cons { head, tail }))
             }
             bound::Pattern::TupleConstr { name, elems } => {
-                let constr = match self.try_get_bound_ref(name)?.as_res() {
+                let bound = self.try_get_bound_ref(name)?;
+
+                let constr_id = match bound.as_res() {
                     Some(Res::TyConstr { ty, name }) => {
                         Ok(ast::TyConstrIndex { ty, name })
                     }
@@ -811,11 +817,161 @@ impl<'a> Typer<'a> {
                     }),
                 }?;
 
-                // TODO: check constr is a tuple constr and recurse on elements
+                // HACK: i really don't like this clone, but it works...
+                match self.lookup_constr(constr_id).kind.clone() {
+                    ast::TyConstrKind::Tuple {
+                        elems: elem_tys, ..
+                    } => {
+                        // instantiate ty params
+                        let (args, elem_tys) = {
+                            let ty_params = self.get_ty_params(constr_id.ty);
 
-                todo!()
+                            let (args, mut subst) = self
+                                .make_param_instantiation(
+                                    ty_params.iter().copied(),
+                                );
+
+                            let elem_tys = elem_tys
+                                .iter()
+                                .map(|ty| subst(ty.matrix.clone()))
+                                .collect::<Box<[_]>>();
+
+                            (args, elem_tys)
+                        };
+
+                        // check subpatterns
+                        let elems = elems
+                            .iter()
+                            .map(Spanned::as_ref)
+                            .zip(&elem_tys)
+                            .try_fold(Vec::new(), |mut pats, (pat, ty)| {
+                                let pat = self.check_pattern(
+                                    pat,
+                                    Ty::unquantified(ty.clone()),
+                                )?;
+                                pats.push(pat);
+                                Ok(pats)
+                            })?
+                            .into_boxed_slice();
+
+                        // construct the corresponding named type
+                        let constr_ty = Arc::new(TyMatrix::Named {
+                            name: constr_id.ty,
+                            args,
+                        });
+
+                        // unify against expected type and return
+                        self.unify_matrices(ty.matrix.clone(), constr_ty)?;
+                        Ok(span.with(ast::Pattern::TupleConstr {
+                            name: Name {
+                                content: bound.span().with(bound.clone()),
+                                id: constr_id,
+                            },
+                            elems,
+                        }))
+                    }
+                    _ => Err(TypingError::BadConstrInConstrPattern {
+                        span,
+                        module: self.module(),
+                    }),
+                }
             }
-            bound::Pattern::RecordConstr { name, fields, rest } => todo!(),
+            bound::Pattern::RecordConstr {
+                name,
+                fields: field_pats,
+                rest,
+            } => {
+                let bound = self.try_get_bound_ref(name)?;
+
+                let constr_id = match bound.as_res() {
+                    Some(Res::TyConstr { ty, name }) => {
+                        Ok(ast::TyConstrIndex { ty, name })
+                    }
+                    _ => Err(TypingError::BadConstrInConstrPattern {
+                        span,
+                        module: self.module(),
+                    }),
+                }?;
+
+                match self.lookup_constr(constr_id).kind.clone() {
+                    ast::TyConstrKind::Record(fields) => {
+                        // throw an error if there are missing fields and
+                        // the rest pattern syntax is not present
+                        if rest.is_none() && field_pats.len() < fields.len() {
+                            return Err(
+                                TypingError::MissingRecordPatternFields {
+                                    span,
+                                    module: self.module(),
+                                },
+                            );
+                        }
+
+                        // instantiate ty params and field tys
+                        let (args, field_tys) = {
+                            let ty_params = self.get_ty_params(constr_id.ty);
+
+                            let (args, mut subst) =
+                                self.make_param_instantiation(ty_params);
+
+                            let field_tys: HashMap<_, _> = fields
+                                .into_iter()
+                                .map(|(name, field)| {
+                                    (name, subst(field.ty.matrix.clone()))
+                                })
+                                .collect();
+
+                            (args, field_tys)
+                        };
+
+                        // check field patterns
+                        let fields =
+                            field_pats
+                                .iter()
+                                .map(Spanned::as_ref)
+                                .try_fold(Vec::new(), |mut fields, field| {
+                                    let span = field.span();
+                                    let name = field.field.item;
+                                    let ty = Ty::unquantified(
+                                        field_tys.get(&name).unwrap().clone(),
+                                    );
+
+                                    let pattern = self.check_pattern(
+                                        field.pattern.as_ref(),
+                                        ty,
+                                    )?;
+
+                                    fields.push(span.with(ast::FieldPattern {
+                                        name,
+                                        pattern,
+                                    }));
+
+                                    Ok(fields)
+                                })?
+                                .into_boxed_slice();
+
+                        // construct the corresponding named type
+                        let constr_ty = Arc::new(TyMatrix::Named {
+                            name: constr_id.ty,
+                            args,
+                        });
+
+                        // unify against expected type and return
+                        self.unify_matrices(ty.matrix.clone(), constr_ty)?;
+                        Ok(span.with(ast::Pattern::RecordConstr {
+                            name: Name {
+                                content: bound.span().with(bound.clone()),
+                                id: constr_id,
+                            },
+                            fields,
+                            rest: *rest,
+                        }))
+                    }
+                    _ => Err(TypingError::BadConstrInConstrPattern {
+                        span,
+                        module: self.module(),
+                    }),
+                }
+            }
         }
     }
 
@@ -866,8 +1022,8 @@ impl<'a> Typer<'a> {
         TyReifier::new(self.module(), None, self.errors)
     }
 
-    fn try_get_bound_ref<'t, 'r>(
-        &'t self,
+    fn try_get_bound_ref<'r>(
+        &self,
         res: &'r BoundResult,
     ) -> Result<&'r Bound, TypingError> {
         res.as_ref().map_err(|content| TypingError::UnresolvedName {
@@ -942,7 +1098,7 @@ impl<'a> Typer<'a> {
                     }
                     // otherwise recurse as normal
                     _ => Arc::new(TyMatrix::Named {
-                        name: name.clone(),
+                        name: *name,
                         args: args
                             .iter()
                             .try_fold(vec![], |mut args, ty| {
@@ -1002,8 +1158,36 @@ impl<'a> Typer<'a> {
             substitution.insert(var, Arc::new(TyMatrix::Var(self.fresh_var())));
         }
 
+        // NOTE: the rebinder is only invoked when a variable is not quantified
         let mut rebinder = |&var: &Uid| self.get_or_assign_var(var);
         apply_substitution(&substitution, ty.matrix.clone(), &mut rebinder)
+    }
+
+    /// Creates an instantiation for a sequence of `params`, returning:
+    /// 1. a list of instantiated parameters, and;
+    /// 2. a function that can instantiate matrices with the same substitution.
+    ///
+    /// Note that the function captures `&mut self`.
+    fn make_param_instantiation(
+        &mut self,
+        params: impl IntoIterator<Item = Uid>,
+    ) -> (
+        Box<[Arc<TyMatrix<TyVar>>]>,
+        impl FnMut(Arc<TyMatrix>) -> Arc<TyMatrix<TyVar>>,
+    ) {
+        let mut substitution = HashMap::new();
+        let mut inst_params = Vec::new();
+
+        for param in params.into_iter() {
+            let var = Arc::new(TyMatrix::Var(self.fresh_var()));
+            inst_params.push(var.clone());
+            substitution.insert(param, var);
+        }
+
+        let mut rebinder = |&var: &Uid| self.get_or_assign_var(var);
+        let func =
+            move |ty| apply_substitution(&substitution, ty, &mut rebinder);
+        (inst_params.into_boxed_slice(), func)
     }
 
     fn zonk(&mut self, ty: &Ty<TyVar>) -> Arc<Ty<TyVar>> {
@@ -1027,7 +1211,7 @@ impl<'a> Typer<'a> {
                 tys.iter().cloned().map(|ty| self.zonk_matrix(ty)).collect(),
             )),
             TyMatrix::Named { name, args } => Arc::new(TyMatrix::Named {
-                name: name.clone(),
+                name: *name,
                 args: args
                     .iter()
                     .cloned()
@@ -1043,6 +1227,30 @@ impl<'a> Typer<'a> {
                 codomain: self.zonk_matrix(codomain.clone()),
             }),
         }
+    }
+
+    fn lookup_constr(
+        &self,
+        ast::TyConstrIndex { ty, name }: ast::TyConstrIndex,
+    ) -> Spanned<&ast::TyConstr<Uid>> {
+        match self.get_type(ty).ast.constrs() {
+            Some(constrs) => match constrs.get(&name) {
+                Some(constr) => constr.as_ref(),
+                None => {
+                    panic!("invalid TyConstrIndex: name is not a constructor")
+                }
+            },
+            None => panic!("invalid TyConstrIndex: ty is not an ADT"),
+        }
+    }
+
+    fn get_ty_params(&self, id: TypeId) -> Box<[Uid]> {
+        self.get_type(id)
+            .ast
+            .params
+            .iter()
+            .map(|name| name.id)
+            .collect()
     }
 
     fn lookup_var(&mut self, var: TyVar) -> Option<Arc<TyMatrix<TyVar>>> {

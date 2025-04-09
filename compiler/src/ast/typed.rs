@@ -48,7 +48,7 @@ pub struct Type<V = Uid, A = ResAttr> {
 impl<V, A> Type<V, A> {
     pub fn constrs(&self) -> Option<&HashMap<Symbol, Spanned<TyConstr<V>>>> {
         match &self.kind {
-            TypeKind::Adt { constrs, .. } => Some(&constrs),
+            TypeKind::Adt { constrs, .. } => Some(constrs),
             _ => None,
         }
     }
@@ -83,6 +83,18 @@ impl<V> TyConstr<V> {
             TyConstrKind::Unit(ty) => Some(ty),
             TyConstrKind::Tuple { fn_ty, .. } => Some(fn_ty),
         }
+    }
+
+    pub fn is_tuple(&self) -> bool {
+        self.kind.is_tuple()
+    }
+
+    pub fn is_record(&self) -> bool {
+        self.kind.is_record()
+    }
+
+    pub fn is_unit(&self) -> bool {
+        self.kind.is_unit()
     }
 }
 
@@ -122,6 +134,32 @@ pub enum TyConstrKind<V = Uid> {
         /// constructor when it is referred to by name, e.g. in a call expr.
         fn_ty: Arc<Ty<V>>,
     },
+}
+
+impl<V> TyConstrKind<V> {
+    /// Returns `true` if the ty constr kind is [`Tuple`].
+    ///
+    /// [`Tuple`]: TyConstrKind::Tuple
+    #[must_use]
+    pub fn is_tuple(&self) -> bool {
+        matches!(self, Self::Tuple { .. })
+    }
+
+    /// Returns `true` if the ty constr kind is [`Record`].
+    ///
+    /// [`Record`]: TyConstrKind::Record
+    #[must_use]
+    pub fn is_record(&self) -> bool {
+        matches!(self, Self::Record(..))
+    }
+
+    /// Returns `true` if the ty constr kind is [`Unit`].
+    ///
+    /// [`Unit`]: TyConstrKind::Unit
+    #[must_use]
+    pub fn is_unit(&self) -> bool {
+        matches!(self, Self::Unit(..))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -250,7 +288,7 @@ pub struct TyConstrIndex {
 pub enum Pattern {
     Wildcard,
     Literal(LiteralExpr),
-    Name(Name<Uid>),
+    Var(Name<Uid>),
     Tuple(SpanSeq<Self>),
     List(SpanSeq<Self>),
     Cons {
@@ -266,9 +304,15 @@ pub enum Pattern {
     },
     RecordConstr {
         name: Name<TyConstrIndex, Bound>,
-        fields: (),
+        fields: SpanSeq<FieldPattern>,
         rest: Option<Span>,
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldPattern {
+    pub name: Symbol,
+    pub pattern: Spanned<Pattern>,
 }
 
 // PROPER TYPES
@@ -458,7 +502,7 @@ impl<V> TyMatrix<V> {
                 let mut names = vec![];
 
                 if cmp(name) {
-                    names.push(name.clone());
+                    names.push(*name);
                 }
 
                 let tail =

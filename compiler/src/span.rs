@@ -14,6 +14,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use crate::env::{Loc, ModId};
+
 /// A sequence of spanned values of `T`.
 pub type SpanSeq<T> = Box<[Spanned<T>]>;
 
@@ -40,6 +42,10 @@ impl<T> Spanned<T> {
             item: f(self.item),
             span: self.span,
         }
+    }
+
+    pub fn locate_in(self, module: ModId) -> Loc<T> {
+        Loc { module, item: self }
     }
 
     pub fn unwrap(self) -> T {
