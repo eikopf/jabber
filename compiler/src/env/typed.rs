@@ -132,6 +132,30 @@ pub enum TypingError<V = TyVar> {
         span: Span,
         module: ModId,
     },
+    CalleeTyIsNotFn {
+        callee_ty: Arc<Ty<TyVar>>,
+        span: Span,
+        module: ModId,
+    },
+    ArityMismatch {
+        callee_arity: usize,
+        arg_count: usize,
+        callee_span: Span,
+        span: Span,
+        module: ModId,
+    },
+    LambdaArityMismatch {
+        param_count: usize,
+        expected_arity: usize,
+        span: Span,
+        module: ModId,
+    },
+    /// Expected a lambda expression to have a non-function type.
+    ExpectedNonFnTyOfLambda {
+        expected_ty: Arc<Ty<TyVar>>,
+        span: Span,
+        module: ModId,
+    },
 }
 
 pub fn typecheck(
@@ -216,64 +240,8 @@ pub enum TyperIndex {
     Uid(Uid),
 }
 
-pub trait TryGetTyperIndex {
-    type Error;
-
-    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error>;
-}
-
-impl TryGetTyperIndex for Res {
-    type Error = std::convert::Infallible;
-
-    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
-        Ok(TyperIndex::Res(*self))
-    }
-}
-
-impl TryGetTyperIndex for Uid {
-    type Error = std::convert::Infallible;
-
-    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
-        Ok(TyperIndex::Uid(*self))
-    }
-}
-
-impl<I: TryGetTyperIndex, C> TryGetTyperIndex for Name<I, C> {
-    type Error = I::Error;
-
-    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
-        self.id.try_get_typer_index()
-    }
-}
-
-impl TryGetTyperIndex for Bound {
-    type Error = std::convert::Infallible;
-
-    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
-        match self {
-            Bound::Local(name) => name.try_get_typer_index(),
-            Bound::Path(name) => name.try_get_typer_index(),
-            Bound::Global(name) => name.try_get_typer_index(),
-        }
-    }
-}
-
-impl<T: TryGetTyperIndex, E> TryGetTyperIndex for Result<T, E> {
-    type Error = Option<T::Error>;
-
-    fn try_get_typer_index(&self) -> Result<TyperIndex, Self::Error> {
-        match self {
-            Ok(inner) => inner.try_get_typer_index().map_err(Some),
-            Err(_) => Err(None),
-        }
-    }
-}
-
-type TyExprResult<V = TyVar> =
+type ExprResult<V = TyVar> =
     Result<Spanned<Typed<ast::Expr<V>, V>>, TypingError<V>>;
-
-type InferResult<V = TyVar> =
-    Result<(Spanned<Typed<ast::Expr<V>, V>>, Arc<Ty<V>>), TypingError<V>>;
 
 type TyResult<V = TyVar> = Result<Arc<Ty<V>>, TypingError<V>>;
 type UnitResult<V = TyVar> = Result<(), TypingError<V>>;
@@ -342,14 +310,16 @@ impl<'a> Typer<'a> {
                 return_ty,
                 body,
             }) => {
+                let (_, codomain) = annotated_ty.matrix.as_fn().unwrap();
+
                 let params = self.lower_params(params)?;
-                let (body, ty) = self.infer(body.as_ref().as_ref())?;
-                self.unify(ty.clone(), annotated_ty)?;
+                let body = self.infer(body.as_ref().as_ref())?;
+                self.unify_matrices(body.ty.matrix.clone(), codomain)?;
 
                 ast::Term {
                     attrs: attrs.clone(),
                     name: *name,
-                    ty,
+                    ty: body.ty.clone(),
                     kind: ast::TermKind::Fn {
                         params,
                         return_ty_ast: return_ty.clone(),
@@ -387,13 +357,13 @@ impl<'a> Typer<'a> {
                 ty: ty_ast,
                 value,
             }) => {
-                let (value, ty) = self.infer(value.as_ref())?;
-                self.unify(ty.clone(), annotated_ty)?;
+                let value = self.infer(value.as_ref())?;
+                self.unify(value.ty.clone(), annotated_ty)?;
 
                 ast::Term {
                     attrs: attrs.clone(),
                     name: *name,
-                    ty,
+                    ty: value.ty.clone(),
                     kind: ast::TermKind::Const {
                         ty_ast: ty_ast.clone(),
                         value,
@@ -408,34 +378,132 @@ impl<'a> Typer<'a> {
     pub fn typecheck_expr(
         &mut self,
         expr: Spanned<&bound::Expr<BoundResult>>,
-    ) -> TyExprResult {
-        let (typed_expr, _ty) = self.infer(expr)?;
-        Ok(typed_expr)
+    ) -> ExprResult {
+        self.infer(expr)
     }
 
-    pub fn check(&mut self, expr: &ast::Expr, ty: Arc<Ty<TyVar>>) -> TyResult {
-        todo!()
+    pub fn check(
+        &mut self,
+        Spanned { item, span }: Spanned<&bound::Expr<BoundResult>>,
+        expected_ty: Arc<Ty<TyVar>>,
+    ) -> ExprResult {
+        match item {
+            bound::Expr::Name(name) => {
+                let name = self.try_get_bound_ref(name)?;
+
+                match name {
+                    Bound::Local(name @ Name { id, .. }) => {
+                        // get and instantiate the type
+                        let ty = {
+                            let ty =
+                                self.local_var_types.get(id).unwrap().clone();
+                            self.instantiate(&ty)
+                        };
+
+                        // unify against the expected type
+                        self.unify_matrices(
+                            ty.clone(),
+                            expected_ty.matrix.clone(),
+                        )?;
+
+                        let ty = Ty::unquantified(ty);
+                        Ok(span.with(ty.with(ast::Expr::Local(*name))))
+                    }
+                    bound @ Bound::Path(Name { id, .. })
+                    | bound @ Bound::Global(Name { id, .. }) => todo!(),
+                }
+            }
+            bound::Expr::List(_) => todo!(),
+            bound::Expr::Tuple(_) => todo!(),
+            bound::Expr::Block(block) => todo!(),
+            bound::Expr::RecordConstr { name, fields, base } => todo!(),
+            bound::Expr::RecordField { item, field } => todo!(),
+            bound::Expr::TupleField { item, field } => todo!(),
+            bound::Expr::Lambda { params, body } => {
+                // first break the expected type into its domain and codomain
+                let (domain, codomain) = expected_ty
+                    .matrix
+                    .as_fn()
+                    .ok_or_else(|| TypingError::ExpectedNonFnTyOfLambda {
+                        expected_ty: expected_ty.clone(),
+                        span,
+                        module: self.module(),
+                    })?;
+
+                // convert domain into a unit domain if necessary
+                let (domain, is_unit_domain) = match domain.as_ref() {
+                    [] => (
+                        vec![Arc::new(TyMatrix::Prim(ast::PrimTy::Unit))]
+                            .into_boxed_slice(),
+                        true,
+                    ),
+                    _ => (domain, false),
+                };
+
+                // then lower the parameters, which implicitly infers the types of
+                // variable bindings and adds them to the environment
+                let params = self.lower_params(params)?;
+
+                // check whether the unit syntax sugar applies
+                let unit_sugar = is_unit_domain
+                    && match params.as_ref() {
+                        [] | [_, _, ..] => true,
+                        [param] => param.pattern.is_unit(),
+                    };
+
+                // check arity
+                if !unit_sugar && params.len() != domain.len() {
+                    return Err(TypingError::LambdaArityMismatch {
+                        param_count: params.len(),
+                        expected_arity: domain.len(),
+                        span,
+                        module: self.module(),
+                    });
+                }
+
+                // TODO: check the params against the domain, and then check
+                // the body against the codomain
+
+                todo!()
+            }
+            bound::Expr::LazyAnd { operator, lhs, rhs } => todo!(),
+            bound::Expr::LazyOr { operator, lhs, rhs } => todo!(),
+            bound::Expr::Mutate { operator, lhs, rhs } => todo!(),
+            bound::Expr::Match { scrutinee, arms } => todo!(),
+            bound::Expr::IfElse {
+                condition,
+                consequence,
+                alternative,
+            } => todo!(),
+            // inference mode rules (literal, call, ...)
+            expr => {
+                let expr = self.infer(span.with(expr))?;
+                self.unify(expr.ty.clone(), expected_ty.clone())?;
+                Ok(expr)
+            }
+        }
     }
 
     pub fn infer(
         &mut self,
         Spanned { item, span }: Spanned<&bound::Expr<BoundResult>>,
-    ) -> InferResult {
+    ) -> ExprResult {
         match item {
             bound::Expr::Name(name) => match name.as_ref() {
-                Ok(bound @ Bound::Local(Name { id, .. })) => {
+                Ok(Bound::Local(name @ Name { id, .. })) => {
                     let ty_var = self.get_or_assign_var(*id);
                     let ty = Ty::unquantified(Arc::new(TyMatrix::Var(ty_var)));
-                    let expr = ty.with(ast::Expr::Name(bound.clone()));
-                    Ok((span.with(expr), ty))
+                    Ok(span.with(ty.with(ast::Expr::Local(*name))))
                 }
                 Ok(
                     bound @ Bound::Global(Name { id, .. })
                     | bound @ Bound::Path(Name { id, .. }),
                 ) => {
                     let ty = self.lookup_res(*id, (span, self.module()))?;
-                    let expr = ty.with(ast::Expr::Name(bound.clone()));
-                    Ok((span.with(expr), ty))
+                    Ok(span.with(ty.with(ast::Expr::Global(Name {
+                        id: *id,
+                        content: bound.clone().content(),
+                    }))))
                 }
                 Err(content) => Err(TypingError::UnresolvedName {
                     module: self.module(),
@@ -445,7 +513,7 @@ impl<'a> Typer<'a> {
             bound::Expr::Literal(literal) => {
                 let Typed { item, ty } = self.infer_literal(span.with(literal));
                 let expr = ast::Expr::Literal(item.item);
-                Ok((span.with(ty.with(expr)), ty))
+                Ok(span.with(ty.with(expr)))
             }
             bound::Expr::List(_) => todo!(),
             bound::Expr::Tuple(_) => todo!(),
@@ -453,12 +521,118 @@ impl<'a> Typer<'a> {
             bound::Expr::RecordConstr { name, fields, base } => todo!(),
             bound::Expr::RecordField { item, field } => todo!(),
             bound::Expr::TupleField { item, field } => todo!(),
-            bound::Expr::Lambda { params, body } => todo!(),
-            bound::Expr::Call { callee, args, kind } => todo!(),
+            bound::Expr::Lambda { params, body } => {
+                let params = self.lower_params(params)?;
+
+                // infer the type of the body
+                let body = Box::new(self.infer(body.as_ref().as_ref())?);
+
+                // construct the resulting function type
+                let ty = Ty::unquantified({
+                    let domain = params
+                        .iter()
+                        .map(|param| param.ty.matrix.clone())
+                        .collect::<Box<[_]>>();
+
+                    let codomain = body.ty.matrix.clone();
+
+                    Arc::new(TyMatrix::Fn { domain, codomain })
+                });
+
+                Ok(span.with(ty.with(ast::Expr::Lambda { params, body })))
+            }
+            bound::Expr::Call { callee, args, kind } => {
+                // infer callee type
+                let callee = self.infer(callee.as_ref().as_ref())?;
+
+                // check if the callee is a function or not
+                let (domain, codomain) = callee.ty.matrix.as_fn().ok_or(
+                    TypingError::CalleeTyIsNotFn {
+                        callee_ty: callee.ty.clone(),
+                        span: callee.span,
+                        module: self.module(),
+                    },
+                )?;
+
+                // empty domains are converted to unary unit domains
+                let domain = match domain.as_ref() {
+                    [] => vec![Arc::new(TyMatrix::Prim(ast::PrimTy::Unit))]
+                        .into_boxed_slice(),
+                    _ => domain,
+                };
+
+                // empty arguments are converted to single unit arguments
+                let args =
+                    match args.as_ref() {
+                        [] => vec![callee.span.with(bound::Expr::Literal(
+                            bound::LiteralExpr::Unit,
+                        ))]
+                        .into_boxed_slice(),
+                        _ => args.clone(),
+                    };
+
+                // check arity against arguments
+                if domain.len() != args.len() {
+                    return Err(TypingError::ArityMismatch {
+                        callee_arity: domain.len(),
+                        arg_count: args.len(),
+                        callee_span: callee.span,
+                        span,
+                        module: self.module(),
+                    });
+                }
+
+                // check arguments against the inferred domain
+                let args = args
+                    .into_iter()
+                    .zip(domain)
+                    .try_fold(vec![], |mut args, (arg, ty)| {
+                        let arg =
+                            self.check(arg.as_ref(), Ty::unquantified(ty))?;
+                        args.push(arg);
+                        Ok(args)
+                    })?
+                    .into_boxed_slice();
+
+                let ty = Ty::unquantified(codomain);
+                Ok(span.with(ty.with(ast::Expr::Call {
+                    callee: Box::new(callee),
+                    args,
+                    kind: *kind,
+                })))
+            }
             bound::Expr::LazyAnd { operator, lhs, rhs } => todo!(),
             bound::Expr::LazyOr { operator, lhs, rhs } => todo!(),
             bound::Expr::Mutate { operator, lhs, rhs } => todo!(),
-            bound::Expr::Match { scrutinee, arms } => todo!(),
+            bound::Expr::Match { scrutinee, arms } => {
+                // infer scrutinee type
+                let scrutinee =
+                    Box::new(self.infer(scrutinee.as_ref().as_ref())?);
+
+                // make fresh return type
+                let ty =
+                    Ty::unquantified(Arc::new(TyMatrix::Var(self.fresh_var())));
+
+                // check match arms
+                let arms = arms
+                    .iter()
+                    .map(Spanned::as_ref)
+                    .try_fold(vec![], |mut arms, Spanned { item, span }| {
+                        let pattern = self.check_pattern(
+                            item.pattern.as_ref(),
+                            scrutinee.ty.clone(),
+                        )?;
+
+                        let body =
+                            self.check(item.body.as_ref(), ty.clone())?;
+
+                        arms.push(span.with(ast::MatchArm { pattern, body }));
+                        Ok(arms)
+                    })?
+                    .into_boxed_slice();
+
+                Ok(span.with(ty.with(ast::Expr::Match { scrutinee, arms })))
+            }
             bound::Expr::IfElse {
                 condition,
                 consequence,
@@ -482,6 +656,10 @@ impl<'a> Typer<'a> {
     ) -> UnitResult {
         // TODO: add normalization
         match (t1.as_ref(), t2.as_ref()) {
+            // never coercion
+            (TyMatrix::Prim(ast::PrimTy::Never), _)
+            | (_, TyMatrix::Prim(ast::PrimTy::Never)) => Ok(()),
+
             // identical primitives
             (TyMatrix::Prim(p1), TyMatrix::Prim(p2)) if p1 == p2 => Ok(()),
 
@@ -579,6 +757,8 @@ impl<'a> Typer<'a> {
         }
     }
 
+    /// Lowers a list of parameters, checks them against their annotated types,
+    /// and adds the types of any variables into the environment.
     fn lower_params(
         &mut self,
         params: &[Spanned<bound::Parameter<BoundResult>>],
@@ -1036,6 +1216,18 @@ impl<'a> Typer<'a> {
         self.types[id.0].as_ref().map(Spanned::as_ref)
     }
 
+    fn generalize(&self, ty: Arc<Ty<TyVar>>) -> Arc<Ty<TyVar>> {
+        // replace concrete variables with types
+        let ty = self.zonk(&ty);
+
+        // extract matrix and gather free variables
+        let matrix = ty.matrix.clone();
+        let prefix = matrix.vars();
+
+        // return new generalized type
+        Arc::new(Ty { prefix, matrix })
+    }
+
     /// Recursively expands type aliases in the given `ty`, guaranteeing that
     /// the result is in a canonical form. Note that this includes normalization
     /// of functions with unit-equivalent domains to unary functions of the
@@ -1133,7 +1325,15 @@ impl<'a> Typer<'a> {
         // check for a preexisting assignment
         if let Some(current_ty) = self.lookup_var(repr) {
             // unify to check consistency with current_ty
-            assert!(self.unify_matrices(current_ty, ty).is_ok());
+            let res = self.unify_matrices(current_ty, ty);
+            match res {
+                Ok(..) => (),
+                Err(err) => {
+                    dbg![err];
+                    panic!()
+                }
+            }
+            //assert!(self.unify_matrices(current_ty, ty).is_ok());
         } else {
             // otherwise just create the new assignment
             self.var_assignments.insert(repr, ty);
@@ -1190,7 +1390,7 @@ impl<'a> Typer<'a> {
         (inst_params.into_boxed_slice(), func)
     }
 
-    fn zonk(&mut self, ty: &Ty<TyVar>) -> Arc<Ty<TyVar>> {
+    fn zonk(&self, ty: &Ty<TyVar>) -> Arc<Ty<TyVar>> {
         let matrix = self.zonk_matrix(ty.matrix.clone());
         Arc::new(Ty {
             prefix: ty.prefix.clone(),
@@ -1199,7 +1399,7 @@ impl<'a> Typer<'a> {
     }
 
     fn zonk_matrix(
-        &mut self,
+        &self,
         matrix: Arc<TyMatrix<TyVar>>,
     ) -> Arc<TyMatrix<TyVar>> {
         match matrix.as_ref() {

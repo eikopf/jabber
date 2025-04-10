@@ -198,7 +198,10 @@ pub enum TermKind<V = Uid> {
 
 #[derive(Debug, Clone)]
 pub enum Expr<V = Uid> {
-    Name(Bound),
+    /// A local variable.
+    Local(Name<Uid>),
+    /// A name (ident or path) bound to a [`Res`].
+    Global(Name<Res, NameContent>),
     Literal(LiteralExpr),
     List(TySpanSeq<Self, V>),
     Tuple(TySpanSeq<Self, V>),
@@ -221,7 +224,6 @@ pub enum Expr<V = Uid> {
         field: Spanned<Option<u32>>,
     },
     Lambda {
-        annotation: Arc<Ty<V>>,
         params: SpanSeq<Parameter<V>>,
         body: TySpanBox<Self, V>,
     },
@@ -307,6 +309,12 @@ pub enum Pattern {
         fields: SpanSeq<FieldPattern>,
         rest: Option<Span>,
     },
+}
+
+impl Pattern {
+    pub fn is_unit(&self) -> bool {
+        matches!(self, Pattern::Literal(LiteralExpr::Unit))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -519,6 +527,46 @@ impl<V> TyMatrix<V> {
                 names.extend(codomain.names_with(cmp.clone()));
                 names
             }
+        }
+    }
+
+    pub fn vars(&self) -> HashSet<V>
+    where
+        V: Clone + Eq + Hash,
+    {
+        fn rec<V: Clone + Eq + Hash>(
+            matrix: &TyMatrix<V>,
+            vars: &mut HashSet<V>,
+        ) {
+            match matrix {
+                TyMatrix::Prim(_) => (),
+                TyMatrix::Var(var) => {
+                    vars.insert(var.clone());
+                }
+                TyMatrix::Tuple(elems) => {
+                    elems.iter().for_each(|ty| rec(ty, vars))
+                }
+                TyMatrix::Named { name: _, args } => {
+                    args.iter().for_each(|ty| rec(ty, vars))
+                }
+                TyMatrix::Fn { domain, codomain } => {
+                    domain.iter().for_each(|ty| rec(ty, vars));
+                    rec(codomain, vars)
+                }
+            }
+        }
+
+        let mut vars = HashSet::new();
+        rec(self, &mut vars);
+        vars
+    }
+
+    pub fn as_fn(self: &Arc<Self>) -> Option<(Box<[Arc<Self>]>, Arc<Self>)> {
+        match self.as_ref() {
+            TyMatrix::Fn { domain, codomain } => {
+                Some((domain.clone(), codomain.clone()))
+            }
+            _ => None,
         }
     }
 }

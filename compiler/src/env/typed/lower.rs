@@ -32,7 +32,7 @@ use std::{
 use crate::{
     ast::typed::{Bound, Name},
     env::{
-        ModId, Res, TermId, TypeId,
+        ModId, TermId, TypeId,
         resolve::{BoundResult, ResEnv},
     },
     symbol::Symbol,
@@ -639,11 +639,12 @@ impl<'a> TermLowerer<'a> {
                 let body = Box::new(self.lower_expr(*body));
 
                 let ty = Arc::new(ast::Ty::fresh_unbound_fn(params.len()));
-                ty.with(ast::Expr::Lambda {
-                    annotation,
-                    params,
-                    body,
-                })
+                //ty.with(ast::Expr::Lambda {
+                //annotation,
+                //params,
+                //body,
+                //})
+                todo!()
             }
             bound::Expr::Call { callee, args, kind } => {
                 let callee = Box::new(self.lower_expr(*callee));
