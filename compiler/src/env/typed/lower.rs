@@ -753,13 +753,14 @@ impl<'a> TermLowerer<'a> {
             [Spanned { item, span }, tail @ ..] => match item {
                 bound::Stmt::Empty => self.lower_block_rec(tail, body),
                 bound::Stmt::Expr(expr) => {
-                    let lhs = None;
+                    //let lhs = None;
                     let rhs =
                         Box::new(self.lower_expr(span.with(expr.clone())));
                     let body = Box::new(self.lower_block_rec(tail, body));
 
                     let ty = body.ty.clone();
-                    ty.with(ast::Expr::LetIn { lhs, rhs, body })
+                    //ty.with(ast::Expr::LetIn { lhs, rhs, body })
+                    todo!()
                 }
                 bound::Stmt::Let {
                     pattern: _,
