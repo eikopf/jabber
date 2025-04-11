@@ -2,9 +2,14 @@
 
 pub type alias Fn[A, B] = A -> B
 
+/// Returns a constant function of `x`.
+pub fn constant(x: A) -> (B -> A) = (_) -> x
+
+/// The identity function.
 pub fn id(x: A) -> A = x
 
-pub fn constant(x: A) -> (B -> A) = (_) -> x
+/// Ignores the given input and returns `()`.
+pub fn ignore(_: A) -> () = () 
 
 @operator.pipe_left
 pub fn pipe_left(f: A -> B, x: A) -> B = f(x)
