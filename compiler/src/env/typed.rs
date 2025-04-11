@@ -537,8 +537,17 @@ impl<'a> Typer<'a> {
         match item {
             bound::Expr::Name(name) => match name.as_ref() {
                 Ok(Bound::Local(name @ Name { id, .. })) => {
-                    let ty_var = self.get_or_assign_var(*id);
-                    let ty = Ty::unquantified(Arc::new(TyMatrix::Var(ty_var)));
+                    let ty = match self.local_var_types.get(id) {
+                        Some(ty) => ty.clone(),
+                        None => {
+                            let ty = Ty::unquantified(Arc::new(TyMatrix::Var(
+                                self.fresh_var(),
+                            )));
+                            self.local_var_types.insert(*id, ty.clone());
+                            ty
+                        }
+                    };
+
                     Ok(span.with(ty.with(ast::Expr::Local(*name))))
                 }
                 Ok(
