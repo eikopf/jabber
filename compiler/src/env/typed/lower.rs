@@ -653,29 +653,14 @@ impl<'a> TermLowerer<'a> {
                 let ty = Arc::new(ast::Ty::fresh_unbound());
                 ty.with(ast::Expr::Call { callee, args, kind })
             }
-            bound::Expr::LazyAnd { operator, lhs, rhs } => {
-                let operator = operator.with(ast::BuiltinOperator::LazyAnd);
-                let lhs = Box::new(self.lower_expr(*lhs));
-                let rhs = Box::new(self.lower_expr(*rhs));
-
-                let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Bool));
-                ty.with(ast::Expr::Builtin { operator, lhs, rhs })
+            bound::Expr::LazyAnd { .. } => {
+                todo!()
             }
-            bound::Expr::LazyOr { operator, lhs, rhs } => {
-                let operator = operator.with(ast::BuiltinOperator::LazyOr);
-                let lhs = Box::new(self.lower_expr(*lhs));
-                let rhs = Box::new(self.lower_expr(*rhs));
-
-                let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Bool));
-                ty.with(ast::Expr::Builtin { operator, lhs, rhs })
+            bound::Expr::LazyOr { .. } => {
+                todo!()
             }
-            bound::Expr::Mutate { operator, lhs, rhs } => {
-                let operator = operator.with(ast::BuiltinOperator::Mutate);
-                let lhs = Box::new(self.lower_expr(*lhs));
-                let rhs = Box::new(self.lower_expr(*rhs));
-
-                let ty = Arc::new(ast::Ty::prim(ast::PrimTy::Unit));
-                ty.with(ast::Expr::Builtin { operator, lhs, rhs })
+            bound::Expr::Mutate { .. } => {
+                todo!()
             }
             bound::Expr::Match {
                 scrutinee,
