@@ -279,13 +279,6 @@ impl UnifyKey for TyVar {
     }
 }
 
-/// An index into a [`Typer`].
-#[derive(Debug, Clone, Copy)]
-pub enum TyperIndex {
-    Res(Res),
-    Uid(Uid),
-}
-
 type ExprResult<V = TyVar> =
     Result<Spanned<Typed<ast::Expr<V>, V>>, TypingError<V>>;
 
@@ -440,9 +433,34 @@ impl<'a> Typer<'a> {
     ) -> ExprResult {
         match item {
             bound::Expr::List(_) => todo!(),
-            bound::Expr::Tuple(_) => todo!(),
-            bound::Expr::Block(block) => todo!(),
-            bound::Expr::RecordConstr { name, fields, base } => todo!(),
+            bound::Expr::Tuple(elems) => {
+                let (elem_tys, expected_ty) = {
+                    let tys: Box<[_]> = std::iter::repeat_with(|| {
+                        Arc::new(TyMatrix::Var(self.fresh_var()))
+                    })
+                    .take(elems.len())
+                    .collect();
+
+                    let tuple = Arc::new(TyMatrix::Tuple(tys.clone()));
+                    self.unify_matrices(tuple, expected_ty.matrix.clone())?;
+                    (tys, expected_ty)
+                };
+
+                let elems = elems
+                    .iter()
+                    .map(Spanned::as_ref)
+                    .zip(elem_tys)
+                    .try_fold(vec![], |mut elems, (elem, ty)| {
+                        //dsagdhsjakada
+                        let elem = self.check(elem, Ty::unquantified(ty))?;
+                        elems.push(elem);
+                        Ok(elems)
+                    })?
+                    .into_boxed_slice();
+
+                let ty = self.zonk(&expected_ty);
+                Ok(span.with(ty.with(ast::Expr::Tuple(elems))))
+            }
             bound::Expr::RecordField { item, field } => todo!(),
             bound::Expr::TupleField { item, field } => todo!(),
             bound::Expr::Lambda { params, body } => {
@@ -521,7 +539,7 @@ impl<'a> Typer<'a> {
                 consequence,
                 alternative,
             } => todo!(),
-            // inference mode rules (literal, call, ...)
+            // inference mode rules (literal, call, record constr, block, ...)
             expr => {
                 let expr = self.infer(span.with(expr))?;
                 self.unify(expr.ty.clone(), expected_ty.clone())?;
@@ -538,7 +556,9 @@ impl<'a> Typer<'a> {
             bound::Expr::Name(name) => match name.as_ref() {
                 Ok(Bound::Local(name @ Name { id, .. })) => {
                     let ty = match self.local_var_types.get(id) {
-                        Some(ty) => ty.clone(),
+                        Some(ty) => {
+                            Ty::unquantified(self.instantiate(&ty.clone()))
+                        }
                         None => {
                             let ty = Ty::unquantified(Arc::new(TyMatrix::Var(
                                 self.fresh_var(),
@@ -571,8 +591,82 @@ impl<'a> Typer<'a> {
                 Ok(span.with(ty.with(expr)))
             }
             bound::Expr::List(_) => todo!(),
-            bound::Expr::Tuple(_) => todo!(),
-            bound::Expr::Block(block) => todo!(),
+            bound::Expr::Block(bound::Block {
+                statements,
+                return_expr,
+            }) => {
+                let statements = statements
+                    .iter()
+                    .map(Spanned::as_ref)
+                    .try_fold(vec![], |mut stmts, Spanned { item, span }| {
+                        match item {
+                            bound::Stmt::Empty => (),
+                            bound::Stmt::Expr(expr) => {
+                                let expr = self.infer(span.with(expr))?.item;
+                                let stmt = span.with(ast::Stmt::Expr(expr));
+                                stmts.push(stmt);
+                            }
+                            bound::Stmt::Let { pattern, ty, value } => {
+                                // infer type of value
+                                let value = self.infer(value.as_ref())?;
+
+                                // reify annotation
+                                let annotation = {
+                                    let mut reifier = self.reifier();
+                                    let matrix = reifier
+                                        .reify_option_ty_matrix(
+                                            ty.as_ref().map(Spanned::as_ref),
+                                        );
+                                    let ty = reifier.quantify(matrix);
+                                    self.rebind(&ty)
+                                };
+
+                                // check value against annotation
+                                self.unify(value.ty.clone(), annotation)?;
+
+                                // let-generalize
+                                let value = {
+                                    let span = value.span();
+                                    let ty = self.generalize(value.ty.clone());
+                                    span.with(ty.with(value.item.item))
+                                };
+
+                                // lower pattern and bind in the environment
+                                let pattern = self.check_pattern(
+                                    pattern.as_ref(),
+                                    value.ty.clone(),
+                                )?;
+
+                                let stmt = span
+                                    .with(ast::Stmt::Let { pattern, value });
+                                stmts.push(stmt);
+                            }
+                        }
+
+                        Ok(stmts)
+                    })?
+                    .into_boxed_slice();
+
+                let return_expr = return_expr
+                    .as_ref()
+                    .map(|expr| self.infer(expr.as_ref().as_ref()))
+                    .transpose()?
+                    .map(Box::new);
+
+                let ty = return_expr
+                    .as_ref()
+                    .map(|expr| expr.ty.clone())
+                    .unwrap_or_else(|| {
+                        Ty::unquantified(Arc::new(TyMatrix::Prim(
+                            ast::PrimTy::Unit,
+                        )))
+                    });
+
+                Ok(span.with(ty.with(ast::Expr::Block {
+                    statements,
+                    return_expr,
+                })))
+            }
             bound::Expr::RecordConstr { name, fields, base } => {
                 // unwrap name
                 let name = self.try_get_bound_ref(name)?;
@@ -894,6 +988,12 @@ impl<'a> Typer<'a> {
                 consequence,
                 alternative,
             } => todo!(),
+            // check mode rules (tuples, ...)
+            expr => {
+                let ty =
+                    Ty::unquantified(Arc::new(TyMatrix::Var(self.fresh_var())));
+                self.check(span.with(expr), ty)
+            }
         }
     }
 
@@ -1055,7 +1155,7 @@ impl<'a> Typer<'a> {
         &mut self,
         Spanned { item, span }: Spanned<&bound::Pattern<BoundResult>>,
         ty: Arc<Ty<TyVar>>,
-    ) -> Result<Spanned<ast::Pattern>, TypingError> {
+    ) -> Result<Spanned<ast::Pattern<TyVar>>, TypingError> {
         match item {
             bound::Pattern::Wildcard => Ok(span.with(ast::Pattern::Wildcard)),
             bound::Pattern::Literal(literal) => {
@@ -1156,10 +1256,10 @@ impl<'a> Typer<'a> {
                 // if the name is local, make a binding for the type
                 Ok(Bound::Local(name @ Name { id, .. })) => {
                     if !self.local_var_types.contains_key(id) {
-                        self.local_var_types.insert(*id, ty);
+                        self.local_var_types.insert(*id, ty.clone());
                     }
 
-                    Ok(span.with(ast::Pattern::Var(*name)))
+                    Ok(span.with(ast::Pattern::Var(ty.with(*name))))
                 }
                 Err(_) => panic!("unbound AST name:\n{:?}", name),
             },

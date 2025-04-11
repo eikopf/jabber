@@ -217,10 +217,9 @@ pub enum Expr<V = Uid> {
     Literal(LiteralExpr),
     List(TySpanSeq<Self, V>),
     Tuple(TySpanSeq<Self, V>),
-    LetIn {
-        lhs: Option<LetStmtLhs>,
-        rhs: TySpanBox<Self, V>,
-        body: TyBox<Self, V>,
+    Block {
+        statements: SpanSeq<Stmt<V>>,
+        return_expr: Option<TySpanBox<Self, V>>,
     },
     RecordConstr {
         name: Bound,
@@ -267,12 +266,13 @@ pub struct RecordExprField<V = Uid> {
     pub value: Spanned<Typed<Expr<V>, V>>,
 }
 
-/// The lefthand side of a `let` stmt, consisting of a pattern with an
-/// optional type annotation.
 #[derive(Debug, Clone)]
-pub struct LetStmtLhs {
-    pub pattern: Spanned<Pattern>,
-    pub ty_ast: Option<Spanned<TyAst<BoundResult>>>,
+pub enum Stmt<V = Uid> {
+    Expr(Typed<Expr<V>, V>),
+    Let {
+        pattern: Spanned<Pattern<V>>,
+        value: Spanned<Typed<Expr<V>, V>>,
+    },
 }
 
 /// A lazy logical operator.
@@ -284,7 +284,7 @@ pub enum LazyOperator {
 
 #[derive(Debug, Clone)]
 pub struct MatchArm<V = Uid> {
-    pub pattern: Spanned<Pattern>,
+    pub pattern: Spanned<Pattern<V>>,
     pub body: Spanned<Typed<Expr<V>, V>>,
 }
 
@@ -292,7 +292,7 @@ pub struct MatchArm<V = Uid> {
 
 #[derive(Debug, Clone)]
 pub struct Parameter<V = Uid> {
-    pub pattern: Spanned<Pattern>,
+    pub pattern: Spanned<Pattern<V>>,
     pub ty: Arc<Ty<V>>,
     pub ty_ast: Option<Spanned<TyAst<BoundResult>>>,
 }
@@ -304,10 +304,10 @@ pub struct TyConstrIndex {
 }
 
 #[derive(Debug, Clone)]
-pub enum Pattern {
+pub enum Pattern<V> {
     Wildcard,
     Literal(LiteralExpr),
-    Var(Name<Uid>),
+    Var(Typed<Name<Uid>, V>),
     Tuple(SpanSeq<Self>),
     List(SpanSeq<Self>),
     Cons {
@@ -323,21 +323,21 @@ pub enum Pattern {
     },
     RecordConstr {
         name: Name<TyConstrIndex, Bound>,
-        fields: SpanSeq<FieldPattern>,
+        fields: SpanSeq<FieldPattern<V>>,
         rest: Option<Span>,
     },
 }
 
-impl Pattern {
+impl<V> Pattern<V> {
     pub fn is_unit(&self) -> bool {
         matches!(self, Pattern::Literal(LiteralExpr::Unit))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct FieldPattern {
+pub struct FieldPattern<V> {
     pub name: Symbol,
-    pub pattern: Spanned<Pattern>,
+    pub pattern: Spanned<Pattern<V>>,
 }
 
 // PROPER TYPES
@@ -578,7 +578,7 @@ impl<V> TyMatrix<V> {
         vars
     }
 
-    pub fn as_fn(self: &Arc<Self>) -> Option<(Box<[Arc<Self>]>, Arc<Self>)> {
+    pub fn as_fn(self: &Arc<Self>) -> Option<(Domain<V>, Arc<Self>)> {
         match self.as_ref() {
             TyMatrix::Fn { domain, codomain } => {
                 Some((domain.clone(), codomain.clone()))
@@ -587,6 +587,8 @@ impl<V> TyMatrix<V> {
         }
     }
 }
+
+type Domain<V> = Box<[Arc<TyMatrix<V>>]>;
 
 impl TyMatrix<Uid> {
     pub fn fresh_var() -> Self {
