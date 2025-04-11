@@ -23,13 +23,13 @@ pub fn pow(lhs: int, rhs: int) -> int = __prim_int_pow(lhs, rhs)
 pub fn mod(lhs: int, rhs: int) -> int = __prim_int_mod(lhs, rhs)
 
 @operator.lt_int
-pub fn lt(lhs: int, rhs: int) -> int = __prim_int_lt(lhs, rhs)
+pub fn lt(lhs: int, rhs: int) -> bool = __prim_int_lt(lhs, rhs)
 @operator.gt_int
-pub fn gt(lhs: int, rhs: int) -> int = __prim_int_gt(lhs, rhs)
+pub fn gt(lhs: int, rhs: int) -> bool = __prim_int_gt(lhs, rhs)
 @operator.leq_int
-pub fn leq(lhs: int, rhs: int) -> int = __prim_int_leq(lhs, rhs)
+pub fn leq(lhs: int, rhs: int) -> bool = __prim_int_leq(lhs, rhs)
 @operator.geq_int
-pub fn geq(lhs: int, rhs: int) -> int = __prim_int_geq(lhs, rhs)
+pub fn geq(lhs: int, rhs: int) -> bool = __prim_int_geq(lhs, rhs)
 
 
 // EXTERNALS
