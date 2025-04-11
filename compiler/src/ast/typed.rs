@@ -52,6 +52,18 @@ impl<V, A> Type<V, A> {
             _ => None,
         }
     }
+
+    pub fn as_struct_constr(&self) -> Option<&TyConstr<V>> {
+        match &self.kind {
+            TypeKind::Adt {
+                opacity: None,
+                constrs,
+            } if constrs.len() == 1 => {
+                constrs.get(&self.name.content).map(Spanned::item)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The kind of a [`Type`] together with any specific elements belonging to
@@ -232,9 +244,15 @@ pub enum Expr<V = Uid> {
         args: TySpanSeq<Self, V>,
         kind: CallExprKind,
     },
-    Builtin {
-        operator: Spanned<BuiltinOperator>,
+    Lazy {
+        operator: Spanned<LazyOperator>,
         lhs: TySpanBox<Self, V>,
+        rhs: TySpanBox<Self, V>,
+    },
+    Mutate {
+        operator: Span,
+        item: TySpanBox<Self, V>,
+        field: Spanned<Symbol>,
         rhs: TySpanBox<Self, V>,
     },
     Match {
@@ -257,12 +275,11 @@ pub struct LetStmtLhs {
     pub ty_ast: Option<Spanned<TyAst<BoundResult>>>,
 }
 
-/// A builtin operator.
+/// A lazy logical operator.
 #[derive(Debug, Clone, Copy)]
-pub enum BuiltinOperator {
-    LazyAnd,
-    LazyOr,
-    Mutate,
+pub enum LazyOperator {
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone)]

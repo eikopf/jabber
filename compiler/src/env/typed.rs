@@ -156,6 +156,52 @@ pub enum TypingError<V = TyVar> {
         span: Span,
         module: ModId,
     },
+    /// The `name` in a RecordConstr expression could not be used as a type
+    /// constructor.
+    BadResInRecordConstrExpr {
+        res: Res,
+        span: Span,
+        module: ModId,
+    },
+    /// Expected a record constructor in a record constructor expression but got
+    /// a different kind of constructor.
+    NotARecordConstr {
+        constr: ast::TyConstrIndex,
+        span: Span,
+        module: ModId,
+    },
+    MissingRecordExprFields {
+        constr: ast::TyConstrIndex,
+        span: Span,
+        module: ModId,
+    },
+    BadMutateLhs {
+        lhs_span: Span,
+        span: Span,
+        module: ModId,
+    },
+    MutateLhsIsNotStruct {
+        lhs_span: Span,
+        span: Span,
+        module: ModId,
+    },
+    MutateLhsIsNotRecordStruct {
+        lhs_span: Span,
+        span: Span,
+        module: ModId,
+    },
+    NoSuchField {
+        constr: ast::TyConstrIndex,
+        field: Spanned<Symbol>,
+        span: Span,
+        module: ModId,
+    },
+    MutateLhsFieldIsImmutable {
+        field: Symbol,
+        lhs_span: Span,
+        span: Span,
+        module: ModId,
+    },
 }
 
 pub fn typecheck(
@@ -310,16 +356,21 @@ impl<'a> Typer<'a> {
                 return_ty,
                 body,
             }) => {
-                let (_, codomain) = annotated_ty.matrix.as_fn().unwrap();
+                let (domain, codomain) = annotated_ty.matrix.as_fn().unwrap();
 
                 let params = self.lower_params(params)?;
                 let body = self.infer(body.as_ref().as_ref())?;
-                self.unify_matrices(body.ty.matrix.clone(), codomain)?;
+                self.unify_matrices(body.ty.matrix.clone(), codomain.clone())?;
+
+                let ty =
+                    self.generalize(Ty::unquantified(self.zonk_matrix(
+                        Arc::new(TyMatrix::Fn { domain, codomain }),
+                    )));
 
                 ast::Term {
                     attrs: attrs.clone(),
                     name: *name,
-                    ty: body.ty.clone(),
+                    ty,
                     kind: ast::TermKind::Fn {
                         params,
                         return_ty_ast: return_ty.clone(),
@@ -363,7 +414,7 @@ impl<'a> Typer<'a> {
                 ast::Term {
                     attrs: attrs.clone(),
                     name: *name,
-                    ty: value.ty.clone(),
+                    ty: self.zonk(&value.ty),
                     kind: ast::TermKind::Const {
                         ty_ast: ty_ast.clone(),
                         value,
@@ -388,31 +439,6 @@ impl<'a> Typer<'a> {
         expected_ty: Arc<Ty<TyVar>>,
     ) -> ExprResult {
         match item {
-            bound::Expr::Name(name) => {
-                let name = self.try_get_bound_ref(name)?;
-
-                match name {
-                    Bound::Local(name @ Name { id, .. }) => {
-                        // get and instantiate the type
-                        let ty = {
-                            let ty =
-                                self.local_var_types.get(id).unwrap().clone();
-                            self.instantiate(&ty)
-                        };
-
-                        // unify against the expected type
-                        self.unify_matrices(
-                            ty.clone(),
-                            expected_ty.matrix.clone(),
-                        )?;
-
-                        let ty = Ty::unquantified(ty);
-                        Ok(span.with(ty.with(ast::Expr::Local(*name))))
-                    }
-                    bound @ Bound::Path(Name { id, .. })
-                    | bound @ Bound::Global(Name { id, .. }) => todo!(),
-                }
-            }
             bound::Expr::List(_) => todo!(),
             bound::Expr::Tuple(_) => todo!(),
             bound::Expr::Block(block) => todo!(),
@@ -425,7 +451,7 @@ impl<'a> Typer<'a> {
                     .matrix
                     .as_fn()
                     .ok_or_else(|| TypingError::ExpectedNonFnTyOfLambda {
-                        expected_ty: expected_ty.clone(),
+                        expected_ty,
                         span,
                         module: self.module(),
                     })?;
@@ -461,10 +487,30 @@ impl<'a> Typer<'a> {
                     });
                 }
 
-                // TODO: check the params against the domain, and then check
-                // the body against the codomain
+                // if the unit syntax sugar doesn't apply, check parameter types
+                // against the domain elementwise
+                if !unit_sugar {
+                    for (param, ty) in params.iter().zip(&domain) {
+                        self.unify_matrices(
+                            param.ty.matrix.clone(),
+                            ty.clone(),
+                        )?;
+                    }
+                }
 
-                todo!()
+                // check the body against the codomain
+                let body = Box::new(self.check(
+                    body.as_ref().as_ref(),
+                    Ty::unquantified(codomain.clone()),
+                )?);
+
+                // assemble function type
+                let ty = Ty::unquantified(Arc::new(TyMatrix::Fn {
+                    domain,
+                    codomain,
+                }));
+
+                Ok(span.with(ty.with(ast::Expr::Lambda { params, body })))
             }
             bound::Expr::LazyAnd { operator, lhs, rhs } => todo!(),
             bound::Expr::LazyOr { operator, lhs, rhs } => todo!(),
@@ -518,7 +564,107 @@ impl<'a> Typer<'a> {
             bound::Expr::List(_) => todo!(),
             bound::Expr::Tuple(_) => todo!(),
             bound::Expr::Block(block) => todo!(),
-            bound::Expr::RecordConstr { name, fields, base } => todo!(),
+            bound::Expr::RecordConstr { name, fields, base } => {
+                // unwrap name
+                let name = self.try_get_bound_ref(name)?;
+
+                // get constructor
+                let constr_id = match name.as_res().unwrap() {
+                    Res::StructType(ty) => {
+                        let name = self.get_type(ty).name;
+                        Ok(ast::TyConstrIndex { ty, name })
+                    }
+                    Res::TyConstr { ty, name } => {
+                        Ok(ast::TyConstrIndex { ty, name })
+                    }
+                    res => Err(TypingError::BadResInRecordConstrExpr {
+                        res,
+                        span,
+                        module: self.module(),
+                    }),
+                }?;
+
+                // grab constructor data
+                let constr = self.lookup_constr(constr_id);
+                let constr_fields = match &constr.kind {
+                    ast::TyConstrKind::Record(fields) => Ok(fields.clone()),
+                    _ => Err(TypingError::NotARecordConstr {
+                        constr: constr_id,
+                        span,
+                        module: self.module(),
+                    }),
+                }?;
+
+                // check for field coverage
+                if base.is_none() && constr_fields.len() != fields.len() {
+                    return Err(TypingError::MissingRecordExprFields {
+                        constr: constr_id,
+                        span,
+                        module: self.module(),
+                    });
+                }
+
+                // instantiate the type and the constructor's fields
+                let (constr_fields, args) = {
+                    let params = self.get_ty_params(constr_id.ty);
+                    let (args, mut subst) =
+                        self.make_param_instantiation(params);
+                    let constr_fields: HashMap<_, _> = constr_fields
+                        .into_iter()
+                        .map(|(name, field)| {
+                            (
+                                name,
+                                ast::RecordField {
+                                    mutability: field.mutability,
+                                    name: field.name,
+                                    ty: Ty::unquantified(subst(
+                                        field.ty.matrix.clone(),
+                                    )),
+                                },
+                            )
+                        })
+                        .collect();
+
+                    (constr_fields, args)
+                };
+
+                // check the fields
+                let fields = fields
+                    .iter()
+                    .map(Spanned::as_ref)
+                    .try_fold(vec![], |mut fields, Spanned { item, span }| {
+                        // dsaghdjaskgdhjsak
+
+                        let field = item.field;
+                        let ty = constr_fields.get(&field).unwrap().ty.clone();
+                        let value = self.check(item.value.as_ref(), ty)?;
+
+                        let field =
+                            span.with(ast::RecordExprField { field, value });
+                        fields.push(field);
+                        Ok(fields)
+                    })?
+                    .into_boxed_slice();
+
+                // assemble inferred type
+                let ty = Ty::unquantified(Arc::new(TyMatrix::Named {
+                    name: constr_id.ty,
+                    args,
+                }));
+
+                // check base expr against inferred type
+                let base = base
+                    .as_ref()
+                    .map(|base| self.check(base.as_ref().as_ref(), ty.clone()))
+                    .transpose()?
+                    .map(Box::new);
+
+                Ok(span.with(ty.with(ast::Expr::RecordConstr {
+                    name: name.clone(),
+                    fields,
+                    base,
+                })))
+            }
             bound::Expr::RecordField { item, field } => todo!(),
             bound::Expr::TupleField { item, field } => todo!(),
             bound::Expr::Lambda { params, body } => {
@@ -545,14 +691,19 @@ impl<'a> Typer<'a> {
                 // infer callee type
                 let callee = self.infer(callee.as_ref().as_ref())?;
 
+                // unify to ensure we have a function type with the right arity
+                let fn_ty = self.rebind(&Ty::fresh_unbound_fn(args.len()));
+                self.unify(fn_ty, callee.ty.clone())?;
+
                 // check if the callee is a function or not
-                let (domain, codomain) = callee.ty.matrix.as_fn().ok_or(
-                    TypingError::CalleeTyIsNotFn {
+                let (domain, codomain) = self
+                    .zonk_matrix(callee.ty.matrix.clone())
+                    .as_fn()
+                    .ok_or(TypingError::CalleeTyIsNotFn {
                         callee_ty: callee.ty.clone(),
                         span: callee.span,
                         module: self.module(),
-                    },
-                )?;
+                    })?;
 
                 // empty domains are converted to unary unit domains
                 let domain = match domain.as_ref() {
@@ -570,17 +721,6 @@ impl<'a> Typer<'a> {
                         .into_boxed_slice(),
                         _ => args.clone(),
                     };
-
-                // check arity against arguments
-                if domain.len() != args.len() {
-                    return Err(TypingError::ArityMismatch {
-                        callee_arity: domain.len(),
-                        arg_count: args.len(),
-                        callee_span: callee.span,
-                        span,
-                        module: self.module(),
-                    });
-                }
 
                 // check arguments against the inferred domain
                 let args = args
@@ -603,7 +743,114 @@ impl<'a> Typer<'a> {
             }
             bound::Expr::LazyAnd { operator, lhs, rhs } => todo!(),
             bound::Expr::LazyOr { operator, lhs, rhs } => todo!(),
-            bound::Expr::Mutate { operator, lhs, rhs } => todo!(),
+            bound::Expr::Mutate { operator, lhs, rhs } => {
+                // extract the lhs as a record field expression
+                let (item, field) = match lhs.item() {
+                    bound::Expr::RecordField { item, field } => {
+                        Ok((item.as_ref().as_ref(), *field))
+                    }
+                    _ => Err(TypingError::BadMutateLhs {
+                        lhs_span: lhs.span(),
+                        span,
+                        module: self.module(),
+                    }),
+                }?;
+
+                // infer the item type
+                let item = Box::new(self.infer(item)?);
+
+                // extract the named TypeId and the field definition
+                let (id, args, field_def) = match item.ty.matrix.as_ref() {
+                    TyMatrix::Named { name, args } => {
+                        let ty = self.get_type(*name);
+
+                        match ty.ast.as_struct_constr() {
+                            Some(constr) => match &constr.kind {
+                                ast::TyConstrKind::Record(fields) => {
+                                    let field = fields.get(&field).ok_or_else(
+                                        || TypingError::NoSuchField {
+                                            constr: ast::TyConstrIndex {
+                                                ty: *name,
+                                                name: field.item,
+                                            },
+                                            field,
+                                            span,
+                                            module: self.module(),
+                                        },
+                                    )?;
+
+                                    Ok((*name, args.clone(), field.clone()))
+                                }
+                                _ => Err(
+                                    TypingError::MutateLhsIsNotRecordStruct {
+                                        lhs_span: lhs.span(),
+                                        span,
+                                        module: self.module(),
+                                    },
+                                ),
+                            },
+                            None => Err(TypingError::MutateLhsIsNotStruct {
+                                lhs_span: lhs.span(),
+                                span,
+                                module: self.module(),
+                            }),
+                        }
+                    }
+                    _ => {
+                        eprintln!("MUTATE NOT NAMED TYPE");
+                        dbg![self.zonk(item.ty.as_ref())];
+
+                        Err(TypingError::MutateLhsIsNotStruct {
+                            lhs_span: lhs.span(),
+                            span,
+                            module: self.module(),
+                        })
+                    }
+                }?;
+
+                // check if the field is mutable (non-fatal error for typing)
+                if field_def.mutability.is_none() {
+                    self.errors.push(TypingError::MutateLhsFieldIsImmutable {
+                        field: field.item,
+                        lhs_span: lhs.span(),
+                        span,
+                        module: self.module(),
+                    });
+                }
+
+                // instantiate field type
+                let field_ty = {
+                    let params = self.get_ty_params(id);
+                    assert_eq!(params.len(), args.len());
+
+                    let subst: HashMap<_, _> =
+                        params.into_iter().zip(args).collect();
+
+                    let mut rebinder = |&var: &Uid| self.get_or_assign_var(var);
+                    Ty::unquantified(apply_substitution(
+                        &subst,
+                        field_def.ty.matrix.clone(),
+                        &mut rebinder,
+                    ))
+                };
+
+                // check the rhs
+                let rhs = Box::new(
+                    self.check(rhs.as_ref().as_ref(), field_ty.clone())?,
+                );
+
+                // infer the unit type
+                let ty = Ty::unquantified(Arc::new(TyMatrix::Prim(
+                    ast::PrimTy::Unit,
+                )));
+
+                Ok(span.with(ty.with(ast::Expr::Mutate {
+                    operator: *operator,
+                    item,
+                    field,
+                    rhs,
+                })))
+            }
             bound::Expr::Match { scrutinee, arms } => {
                 // infer scrutinee type
                 let scrutinee =
@@ -997,7 +1244,6 @@ impl<'a> Typer<'a> {
                     }),
                 }?;
 
-                // HACK: i really don't like this clone, but it works...
                 match self.lookup_constr(constr_id).kind.clone() {
                     ast::TyConstrKind::Tuple {
                         elems: elem_tys, ..
@@ -1065,6 +1311,10 @@ impl<'a> Typer<'a> {
 
                 let constr_id = match bound.as_res() {
                     Some(Res::TyConstr { ty, name }) => {
+                        Ok(ast::TyConstrIndex { ty, name })
+                    }
+                    Some(Res::StructType(ty)) => {
+                        let name = self.get_type(ty).name;
                         Ok(ast::TyConstrIndex { ty, name })
                     }
                     _ => Err(TypingError::BadConstrInConstrPattern {
@@ -1522,7 +1772,7 @@ impl<'a> Typer<'a> {
                 elems.iter().map(|ty| self.rebind_matrix(ty)).collect(),
             ),
             TyMatrix::Named { name, args } => TyMatrix::Named {
-                name: name.clone(),
+                name: *name,
                 args: args.iter().map(|ty| self.rebind_matrix(ty)).collect(),
             },
             TyMatrix::Fn { domain, codomain } => TyMatrix::Fn {
@@ -1575,7 +1825,7 @@ where
                 .collect(),
         )),
         TyMatrix::Named { name, args } => Arc::new(ast::TyMatrix::Named {
-            name: name.clone(),
+            name: *name,
             args: args
                 .iter()
                 .cloned()
@@ -1615,7 +1865,8 @@ mod tests {
     use crate::{
         cst::Parser,
         env::{
-            import_res::ImportResEnv, resolve::resolve, unbound::UnboundEnv,
+            import_res::ImportResEnv, resolve::resolve, typed::TypingError,
+            unbound::UnboundEnv,
         },
         package as pkg,
     };
@@ -1657,7 +1908,60 @@ mod tests {
         let env = resolve(env, &mut warnings, &mut errors);
 
         // lower to typed env
-        let mut env = super::typecheck(env).unwrap();
+        let mut env = match super::typecheck(env) {
+            Ok(env) => env,
+            Err((env, errors)) => {
+                for error in errors {
+                    match error {
+                        TypingError::CalleeTyIsNotFn {
+                            callee_ty,
+                            span,
+                            module,
+                        } => {
+                            let module = env.get_module(module);
+                            let file = env.get_file(module.file);
+
+                            let spanned_content = span
+                                .in_source(file.contents().as_bytes())
+                                .unwrap();
+                            let module_name =
+                                env.interner.resolve(module.name).unwrap();
+
+                            eprintln!(
+                                "in module {module_name}, callee type {callee_ty:?} is not a function:\n{spanned_content}"
+                            );
+                        }
+                        TypingError::MutateLhsIsNotStruct {
+                            lhs_span,
+                            span,
+                            module,
+                        } => {
+                            let module = env.get_module(module);
+                            let file = env.get_file(module.file);
+
+                            let expr = span
+                                .in_source(file.contents().as_bytes())
+                                .unwrap();
+
+                            let lhs = lhs_span
+                                .in_source(file.contents().as_bytes())
+                                .unwrap();
+                            let module_name =
+                                env.interner.resolve(module.name).unwrap();
+
+                            eprintln!(
+                                "in module {module_name}\nin expression {expr}\nthe expression {lhs} is not a struct"
+                            );
+                        }
+                        error => {
+                            dbg![error];
+                        }
+                    }
+                }
+
+                panic!()
+            }
+        };
 
         // REF MODULE INSPECTION
 
