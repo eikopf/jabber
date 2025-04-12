@@ -28,7 +28,12 @@
 //! type obtained in the previous pass. These inferred types are then
 //! generalized to make them properly generic.
 
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    hash::Hash,
+    sync::Arc,
+};
 
 use ena::unify::{InPlace, UnificationTable, UnifyKey};
 use lower::TyReifier;
@@ -351,7 +356,29 @@ impl<'a> Typer<'a> {
             }) => {
                 let (domain, codomain) = annotated_ty.matrix.as_fn().unwrap();
 
-                let params = self.lower_params(params)?;
+                let params: Box<[_]> = params
+                    .iter()
+                    .zip(&domain)
+                    .map(|(param, expected_ty)| {
+                        let ty = Ty::unquantified(expected_ty.clone());
+                        let pattern = self.check_pattern(
+                            param.item.pattern.as_ref(),
+                            ty.clone(),
+                        )?;
+
+                        self.unify_matrices(
+                            ty.matrix.clone(),
+                            expected_ty.clone(),
+                        )?;
+
+                        Ok(param.span.with(ast::Parameter {
+                            pattern,
+                            ty,
+                            ty_ast: param.ty.clone(),
+                        }))
+                    })
+                    .collect::<Result<_, _>>()?;
+
                 let body = self.infer(body.as_ref().as_ref())?;
                 self.unify_matrices(body.ty.matrix.clone(), codomain.clone())?;
 
@@ -434,29 +461,27 @@ impl<'a> Typer<'a> {
         match item {
             bound::Expr::List(_) => todo!(),
             bound::Expr::Tuple(elems) => {
-                let (elem_tys, expected_ty) = {
-                    let tys: Box<[_]> = std::iter::repeat_with(|| {
-                        Arc::new(TyMatrix::Var(self.fresh_var()))
-                    })
-                    .take(elems.len())
-                    .collect();
-
-                    let tuple = Arc::new(TyMatrix::Tuple(tys.clone()));
-                    self.unify_matrices(tuple, expected_ty.matrix.clone())?;
-                    (tys, expected_ty)
-                };
+                let tys: Box<_> = std::iter::repeat_with(|| {
+                    Arc::new(TyMatrix::Var(self.fresh_var()))
+                })
+                .take(elems.len())
+                .collect();
 
                 let elems = elems
                     .iter()
                     .map(Spanned::as_ref)
-                    .zip(elem_tys)
+                    .zip(&tys)
                     .try_fold(vec![], |mut elems, (elem, ty)| {
                         //dsagdhsjakada
-                        let elem = self.check(elem, Ty::unquantified(ty))?;
+                        let elem =
+                            self.check(elem, Ty::unquantified(ty.clone()))?;
                         elems.push(elem);
                         Ok(elems)
                     })?
                     .into_boxed_slice();
+
+                let tuple = Arc::new(TyMatrix::Tuple(tys));
+                self.unify_matrices(tuple, expected_ty.matrix.clone())?;
 
                 let ty = self.zonk(&expected_ty);
                 Ok(span.with(ty.with(ast::Expr::Tuple(elems))))
@@ -622,12 +647,16 @@ impl<'a> Typer<'a> {
                                 };
 
                                 // check value against annotation
-                                self.unify(value.ty.clone(), annotation)?;
+                                self.unify(
+                                    value.ty.clone(),
+                                    annotation.clone(),
+                                )?;
 
                                 // let-generalize
                                 let value = {
                                     let span = value.span();
-                                    let ty = self.generalize(value.ty.clone());
+                                    let ty = self.zonk(&value.ty);
+                                    let ty = self.generalize(ty);
                                     span.with(ty.with(value.item.item))
                                 };
 
@@ -637,9 +666,12 @@ impl<'a> Typer<'a> {
                                     value.ty.clone(),
                                 )?;
 
-                                let stmt = span
-                                    .with(ast::Stmt::Let { pattern, value });
-                                stmts.push(stmt);
+                                stmts.push(
+                                    span.with(ast::Stmt::Let {
+                                        pattern,
+                                        value,
+                                    }),
+                                );
                             }
                         }
 
@@ -655,7 +687,7 @@ impl<'a> Typer<'a> {
 
                 let ty = return_expr
                     .as_ref()
-                    .map(|expr| expr.ty.clone())
+                    .map(|expr| self.zonk(&expr.ty))
                     .unwrap_or_else(|| {
                         Ty::unquantified(Arc::new(TyMatrix::Prim(
                             ast::PrimTy::Unit,
@@ -736,8 +768,6 @@ impl<'a> Typer<'a> {
                     .iter()
                     .map(Spanned::as_ref)
                     .try_fold(vec![], |mut fields, Spanned { item, span }| {
-                        // dsaghdjaskgdhjsak
-
                         let field = item.field;
                         let ty = constr_fields.get(&field).unwrap().ty.clone();
                         let value = self.check(item.value.as_ref(), ty)?;
@@ -837,7 +867,12 @@ impl<'a> Typer<'a> {
                     })?
                     .into_boxed_slice();
 
-                let ty = Ty::unquantified(codomain);
+                let callee = callee.span.with(Typed {
+                    ty: self.zonk(&callee.ty),
+                    item: callee.item.item,
+                });
+
+                let ty = Ty::unquantified(self.zonk_matrix(codomain));
                 Ok(span.with(ty.with(ast::Expr::Call {
                     callee: Box::new(callee),
                     args,
@@ -899,16 +934,11 @@ impl<'a> Typer<'a> {
                             }),
                         }
                     }
-                    _ => {
-                        eprintln!("MUTATE NOT NAMED TYPE");
-                        dbg![self.zonk(item.ty.as_ref())];
-
-                        Err(TypingError::MutateLhsIsNotStruct {
-                            lhs_span: lhs.span(),
-                            span,
-                            module: self.module(),
-                        })
-                    }
+                    _ => Err(TypingError::MutateLhsIsNotStruct {
+                        lhs_span: lhs.span(),
+                        span,
+                        module: self.module(),
+                    }),
                 }?;
 
                 // check if the field is mutable (non-fatal error for typing)
@@ -1010,7 +1040,9 @@ impl<'a> Typer<'a> {
         t1: Arc<TyMatrix<TyVar>>,
         t2: Arc<TyMatrix<TyVar>>,
     ) -> UnitResult {
-        // TODO: add normalization
+        let t1 = self.normalize(&t1).unwrap();
+        let t2 = self.normalize(&t2).unwrap();
+
         match (t1.as_ref(), t2.as_ref()) {
             // never coercion
             (TyMatrix::Prim(ast::PrimTy::Never), _)
@@ -1093,7 +1125,7 @@ impl<'a> Typer<'a> {
             Res::Term(id) => {
                 // all terms are lowered, so this unwrap is fine (if gross)
                 let ty = self.term_types.get(&id).unwrap();
-                Ok(self.rebind(ty))
+                Ok(Ty::unquantified(self.instantiate_uid(ty)))
             }
             Res::TyConstr { ty, name } => {
                 // unwrapping is fine, TyConstr is a guaranteed-correct index
@@ -1132,9 +1164,10 @@ impl<'a> Typer<'a> {
                 let matrix = reifier.reify_option_ty_matrix(
                     ty_ast.as_ref().map(Spanned::as_ref),
                 );
-                let ty = reifier.quantify(matrix);
+                let uid_ty = reifier.quantify(matrix);
 
-                self.rebind(&ty)
+                let ty = self.rebind(&uid_ty);
+                self.zonk(&ty)
             };
 
             let pattern = self.check_pattern(pattern.as_ref(), ty.clone())?;
@@ -1172,9 +1205,27 @@ impl<'a> Typer<'a> {
                     let (constr, id) = match *id {
                         // regular constructors
                         Res::TyConstr { ty: id, name } => {
-                            let ast = &self.get_type(id).ast;
                             let id = ast::TyConstrIndex { ty: id, name };
 
+                            let named_ty = {
+                                let nparams =
+                                    self.get_type(id.ty).ast.params.len();
+                                let name = id.ty;
+
+                                let args = std::iter::repeat_with(|| {
+                                    Arc::new(TyMatrix::Var(self.fresh_var()))
+                                })
+                                .take(nparams)
+                                .collect();
+
+                                self.instantiate(&Ty::unquantified(Arc::new(
+                                    TyMatrix::Named { name, args },
+                                )))
+                            };
+
+                            self.unify_matrices(named_ty, ty.matrix.clone())?;
+
+                            let ast = &self.get_type(id.ty).ast;
                             match &ast.kind {
                                 ast::TypeKind::Adt { opacity, constrs } => {
                                     match opacity {
@@ -1198,15 +1249,33 @@ impl<'a> Typer<'a> {
                         // NOTE: struct types are guaranteed to be non-opaque ADTs (see
                         // ast::unbound_lowered::SymType::is_struct)
                         Res::StructType(id) => {
-                            let ty_decl = self.get_type(id);
-                            let name = ty_decl.name;
+                            let name = self.get_type(id).name;
+                            let id = ast::TyConstrIndex { ty: id, name };
+
+                            let named_ty = {
+                                let nparams =
+                                    self.get_type(id.ty).ast.params.len();
+                                let name = id.ty;
+
+                                let args = std::iter::repeat_with(|| {
+                                    Arc::new(TyMatrix::Var(self.fresh_var()))
+                                })
+                                .take(nparams)
+                                .collect();
+
+                                self.instantiate(&Ty::unquantified(Arc::new(
+                                    TyMatrix::Named { name, args },
+                                )))
+                            };
+
+                            self.unify_matrices(named_ty, ty.matrix.clone())?;
+
+                            let ty_decl = self.get_type(id.ty);
                             let constr = ty_decl
                                 .ast
                                 .constrs()
                                 .and_then(|constrs| constrs.get(&name))
                                 .unwrap();
-
-                            let id = ast::TyConstrIndex { ty: id, name };
 
                             Ok((constr, id))
                         }
@@ -1470,9 +1539,9 @@ impl<'a> Typer<'a> {
                                 .try_fold(Vec::new(), |mut fields, field| {
                                     let span = field.span();
                                     let name = field.field.item;
-                                    let ty = Ty::unquantified(
+                                    let ty = self.zonk(&Ty::unquantified(
                                         field_tys.get(&name).unwrap().clone(),
-                                    );
+                                    ));
 
                                     let pattern = self.check_pattern(
                                         field.pattern.as_ref(),
@@ -1489,10 +1558,11 @@ impl<'a> Typer<'a> {
                                 .into_boxed_slice();
 
                         // construct the corresponding named type
-                        let constr_ty = Arc::new(TyMatrix::Named {
-                            name: constr_id.ty,
-                            args,
-                        });
+                        let constr_ty =
+                            self.zonk_matrix(Arc::new(TyMatrix::Named {
+                                name: constr_id.ty,
+                                args,
+                            }));
 
                         // unify against expected type and return
                         self.unify_matrices(ty.matrix.clone(), constr_ty)?;
@@ -1598,6 +1668,8 @@ impl<'a> Typer<'a> {
         &mut self,
         ty: &Arc<TyMatrix<TyVar>>,
     ) -> Option<Arc<TyMatrix<TyVar>>> {
+        let ty = self.zonk_matrix(ty.clone());
+
         match ty.as_ref() {
             TyMatrix::Prim(_) | TyMatrix::Var(_) => Some(ty.clone()),
             TyMatrix::Tuple(elems) => Some(Arc::new(TyMatrix::Tuple(
@@ -1669,6 +1741,9 @@ impl<'a> Typer<'a> {
         var: TyVar,
         value: Arc<TyMatrix<TyVar>>,
     ) -> UnitResult {
+        let value = self.zonk_matrix(value);
+        let value = self.normalize(&value).unwrap();
+
         if !occurs_check(&var, value.as_ref()) {
             self.assign_var(var, value);
             Ok(())
@@ -1684,15 +1759,7 @@ impl<'a> Typer<'a> {
         // check for a preexisting assignment
         if let Some(current_ty) = self.lookup_var(repr) {
             // unify to check consistency with current_ty
-            let res = self.unify_matrices(current_ty, ty);
-            match res {
-                Ok(..) => (),
-                Err(err) => {
-                    dbg![err];
-                    panic!()
-                }
-            }
-            //assert!(self.unify_matrices(current_ty, ty).is_ok());
+            assert!(self.unify_matrices(current_ty, ty).is_ok());
         } else {
             // otherwise just create the new assignment
             self.var_assignments.insert(repr, ty);
@@ -1701,6 +1768,7 @@ impl<'a> Typer<'a> {
 
     fn instantiate(&mut self, ty: &Ty<TyVar>) -> Arc<TyMatrix<TyVar>> {
         let mut substitution = HashMap::with_capacity(ty.prefix.len());
+        let ty = self.zonk(ty);
 
         for &var in &ty.prefix {
             substitution.insert(var, Arc::new(TyMatrix::Var(self.fresh_var())));
@@ -1751,6 +1819,7 @@ impl<'a> Typer<'a> {
 
     fn zonk(&self, ty: &Ty<TyVar>) -> Arc<Ty<TyVar>> {
         let matrix = self.zonk_matrix(ty.matrix.clone());
+
         Arc::new(Ty {
             prefix: ty.prefix.clone(),
             matrix,
@@ -1763,9 +1832,10 @@ impl<'a> Typer<'a> {
     ) -> Arc<TyMatrix<TyVar>> {
         match matrix.as_ref() {
             TyMatrix::Prim(_) => matrix,
-            TyMatrix::Var(var) => {
-                self.var_assignments.get(var).cloned().unwrap_or(matrix)
-            }
+            TyMatrix::Var(var) => match self.var_assignments.get(var) {
+                Some(ty) => self.zonk_matrix(ty.clone()),
+                None => matrix,
+            },
             TyMatrix::Tuple(tys) => Arc::new(TyMatrix::Tuple(
                 tys.iter().cloned().map(|ty| self.zonk_matrix(ty)).collect(),
             )),
