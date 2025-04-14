@@ -28,12 +28,7 @@
 //! type obtained in the previous pass. These inferred types are then
 //! generalized to make them properly generic.
 
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    hash::Hash,
-    sync::Arc,
-};
+use std::{collections::HashMap, hash::Hash, sync::Arc};
 
 use ena::unify::{InPlace, UnificationTable, UnifyKey};
 use lower::TyReifier;
@@ -265,8 +260,14 @@ pub fn typecheck(
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TyVar(u32);
+
+impl std::fmt::Debug for TyVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "?{:?}", self.0)
+    }
+}
 
 impl UnifyKey for TyVar {
     type Value = ();
