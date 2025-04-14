@@ -214,16 +214,16 @@ impl<'a> TypeLowerer<'a> {
                         ast::TyConstrKind::Record(fields) => {
                             for var in fields
                                 .values()
-                                .flat_map(|field| field.ty.bound_vars())
+                                .flat_map(|field| field.ty.matrix.vars())
                             {
-                                bound_vars.insert(*var);
+                                bound_vars.insert(var);
                             }
                         }
                         ast::TyConstrKind::Tuple { elems, fn_ty: _ } => {
                             for var in
-                                elems.iter().flat_map(|ty| ty.bound_vars())
+                                elems.iter().flat_map(|ty| ty.matrix.vars())
                             {
-                                bound_vars.insert(*var);
+                                bound_vars.insert(var);
                             }
                         }
                     }
@@ -342,14 +342,10 @@ impl<'a> TypeLowerer<'a> {
                             codomain: matrix.clone(),
                         });
 
-                        // quantify the component matrices
+                        // (un)quantify the component matrices
                         let elems: Box<[_]> = elem_matrices
                             .into_iter()
-                            .map(|matrix| ast::Ty {
-                                prefix: prefix.clone(),
-                                matrix,
-                            })
-                            .map(Arc::new)
+                            .map(ast::Ty::unquantified)
                             .collect();
 
                         // quantify the function matrix
@@ -371,11 +367,7 @@ impl<'a> TypeLowerer<'a> {
                                     let name = field.name;
                                     let matrix = reifier
                                         .reify_ty_matrix(field.ty.as_ref());
-
-                                    let ty = Arc::new(ast::Ty {
-                                        prefix: prefix.clone(),
-                                        matrix,
-                                    });
+                                    let ty = ast::Ty::unquantified(matrix);
 
                                     (
                                         symbol,
