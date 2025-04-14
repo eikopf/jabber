@@ -369,15 +369,33 @@ impl<T, V> std::ops::Deref for Typed<T, V> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Ty<V = Uid> {
     pub prefix: HashSet<V>,
     pub matrix: Arc<TyMatrix<V>>,
 }
 
+impl<V: Debug> Debug for Ty<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut vars = self.prefix.iter();
+
+        if let Some(head) = vars.next() {
+            write!(f, "∀{head:?}")?;
+
+            for var in vars {
+                write!(f, ", {var:?}")?;
+            }
+
+            write!(f, ". ")?;
+        }
+
+        write!(f, "{:?}", self.matrix)
+    }
+}
+
 /// A type with names of type `N` and variables of type `V`. Recursive variants
 /// are stored with [`Arc`] so cloning can be cheap during unification.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum TyMatrix<V = Uid> {
     /// A primitive type.
     Prim(PrimTy),
@@ -507,6 +525,65 @@ impl Ty<Uid> {
         Self {
             prefix: Default::default(),
             matrix,
+        }
+    }
+}
+
+impl<V: Debug> Debug for TyMatrix<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Prim(prim) => write!(f, "{prim:?}"),
+            Self::Var(var) => write!(f, "{var:?}"),
+            Self::Tuple(elems) => {
+                let (head, tail) = elems.split_first().unwrap();
+                write!(f, "({head:?}")?;
+
+                for elem in tail {
+                    write!(f, ", {elem:?}")?;
+                }
+
+                write!(f, ")")
+            }
+            Self::Named { name, args } => {
+                write!(f, "ADT({name:?})")?;
+
+                match args.as_ref() {
+                    [] => Ok(()),
+                    [head, tail @ ..] => {
+                        write!(f, "[{head:?}")?;
+
+                        for elem in tail {
+                            write!(f, ", {elem:?}")?;
+                        }
+
+                        write!(f, "]")
+                    }
+                }
+            }
+            Self::Fn { domain, codomain } => {
+                match domain.as_ref() {
+                    // nullary function
+                    [] => write!(f, "()"),
+                    // unary tuple function
+                    [tup] if matches!(tup.as_ref(), Self::Tuple(..)) => {
+                        write!(f, "({tup:?},)")
+                    }
+                    // general unary function
+                    [arg] => write!(f, "{arg:?}"),
+                    // higher-arity functions
+                    [head, tail @ ..] => {
+                        write!(f, "({head:?}")?;
+
+                        for elem in tail {
+                            write!(f, ", {elem:?}")?;
+                        }
+
+                        write!(f, ")")
+                    }
+                }?;
+
+                write!(f, " -> {codomain:?}")
+            }
         }
     }
 }
