@@ -2228,13 +2228,13 @@ mod tests {
             }
         };
 
-        // REF MODULE INSPECTION
+        // __TEST MODULE INSPECTION
 
-        let ref_ = env.interner.intern_static("ref");
-        let ref_mod_id = env.magic_core_submodule(ref_).unwrap();
-        let ref_mod = env.get_module(ref_mod_id);
+        let __test = env.interner.intern_static("__test");
+        let test_mod_id = env.magic_core_submodule(__test).unwrap();
+        let test_mod = env.get_module(test_mod_id);
 
-        for (sym, item) in ref_mod.items.clone() {
+        for (sym, item) in test_mod.items.clone() {
             let name = env.interner.resolve(sym).unwrap();
             let (_vis, _span, res) = item.spread();
 

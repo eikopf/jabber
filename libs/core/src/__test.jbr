@@ -1,0 +1,26 @@
+//! A fake module for testing purposes.
+
+use package.ref.Ref
+
+const ifelse = if 13 == 5 { [13.0, 5.0] } else { [] }
+
+// ∀T. Ref[List[T]] -> Ref[(T, List[T])]
+fn inferred(Ref { contents }) = {
+    let (x :: xs) = contents;
+    Ref { contents: (x, xs) }
+}
+
+// (int, bool)
+const let_gen = {
+  let id = x -> x;
+  (id(1), id(true))
+}
+
+// (string, char)
+const double = {
+  let (idl, idr) = (x -> x, y -> y);
+  (idl("baz"), idr('\x00'))
+}
+
+// ∀a, b, c. () -> a -> b -> c -> a
+fn threep() = x -> y -> z -> x
