@@ -359,6 +359,16 @@ impl<T, V> Typed<T, V> {
             ty: self.ty.clone(), // this is bad design!
         }
     }
+
+    pub fn map_ty<U>(
+        self,
+        f: impl FnOnce(Arc<Ty<V>>) -> Arc<Ty<U>>,
+    ) -> Typed<T, U> {
+        Typed {
+            item: self.item,
+            ty: f(self.ty),
+        }
+    }
 }
 
 impl<T, V> std::ops::Deref for Typed<T, V> {

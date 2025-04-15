@@ -36,7 +36,7 @@ pub struct Spanned<T> {
 impl<T> Spanned<T> {
     pub fn map<F, U>(self, f: F) -> Spanned<U>
     where
-        F: Fn(T) -> U,
+        F: FnOnce(T) -> U,
     {
         Spanned {
             item: f(self.item),
