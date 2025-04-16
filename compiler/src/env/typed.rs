@@ -218,6 +218,36 @@ pub enum TypingError<V = TyVar> {
         span: Span,
         module: ModId,
     },
+    /// A tuple index occurred into non-tuple type.
+    TupleIndexIntoBadTy {
+        inferred_ty: Arc<Ty<TyVar>>,
+        item_span: Span,
+        span: Span,
+        module: ModId,
+    },
+    TupleIndexOutOfBounds {
+        item_length: usize,
+        tuple_index: u32,
+        item_span: Span,
+        field_span: Span,
+        span: Span,
+        module: ModId,
+    },
+    /// The lhs of a record field expression was not a struct record type.    
+    RecordFieldOfBadTy {
+        inferred_ty: Arc<Ty<TyVar>>,
+        item_span: Span,
+        span: Span,
+        module: ModId,
+    },
+    NoSuchRecordField {
+        record: ast::TyConstrIndex,
+        field: Symbol,
+        item_span: Span,
+        field_span: Span,
+        span: Span,
+        module: ModId,
+    },
 }
 
 pub fn typecheck(
@@ -398,11 +428,13 @@ impl<'a> Typer<'a> {
 
                 let body = self.infer(body.as_ref().as_ref())?;
                 self.unify_matrices(body.ty.matrix.clone(), codomain.clone())?;
+                let body = self.zonk_spty(body);
 
-                let ty =
-                    Ty::unquantified(self.zonk_matrix(Arc::new(
-                        TyMatrix::Fn { domain, codomain },
-                    )));
+                let ty = self.zonk(&Ty::unquantified(Arc::new(TyMatrix::Fn {
+                    domain,
+                    codomain,
+                })));
+
                 let ty = self.generalize(ty);
 
                 ast::Term {
@@ -447,12 +479,13 @@ impl<'a> Typer<'a> {
                 value,
             }) => {
                 let value = self.infer(value.as_ref())?;
-                self.unify(value.ty.clone(), annotated_ty)?;
+                self.unify(value.ty.clone(), annotated_ty.clone())?;
+                let value = self.zonk_spty(value);
 
                 ast::Term {
                     attrs: attrs.clone(),
                     name: *name,
-                    ty: self.zonk(&value.ty),
+                    ty: self.zonk(&annotated_ty),
                     kind: ast::TermKind::Const {
                         ty_ast: ty_ast.clone(),
                         value,
@@ -477,8 +510,6 @@ impl<'a> Typer<'a> {
         expected_ty: Arc<Ty<TyVar>>,
     ) -> ExprResult {
         match item {
-            bound::Expr::RecordField { item, field } => todo!(),
-            bound::Expr::TupleField { item, field } => todo!(),
             bound::Expr::Lambda { params, body } => {
                 let fn_ty = self.rebind(&Ty::fresh_unbound_fn(params.len()));
                 self.unify(expected_ty.clone(), fn_ty.clone())?;
@@ -546,25 +577,11 @@ impl<'a> Typer<'a> {
 
                 Ok(span.with(ty.with(ast::Expr::Lambda { params, body })))
             }
-            bound::Expr::LazyAnd { operator, lhs, rhs } => todo!(),
-            bound::Expr::LazyOr { operator, lhs, rhs } => todo!(),
-            bound::Expr::Mutate { operator, lhs, rhs } => todo!(),
-            bound::Expr::Match { scrutinee, arms } => todo!(),
-            bound::Expr::IfElse {
-                condition,
-                consequence,
-                alternative,
-            } => todo!(),
-            // inference mode rules (literal, call, record constr, block, ...)
+            // inference mode rules
             expr => {
-                let Spanned { span, item: expr } =
-                    self.infer(span.with(expr))?;
+                let expr = self.infer(span.with(expr))?;
                 self.unify(expr.ty.clone(), expected_ty.clone())?;
-
-                Ok(span.with(Typed {
-                    ty: self.zonk(&expr.ty),
-                    item: expr.item,
-                }))
+                Ok(self.zonk_spty(expr))
             }
         }
     }
@@ -635,7 +652,32 @@ impl<'a> Typer<'a> {
                 let ty = Ty::unquantified(tuple);
                 Ok(span.with(ty.with(ast::Expr::Tuple(elems))))
             }
-            bound::Expr::List(_) => todo!(),
+            bound::Expr::List(elems) => {
+                let ty = tyvar!(self.fresh_var());
+
+                // check each element
+                let elems: Box<_> = elems
+                    .iter()
+                    .map(Spanned::as_ref)
+                    .map(|elem| self.check(elem, ty.clone()))
+                    .collect::<Result<_, _>>()?;
+
+                // zonk the elements in a second pass
+                let elems = elems
+                    .into_iter()
+                    .map(|elem| {
+                        elem.map(|elem| elem.map_ty(|ty| self.zonk(&ty)))
+                    })
+                    .collect();
+
+                let ty = Ty::unquantified(Arc::new(TyMatrix::Named {
+                    name: self.list_id,
+                    args: vec![self.zonk_matrix(ty.matrix.clone())]
+                        .into_boxed_slice(),
+                }));
+
+                Ok(span.with(ty.with(ast::Expr::List(elems))))
+            }
             bound::Expr::Block(bound::Block {
                 statements,
                 return_expr,
@@ -817,8 +859,160 @@ impl<'a> Typer<'a> {
                     base,
                 })))
             }
-            bound::Expr::RecordField { item, field } => todo!(),
-            bound::Expr::TupleField { item, field } => todo!(),
+            bound::Expr::RecordField { item, field } => {
+                let item = self.infer(item.as_ref().as_ref())?;
+
+                let ty = match item.ty.matrix.as_ref() {
+                    TyMatrix::Named { name, args } => {
+                        let type_ = self.get_type(*name);
+                        let params = self.get_ty_params(*name);
+
+                        // sanity check
+                        assert_eq!(args.len(), params.len());
+
+                        // assemble {params -> args} substitution
+                        let subst = params
+                            .into_iter()
+                            .zip(args.iter().cloned())
+                            .collect::<HashMap<_, _>>();
+
+                        match type_.ast.as_struct_constr() {
+                            Some(constr) if constr.is_record() => {
+                                let fields =
+                                    constr.kind.as_record_fields().unwrap();
+
+                                match fields.get(field).cloned() {
+                                    Some(field) => {
+                                        let ty = self.rebind_with(
+                                            Arc::unwrap_or_clone(field.ty),
+                                            &subst,
+                                        );
+
+                                        Ok(self.zonk(&ty))
+                                    }
+                                    None => {
+                                        Err(TypingError::NoSuchRecordField {
+                                            record: ast::TyConstrIndex {
+                                                ty: *name,
+                                                name: constr.name.item,
+                                            },
+                                            field: field.item,
+                                            item_span: item.span(),
+                                            field_span: field.span(),
+                                            span,
+                                            module: self.module(),
+                                        })
+                                    }
+                                }
+                            }
+                            _ => Err(TypingError::RecordFieldOfBadTy {
+                                inferred_ty: self.zonk(&item.ty),
+                                item_span: item.span(),
+                                span,
+                                module: self.module(),
+                            }),
+                        }
+                    }
+                    _ => Err(TypingError::RecordFieldOfBadTy {
+                        inferred_ty: self.zonk(&item.ty),
+                        item_span: item.span(),
+                        span,
+                        module: self.module(),
+                    }),
+                }?;
+
+                let item = Box::new(self.zonk_spty(item));
+                let field = *field;
+
+                Ok(span.with(ty.with(ast::Expr::RecordField { item, field })))
+            }
+            bound::Expr::TupleField { item, field } => {
+                // infer item type
+                let item = self.infer(item.as_ref().as_ref())?;
+
+                // unwrap field (panics if the field overflowed)
+                let field = field
+                    .as_ref()
+                    .map(|index| index.as_ref().copied().unwrap());
+
+                // extract the field type
+                let ty = match item.ty.matrix.as_ref() {
+                    TyMatrix::Tuple(elems) => {
+                        match elems.get(*field as usize) {
+                            Some(ty) => {
+                                let prefix = item.ty.prefix.clone();
+                                let matrix = ty.clone();
+                                Ok(self.zonk(&Ty { prefix, matrix }))
+                            }
+                            None => Err(TypingError::TupleIndexOutOfBounds {
+                                item_length: elems.len(),
+                                tuple_index: field.item,
+                                item_span: item.span(),
+                                field_span: field.span(),
+                                span,
+                                module: self.module(),
+                            }),
+                        }
+                    }
+                    TyMatrix::Named { name, args } => {
+                        let type_ = self.get_type(*name);
+                        let params = self.get_ty_params(*name);
+
+                        // sanity check
+                        assert_eq!(args.len(), params.len());
+
+                        let subst = params
+                            .into_iter()
+                            .zip(args.iter().cloned())
+                            .collect::<HashMap<_, _>>();
+
+                        match type_.ast.as_struct_constr() {
+                            Some(constr) if constr.is_tuple() => {
+                                // safe dirty unwrap
+                                let elems =
+                                    constr.kind.as_tuple_elems().unwrap();
+
+                                match elems.get(*field as usize).cloned() {
+                                    Some(ty) => {
+                                        // instantiate type
+                                        let ty = self.rebind_with(
+                                            Arc::unwrap_or_clone(ty),
+                                            &subst,
+                                        );
+
+                                        Ok(self.zonk(&ty))
+                                    }
+                                    None => Err(
+                                        TypingError::TupleIndexOutOfBounds {
+                                            item_length: elems.len(),
+                                            tuple_index: field.item,
+                                            item_span: item.span(),
+                                            field_span: field.span(),
+                                            span,
+                                            module: self.module(),
+                                        },
+                                    ),
+                                }
+                            }
+                            _ => Err(TypingError::TupleIndexIntoBadTy {
+                                inferred_ty: item.ty.clone(),
+                                item_span: item.span(),
+                                span,
+                                module: self.module(),
+                            }),
+                        }
+                    }
+                    _ => Err(TypingError::TupleIndexIntoBadTy {
+                        inferred_ty: item.ty.clone(),
+                        item_span: item.span(),
+                        span,
+                        module: self.module(),
+                    }),
+                }?;
+
+                let item = Box::new(self.zonk_spty(item));
+                Ok(span.with(ty.with(ast::Expr::TupleField { item, field })))
+            }
             bound::Expr::Call { callee, args, kind } => {
                 // infer callee type
                 let callee = self.infer(callee.as_ref().as_ref())?;
@@ -866,20 +1060,48 @@ impl<'a> Typer<'a> {
                     })?
                     .into_boxed_slice();
 
-                let callee = callee.span.with(Typed {
-                    ty: self.zonk(&callee.ty),
-                    item: callee.item.item,
-                });
-
+                let callee = Box::new(self.zonk_spty(callee));
+                let kind = *kind;
                 let ty = Ty::unquantified(self.zonk_matrix(codomain));
-                Ok(span.with(ty.with(ast::Expr::Call {
-                    callee: Box::new(callee),
-                    args,
-                    kind: *kind,
-                })))
+                Ok(span.with(ty.with(ast::Expr::Call { callee, args, kind })))
             }
-            bound::Expr::LazyAnd { operator, lhs, rhs } => todo!(),
-            bound::Expr::LazyOr { operator, lhs, rhs } => todo!(),
+            bound::Expr::LazyAnd { operator, lhs, rhs } => {
+                // rewrite operator
+                let operator = operator.with(ast::LazyOperator::And);
+
+                // infer subexpressions
+                let lhs = self.infer(lhs.as_ref().as_ref())?;
+                let rhs = self.infer(rhs.as_ref().as_ref())?;
+
+                // we know the inferred type to be `bool`
+                let ty = prim_ty!(ast::PrimTy::Bool);
+                self.unify(lhs.ty.clone(), ty.clone())?;
+                self.unify(rhs.ty.clone(), ty.clone())?;
+
+                // zonk subexpressions
+                let lhs = Box::new(self.zonk_spty(lhs));
+                let rhs = Box::new(self.zonk_spty(rhs));
+
+                Ok(span.with(ty.with(ast::Expr::Lazy { operator, lhs, rhs })))
+            }
+            bound::Expr::LazyOr { operator, lhs, rhs } => {
+                let operator = operator.with(ast::LazyOperator::Or);
+
+                // infer subexpressions
+                let lhs = self.infer(lhs.as_ref().as_ref())?;
+                let rhs = self.infer(rhs.as_ref().as_ref())?;
+
+                // we know the inferred type to be `bool`
+                let ty = prim_ty!(ast::PrimTy::Bool);
+                self.unify(lhs.ty.clone(), ty.clone())?;
+                self.unify(rhs.ty.clone(), ty.clone())?;
+
+                // zonk subexpressions
+                let lhs = Box::new(self.zonk_spty(lhs));
+                let rhs = Box::new(self.zonk_spty(rhs));
+
+                Ok(span.with(ty.with(ast::Expr::Lazy { operator, lhs, rhs })))
+            }
             bound::Expr::Mutate { operator, lhs, rhs } => {
                 // extract the lhs as a record field expression
                 let (item, field) = match lhs.item() {
@@ -1014,12 +1236,71 @@ impl<'a> Typer<'a> {
                 condition,
                 consequence,
                 alternative,
-            } => todo!(),
-            // check mode rules (tuples, ...)
+            } => {
+                // check the condition is a boolean
+                let condition = self.check(
+                    condition.as_ref().as_ref(),
+                    prim_ty!(ast::PrimTy::Bool),
+                )?;
+
+                // rewrite the consequence and alternative into expressions
+                let consequence = consequence
+                    .span
+                    .with(bound::Expr::Block(consequence.item.clone()));
+                let alternative = alternative.as_ref().map(|block| {
+                    block.span.with(bound::Expr::Block(block.item.clone()))
+                });
+
+                // pick a unification starting point
+                let ty = match alternative.as_ref() {
+                    Some(_) => tyvar!(self.fresh_var()),
+                    None => prim_ty!(ast::PrimTy::Unit),
+                };
+
+                // check branches
+                let consequence =
+                    self.check(consequence.as_ref(), ty.clone())?;
+                let alternative = alternative
+                    .map(|expr| self.check(expr.as_ref(), ty.clone()))
+                    .transpose()?;
+
+                // rewrite this expression into a match expression
+                let scrutinee = Box::new(condition);
+
+                let arms = {
+                    let consequence = consequence.span.with(ast::MatchArm {
+                        pattern: consequence.span.with(ast::Pattern::Literal(
+                            ast::LiteralExpr::Bool(true),
+                        )),
+                        body: consequence,
+                    });
+
+                    let span =
+                        alternative.as_ref().map(Spanned::span).unwrap_or(span);
+
+                    let alternative = span.with(ast::MatchArm {
+                        pattern: span.with(ast::Pattern::Literal(
+                            ast::LiteralExpr::Bool(false),
+                        )),
+                        body: alternative.unwrap_or_else(|| {
+                            let ty = prim_ty!(ast::PrimTy::Unit);
+                            span.with(ty.with(ast::Expr::Literal(
+                                ast::LiteralExpr::Unit,
+                            )))
+                        }),
+                    });
+
+                    vec![consequence, alternative].into_boxed_slice()
+                };
+
+                let ty = self.zonk(&ty);
+                Ok(span.with(ty.with(ast::Expr::Match { scrutinee, arms })))
+            }
+            // check mode rules
             expr => {
-                let ty =
-                    Ty::unquantified(Arc::new(TyMatrix::Var(self.fresh_var())));
-                self.check(span.with(expr), ty)
+                let ty = tyvar!(self.fresh_var());
+                let expr = self.check(span.with(expr), ty)?;
+                Ok(self.zonk_spty(expr))
             }
         }
     }
@@ -1041,13 +1322,6 @@ impl<'a> Typer<'a> {
         let t2 = self.normalize(&t2).unwrap();
 
         match (t1.as_ref(), t2.as_ref()) {
-            // never coercion
-            (TyMatrix::Prim(ast::PrimTy::Never), _)
-            | (_, TyMatrix::Prim(ast::PrimTy::Never)) => Ok(()),
-
-            // identical primitives
-            (TyMatrix::Prim(p1), TyMatrix::Prim(p2)) if p1 == p2 => Ok(()),
-
             // variable-variable
             (TyMatrix::Var(v1), TyMatrix::Var(v2)) => {
                 self.unifier.union(*v1, *v2);
@@ -1057,6 +1331,13 @@ impl<'a> Typer<'a> {
             // value-variable & variable-value
             (_, TyMatrix::Var(var)) => self.unify_var_value(*var, t1),
             (TyMatrix::Var(var), _) => self.unify_var_value(*var, t2),
+
+            // never coercion
+            (TyMatrix::Prim(ast::PrimTy::Never), _)
+            | (_, TyMatrix::Prim(ast::PrimTy::Never)) => Ok(()),
+
+            // identical primitives
+            (TyMatrix::Prim(p1), TyMatrix::Prim(p2)) if p1 == p2 => Ok(()),
 
             // equal-length tuples
             (TyMatrix::Tuple(elems1), TyMatrix::Tuple(elems2))
@@ -1125,20 +1406,30 @@ impl<'a> Typer<'a> {
                 Ok(Ty::unquantified(self.instantiate_uid(ty)))
             }
             Res::TyConstr { ty, name } => {
-                // unwrapping is fine, TyConstr is a guaranteed-correct index
-                let constrs = self.types[ty.0].ast.constrs().unwrap();
-                let constr = constrs.get(&name).unwrap();
-
-                match constr.get_ty() {
-                    Some(ty) => Ok(self.rebind(ty)),
-                    None => Err(TypingError::DirectRecordVariantExpr {
-                        constr: ast::TyConstrIndex { ty, name },
-                        span: blame.0,
-                        module: blame.1,
-                    }),
-                }
+                let constr = ast::TyConstrIndex { ty, name };
+                self.get_ty_constr_type(constr, blame)
             }
-            _ => panic!("a variable was bound to a module or type"),
+            Res::StructType(ty) => {
+                let name = self.get_type(ty).name;
+                let constr = ast::TyConstrIndex { ty, name };
+                self.get_ty_constr_type(constr, blame)
+            }
+            _ => panic!("a name was bound to a module or type"),
+        }
+    }
+
+    fn get_ty_constr_type(
+        &mut self,
+        constr: ast::TyConstrIndex,
+        blame: (Span, ModId),
+    ) -> TyResult {
+        match self.lookup_constr(constr).get_ty().cloned() {
+            Some(ty) => Ok(self.rebind(&ty)),
+            None => Err(TypingError::DirectRecordVariantExpr {
+                constr,
+                span: blame.0,
+                module: blame.1,
+            }),
         }
     }
 
@@ -1873,6 +2164,7 @@ impl<'a> Typer<'a> {
     /// 2. a function that can instantiate matrices with the same substitution.
     ///
     /// Note that the function captures `&mut self`.
+    #[allow(clippy::type_complexity, reason = "one-off return type")]
     fn make_param_instantiation(
         &mut self,
         params: impl IntoIterator<Item = Uid>,
@@ -1893,6 +2185,14 @@ impl<'a> Typer<'a> {
         let func =
             move |ty| apply_substitution(&substitution, ty, &mut rebinder);
         (inst_params.into_boxed_slice(), func)
+    }
+
+    fn zonk_spty<T>(
+        &mut self,
+        Spanned { item, span }: Spanned<Typed<T, TyVar>>,
+    ) -> Spanned<Typed<T, TyVar>> {
+        let item = item.map_ty(|ty| self.zonk(&ty));
+        span.with(item)
     }
 
     fn zonk(&mut self, ty: &Ty<TyVar>) -> Arc<Ty<TyVar>> {
@@ -2014,6 +2314,26 @@ impl<'a> Typer<'a> {
                 var
             }
         }
+    }
+
+    fn rebind_with(
+        &mut self,
+        ty: Ty<Uid>,
+        substitution: &HashMap<Uid, Arc<TyMatrix<TyVar>>>,
+    ) -> Arc<Ty<TyVar>> {
+        let prefix = ty
+            .prefix
+            .into_iter()
+            .filter_map(|var| match substitution.contains_key(&var) {
+                true => Some(self.get_or_assign_var(var)),
+                false => None,
+            })
+            .collect();
+
+        let mut rebinder = |&var: &Uid| self.get_or_assign_var(var);
+        let matrix = apply_substitution(substitution, ty.matrix, &mut rebinder);
+
+        Arc::new(Ty { prefix, matrix })
     }
 
     /// Converts a [`Ty<N, Uid>`] into a [`Ty<N, TyVar>`].

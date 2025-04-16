@@ -157,12 +157,33 @@ impl<V> TyConstrKind<V> {
         matches!(self, Self::Tuple { .. })
     }
 
+    /// If self is a [`Tuple`], returns its [`elems`].
+    ///
+    /// [`Tuple`]: TyConstrKind::Tuple
+    /// [`elems`]: TyConstrKind::Tuple::elems
+    pub fn as_tuple_elems(&self) -> Option<&[Arc<Ty<V>>]> {
+        match self {
+            TyConstrKind::Tuple { elems, .. } => Some(elems),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the ty constr kind is [`Record`].
     ///
     /// [`Record`]: TyConstrKind::Record
     #[must_use]
     pub fn is_record(&self) -> bool {
         matches!(self, Self::Record(..))
+    }
+
+    /// If `self` is a [`Record`], returns its fields.
+    ///
+    /// [`Record`]: TyConstrKind::Record
+    pub fn as_record_fields(&self) -> Option<&HashMap<Symbol, RecordField<V>>> {
+        match self {
+            TyConstrKind::Record(fields) => Some(fields),
+            _ => None,
+        }
     }
 
     /// Returns `true` if the ty constr kind is [`Unit`].
@@ -232,7 +253,7 @@ pub enum Expr<V = Uid> {
     },
     TupleField {
         item: TySpanBox<Self, V>,
-        field: Spanned<Option<u32>>,
+        field: Spanned<u32>,
     },
     Lambda {
         params: SpanSeq<Parameter<V>>,
