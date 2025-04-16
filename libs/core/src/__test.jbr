@@ -1,8 +1,26 @@
 //! A fake module for testing purposes.
 
 use package.ref.Ref
+use package.panic.panic
+
+// IF-ELSE
 
 const ifelse = if 13 == 5 { [13.0, 5.0] } else { [] }
+
+// TUPLES AND TUPLE STRUCTS
+
+type Triple[T] = Triple(T, T, T)
+
+// ∀a, b, c. (a, b, c) -> (c, a)
+fn outer_rev(tup: (_, _, _)) = (tup.2, tup.0)
+
+// ∀t. Triple[t] -> Triple[t]
+fn triple_rev(t: Triple[_]) = Triple(t.2, t.1, t.0) 
+
+// RECORDS
+fn explicit_deref(ref: Ref[_]) = ref.contents
+
+// BLOCKS AND LET-GENERALISATION
 
 // ∀T. Ref[List[T]] -> Ref[(T, List[T])]
 fn inferred(Ref { contents }) = {
@@ -22,5 +40,22 @@ const double = {
   (idl("baz"), idr('\x00'))
 }
 
+// LAMBDAS
+
 // ∀a, b, c. () -> a -> b -> c -> a
 fn threep() = x -> y -> z -> x
+
+// LAZY OPERATORS
+
+// (() -> bool, () -> bool) -> bool
+fn lazier_and(f, g) = f() && g()
+fn  lazier_or(f, g) = f() || g()
+
+// NEVER
+
+fn absurd() = panic()
+
+// (float, bool, !)
+const whatever: (float, bool, _) = (absurd(), absurd(), absurd())
+
+
