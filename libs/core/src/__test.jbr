@@ -58,4 +58,3 @@ fn absurd() = panic()
 // (float, bool, !)
 const whatever: (float, bool, _) = (absurd(), absurd(), absurd())
 
-
