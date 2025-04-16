@@ -2187,6 +2187,7 @@ impl<'a> Typer<'a> {
         (inst_params.into_boxed_slice(), func)
     }
 
+    /// A helper method for zonking the type of a `Spanned<Typed<T, TyVar>>`.
     fn zonk_spty<T>(
         &mut self,
         Spanned { item, span }: Spanned<Typed<T, TyVar>>,
