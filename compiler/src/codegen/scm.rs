@@ -1,13 +1,23 @@
 //! Generic R6RS Scheme IR.
 
+use std::collections::HashMap;
+
 use crate::symbol::{StringInterner, Symbol};
-use pretty::{Doc, RcDoc};
+use pretty::RcDoc;
 use recursion::{Collapsible, Expandable, MappableFrame, PartiallyApplied};
+
+use super::blame::{BlameSeq, Blamed};
+
+#[derive(Debug, Clone)]
+pub struct Module {
+    pub name: Symbol,
+    pub public_items: BlameSeq<Symbol>,
+    pub submodules: BlameSeq<Self>,
+    pub definitions: HashMap<Symbol, Blamed<Expr>>,
+}
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    /// An expression of the form `(define <variable> <expr>)` (R6RS §11.2).
-    Define { name: Symbol, body: Box<Self> },
     /// An expression of the form `(let (<bindings>) <body>)` (R6RS §5.2, §11.4.6).
     Let {
         bindings: Box<[(Symbol, Self)]>,
@@ -23,16 +33,12 @@ pub enum Expr {
         args: Box<[Symbol]>,
         body: Box<Self>,
     },
-    /// A linked-list constant, e.g. `'(x 1 #t)` or `'()`.
-    List(Box<[Self]>),
-    /// A vector constant, e.g. `'#(14 (8 2 3) "hello")`.
-    Vector(Box<[Self]>),
     /// A [`Literal`] expression.
     Literal(Literal),
     /// A [`Builtin`] expression.
     Builtin(Builtin),
     /// A plain identifier.
-    Variable(Symbol),
+    Symbol(Symbol),
 }
 
 impl Expandable for Expr {
@@ -42,10 +48,6 @@ impl Expandable for Expr {
         value: <Self::FrameToken as MappableFrame>::Frame<Self>,
     ) -> Self {
         match value {
-            ExprFrame::Define { name, body } => Expr::Define {
-                name,
-                body: Box::new(body),
-            },
             ExprFrame::Let { bindings, body } => Expr::Let {
                 bindings,
                 body: Box::new(body),
@@ -58,11 +60,9 @@ impl Expandable for Expr {
                 args,
                 body: Box::new(body),
             },
-            ExprFrame::List(elems) => Expr::List(elems),
-            ExprFrame::Vector(elems) => Expr::Vector(elems),
             ExprFrame::Literal(literal) => Expr::Literal(literal),
             ExprFrame::Builtin(builtin) => Expr::Builtin(builtin),
-            ExprFrame::Variable(var) => Expr::Variable(var),
+            ExprFrame::Variable(var) => Expr::Symbol(var),
         }
     }
 }
@@ -72,9 +72,6 @@ impl Collapsible for Expr {
 
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         match self {
-            Expr::Define { name, body } => {
-                ExprFrame::Define { name, body: *body }
-            }
             Expr::Let { bindings, body } => ExprFrame::Let {
                 bindings,
                 body: *body,
@@ -86,21 +83,15 @@ impl Collapsible for Expr {
             Expr::Lambda { args, body } => {
                 ExprFrame::Lambda { args, body: *body }
             }
-            Expr::List(elems) => ExprFrame::List(elems),
-            Expr::Vector(elems) => ExprFrame::Vector(elems),
             Expr::Literal(literal) => ExprFrame::Literal(literal),
             Expr::Builtin(builtin) => ExprFrame::Builtin(builtin),
-            Expr::Variable(var) => ExprFrame::Variable(var),
+            Expr::Symbol(var) => ExprFrame::Variable(var),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprFrame<A> {
-    Define {
-        name: Symbol,
-        body: A,
-    },
     Let {
         bindings: Box<[(Symbol, A)]>,
         body: A,
@@ -113,8 +104,6 @@ pub enum ExprFrame<A> {
         args: Box<[Symbol]>,
         body: A,
     },
-    List(Box<[A]>),
-    Vector(Box<[A]>),
     Literal(Literal),
     Builtin(Builtin),
     Variable(Symbol),
@@ -128,10 +117,6 @@ impl MappableFrame for ExprFrame<PartiallyApplied> {
         mut f: impl FnMut(A) -> B,
     ) -> Self::Frame<B> {
         match input {
-            ExprFrame::Define { name, body } => ExprFrame::Define {
-                name,
-                body: f(body),
-            },
             ExprFrame::Let { bindings, body } => ExprFrame::Let {
                 bindings: bindings
                     .into_iter()
@@ -147,12 +132,6 @@ impl MappableFrame for ExprFrame<PartiallyApplied> {
                 args,
                 body: f(body),
             },
-            ExprFrame::List(elems) => {
-                ExprFrame::List(elems.into_iter().map(f).collect())
-            }
-            ExprFrame::Vector(elems) => {
-                ExprFrame::Vector(elems.into_iter().map(f).collect())
-            }
             ExprFrame::Literal(literal) => ExprFrame::Literal(literal),
             ExprFrame::Builtin(builtin) => ExprFrame::Builtin(builtin),
             ExprFrame::Variable(var) => ExprFrame::Variable(var),
@@ -166,17 +145,6 @@ impl ExprFrame<RcDoc<'static, ()>> {
         interner: &mut StringInterner,
     ) -> Option<RcDoc<'static, ()>> {
         match self {
-            ExprFrame::Define { name, body } => {
-                let name = interner.resolve(name)?;
-                Some(
-                    RcDoc::text("(")
-                        .append(RcDoc::text("define"))
-                        .append(RcDoc::softline())
-                        .append(RcDoc::as_string(name))
-                        .append(RcDoc::line().append(body).nest(1))
-                        .append(RcDoc::text(")")),
-                )
-            }
             ExprFrame::Let { bindings, body } => {
                 let bindings = bindings
                     .iter()
@@ -243,18 +211,6 @@ impl ExprFrame<RcDoc<'static, ()>> {
                         .append(RcDoc::text(")")),
                 )
             }
-            ExprFrame::List(elems) => Some(
-                RcDoc::text("'(")
-                    .append(RcDoc::intersperse(elems, Doc::space()))
-                    .append(RcDoc::text(")"))
-                    .group(),
-            ),
-            ExprFrame::Vector(elems) => Some(
-                RcDoc::text("'#(")
-                    .append(RcDoc::intersperse(elems, Doc::space()))
-                    .append(RcDoc::text(")"))
-                    .group(),
-            ),
             ExprFrame::Literal(literal) => literal.to_doc(interner),
             ExprFrame::Builtin(builtin) => {
                 Some(RcDoc::as_string(builtin.identifier()))
@@ -306,8 +262,8 @@ impl Literal {
                 // TODO: verify `symbol` is a valid R6RS symbol
                 RcDoc::text("'").append(RcDoc::as_string(symbol)).group()
             }
-            Literal::UInt(value) => RcDoc::as_string(format!("{value}")),
-            Literal::Float(value) => RcDoc::as_string(format!("{value}")),
+            Literal::UInt(value) => RcDoc::as_string(format!("#e{value}")),
+            Literal::Float(value) => RcDoc::as_string(format!("#i{value}")),
         })
     }
 }
@@ -315,6 +271,12 @@ impl Literal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Builtin {
     Void,
+
+    // EQUIVALENCE (R6RS §11.5)
+    /// Structural equality in the sense of OCaml's `=`.
+    StructuralEq,
+    /// Physical equality in the sense of OCaml's `==`.
+    PhysicalEq,
 
     // FLOAT BUILTINS (R6RS Libraries §11.3)
     RealToFlonum,
@@ -327,23 +289,33 @@ pub enum Builtin {
     FlMinus,
     FlStar,
     FlSlash,
+    FlExpt,
     FlMax,
     FlMin,
     FlAbs,
 
     // GENERAL NUMERIC BUILTINS (R6RS Libraries §11)
+    NumEq,
+    Lt,
+    Le,
+    Gt,
+    Ge,
     Plus,
     Minus,
     Star,
+    Slash,
+    Expt,
     Max,
     Min,
     Abs,
-    Slash,
     Div,
     Mod,
 
     // BOOLEAN BUILTINS (R6RS §11.8)
     Not,
+    And,
+    Or,
+    Xor,
 
     // LIST BUILTINS (R6RS §11.9)
     Car,
@@ -391,34 +363,48 @@ impl Builtin {
         match self {
             Self::Void => "void",
 
+            // EQUIVALENCE
+            Self::StructuralEq => "equal?",
+            Self::PhysicalEq => "eq?",
+
             // FLOAT
             Self::RealToFlonum => "real->flonum",
-            Self::FlEq => "fl=?",
-            Self::FlLt => "fl<?",
-            Self::FlLe => "fl<=?",
-            Self::FlGe => "fl>?",
-            Self::FlGt => "fl>=?",
+            Self::FlEq => "fl=",
+            Self::FlLt => "fl<",
+            Self::FlLe => "fl<=",
+            Self::FlGe => "fl>",
+            Self::FlGt => "fl>=",
             Self::FlPlus => "fl+",
             Self::FlMinus => "fl-",
             Self::FlStar => "fl*",
             Self::FlSlash => "fl/",
+            Self::FlExpt => "flexpt",
             Self::FlMax => "flmax",
             Self::FlMin => "flmin",
             Self::FlAbs => "flabs",
 
             // GENERAL NUMERIC
+            Self::NumEq => "=",
+            Self::Lt => "<",
+            Self::Le => "<=",
+            Self::Gt => ">",
+            Self::Ge => ">=",
             Self::Plus => "+",
             Self::Minus => "-",
             Self::Star => "*",
+            Self::Slash => "/",
+            Self::Expt => "expt",
             Self::Max => "max",
             Self::Min => "min",
             Self::Abs => "abs",
-            Self::Slash => "/",
             Self::Div => "div",
             Self::Mod => "mod",
 
             // BOOLEAN
             Self::Not => "not",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::Xor => "xor",
 
             // LIST
             Self::Car => "car",
@@ -495,13 +481,13 @@ mod tests {
         let y = interner.intern_static("y");
         let add = interner.intern_static("add");
 
-        let expr = Expr::Define {
-            name: add,
+        let expr = Expr::Let {
+            bindings: vec![(add, Expr::Builtin(Builtin::Plus))].into(),
             body: Box::new(Expr::Lambda {
                 args: vec![x, y].into_boxed_slice(),
                 body: Box::new(Expr::Call {
-                    callee: Box::new(Expr::Builtin(Builtin::Plus)),
-                    args: vec![Expr::Variable(x), Expr::Variable(y)]
+                    callee: Box::new(Expr::Symbol(add)),
+                    args: vec![Expr::Symbol(x), Expr::Symbol(y)]
                         .into_boxed_slice(),
                 }),
             }),
@@ -511,6 +497,7 @@ mod tests {
             expr.collapse_frames(|frame| frame.to_doc(&mut interner).unwrap());
 
         let repr = format!("{}", doc.pretty(80));
-        assert_eq!(repr, "(define add\n (lambda [x y]\n  (+ x y)))");
+        eprintln!("{repr}");
+        assert_eq!(repr, "(let [[add +]]\n (lambda [x y]\n  (add x y)))");
     }
 }
