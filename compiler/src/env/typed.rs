@@ -1180,12 +1180,7 @@ impl<'a> Typer<'a> {
                     let subst: HashMap<_, _> =
                         params.into_iter().zip(args).collect();
 
-                    let mut rebinder = |&var: &Uid| self.get_or_assign_var(var);
-                    Ty::unquantified(apply_substitution(
-                        &subst,
-                        field_def.ty.matrix.clone(),
-                        &mut rebinder,
-                    ))
+                    self.rebind_with(Arc::unwrap_or_clone(field_def.ty), &subst)
                 };
 
                 // check the rhs
@@ -1205,12 +1200,10 @@ impl<'a> Typer<'a> {
             }
             bound::Expr::Match { scrutinee, arms } => {
                 // infer scrutinee type
-                let scrutinee =
-                    Box::new(self.infer(scrutinee.as_ref().as_ref())?);
+                let scrutinee = self.infer(scrutinee.as_ref().as_ref())?;
 
                 // make fresh return type
-                let ty =
-                    Ty::unquantified(Arc::new(TyMatrix::Var(self.fresh_var())));
+                let ty = tyvar!(self.fresh_var());
 
                 // check match arms
                 let arms = arms
@@ -1230,6 +1223,7 @@ impl<'a> Typer<'a> {
                     })?
                     .into_boxed_slice();
 
+                let scrutinee = Box::new(self.zonk_spty(scrutinee));
                 Ok(span.with(ty.with(ast::Expr::Match { scrutinee, arms })))
             }
             bound::Expr::IfElse {
@@ -2072,20 +2066,22 @@ impl<'a> Typer<'a> {
                         // sanity check
                         assert_eq!(params.len(), args.len());
 
-                        let substitution: HashMap<_, _> = params
+                        let subst: HashMap<_, _> = params
                             .iter()
                             .zip(args)
                             .map(|(var, arg)| (var.id, arg.clone()))
                             .collect();
 
-                        let rhs_matrix = rhs_ty.matrix.clone();
-                        let mut rebinder =
-                            |var: &Uid| self.get_or_assign_var(*var);
-                        apply_substitution(
-                            &substitution,
-                            rhs_matrix,
-                            &mut rebinder,
+                        let matrix = rhs_ty.matrix.clone();
+                        self.rebind_with(
+                            Ty {
+                                prefix: Default::default(),
+                                matrix,
+                            },
+                            &subst,
                         )
+                        .matrix
+                        .clone()
                     }
                     // otherwise recurse as normal
                     _ => Arc::new(TyMatrix::Named {
@@ -2563,7 +2559,5 @@ mod tests {
 
             eprintln!("{} ({:?})\n{:?}\n\n", name, res, res_value);
         }
-
-        panic!();
     }
 }
