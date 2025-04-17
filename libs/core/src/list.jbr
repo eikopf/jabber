@@ -2,6 +2,14 @@
 
 pub type List[T] = Nil | Cons(T, List[T]) 
 
+// UTILITY FUNCTIONS
+
+pub fn length(xs: List[T]) -> int = __prim_length(xs)
+pub fn map(f: A -> B, xs: List[A]) -> List[B] = __prim_map(f, xs)
+
+pub fn head(x :: xs: List[T]) -> T = x
+pub fn tail(x :: xs: List[T]) -> List[T] = xs
+
 // OPERATORS
 
 @operator.cons
@@ -12,5 +20,9 @@ pub fn append(lhs: List[T], rhs: List[T]) -> List[T] = __prim_append(lhs, rhs)
 
 // EXTERNALS
 
-@external.scheme("__jabber_append")
+@external.scheme("append")
 extern fn __prim_append(lhs: List[T], rhs: List[T]) -> List[T]
+@external.scheme("length")
+extern fn __prim_length(xs: List[T]) -> int
+@external.scheme("map")
+extern fn __prim_map(f: A -> B, xs: List[A]) -> List[B]

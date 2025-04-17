@@ -1,4 +1,4 @@
-//! Optional values
+//! Optional values.
 
 use package.panic.panic_with_msg
 

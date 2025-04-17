@@ -1,4 +1,4 @@
-//! Mutable reference cells
+//! Mutable reference cells.
 
 pub type Ref[T] = Ref { mutable contents: T }
 

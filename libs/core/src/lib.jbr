@@ -11,6 +11,7 @@ pub mod panic
 pub mod prelude
 pub mod ref
 pub mod result
+pub mod string
 
 // ad-hoc testing module
 mod __test

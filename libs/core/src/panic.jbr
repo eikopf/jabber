@@ -1,13 +1,10 @@
-//! Panicking functions
+//! Panicking functions.
 
-@external.scheme("__jabber_panic")
+@external.scheme("panic!")
 pub extern fn panic() -> !
-
-@external.scheme("__jabber_panic_with_msg")
+@external.scheme("panic-with-msg!")
 pub extern fn panic_with_msg(msg: string) -> !
-
-@external.scheme("__jabber_unreachable")
+@external.scheme("unreachable!")
 pub extern fn unreachable() -> !
-
-@external.scheme("__jabber_todo")
+@external.scheme("todo!")
 pub extern fn todo() -> !

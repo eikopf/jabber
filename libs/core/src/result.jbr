@@ -1,4 +1,4 @@
-//! Results modelling fallible computations
+//! Results modelling fallible computations.
 
 use package.panic.panic_with_msg
 
