@@ -29,24 +29,24 @@ pub fn geq(lhs: float, rhs: float) -> bool = __prim_float_geq(lhs, rhs)
 
 // EXTERNALS
 
-@external.scheme("__jabber_float_neg")
+@external.scheme("fl-")
 extern fn __prim_float_neg(x: float) -> float
-@external.scheme("__jabber_float_add")
+@external.scheme("fl+")
 extern fn __prim_float_add(lhs: float, rhs: float) -> float
-@external.scheme("__jabber_float_sub")
+@external.scheme("fl-")
 extern fn __prim_float_sub(lhs: float, rhs: float) -> float
-@external.scheme("__jabber_float_mul")
+@external.scheme("fl*")
 extern fn __prim_float_mul(lhs: float, rhs: float) -> float
-@external.scheme("__jabber_float_div")
+@external.scheme("fl/")
 extern fn __prim_float_div(lhs: float, rhs: float) -> float
-@external.scheme("__jabber_float_pow")
+@external.scheme("flexpt")
 extern fn __prim_float_pow(lhs: float, rhs: float) -> float
 
-@external.scheme("__jabber_float_lt")
+@external.scheme("fl<?")
 extern fn __prim_float_lt(lhs: float, rhs: float) -> bool
-@external.scheme("__jabber_float_gt")
+@external.scheme("fl>?")
 extern fn __prim_float_gt(lhs: float, rhs: float) -> bool
-@external.scheme("__jabber_float_leq")
+@external.scheme("fl<=?")
 extern fn __prim_float_leq(lhs: float, rhs: float) -> bool
-@external.scheme("__jabber_float_geq")
+@external.scheme("fl>=?")
 extern fn __prim_float_geq(lhs: float, rhs: float) -> bool

@@ -1,4 +1,4 @@
-//! The prelude imported by all Jabber modules
+//! The prelude imported by all Jabber modules.
 
 pub use package.{
     bool.{and, or, xor},

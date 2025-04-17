@@ -7,11 +7,9 @@ pub type Ord = Lt | Eq | Gt
 @operator.eq
 pub fn eq(lhs: T, rhs: T) -> bool = __prim_eq(lhs, rhs)
 @operator.neq
-pub fn neq(lhs: T, rhs: T) -> bool = __prim_neq(lhs, rhs)
+pub fn neq(lhs: T, rhs: T) -> bool = !__prim_eq(lhs, rhs)
 
 // EXTERNALS
 
-@external.scheme("__jabber_eq")
+@external.scheme("equal?")
 extern fn __prim_eq(lhs: T, rhs: T) -> bool
-@external.scheme("__jabber_neq")
-extern fn __prim_neq(lhs: T, rhs: T) -> bool

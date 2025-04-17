@@ -1,4 +1,4 @@
-//! Utilities for the `bool` primitive type
+//! Utilities for the `bool` primitive type.
 
 pub type alias Bool = bool
 
@@ -10,14 +10,14 @@ pub fn xor(lhs: bool, rhs: bool) -> bool = __prim_bool_xor(lhs, rhs)
 
 // PRIMITIVES
 
-@external.scheme("__jabber_bool_not")
+@external.scheme("not")
 extern fn __prim_bool_not(b: bool) -> bool
 
-@external.scheme("__jabber_bool_and")
+@external.scheme("and")
 extern fn __prim_bool_and(lhs: bool, rhs: bool) -> bool
 
-@external.scheme("__jabber_bool_or")
+@external.scheme("or")
 extern fn  __prim_bool_or(lhs: bool, rhs: bool) -> bool
 
-@external.scheme("__jabber_bool_xor")
+@external.scheme("xor")
 extern fn __prim_bool_xor(lhs: bool, rhs: bool) -> bool

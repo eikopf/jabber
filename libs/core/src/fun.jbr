@@ -1,4 +1,4 @@
-//! Functional utilities
+//! Functional utilities.
 
 pub type alias Fn[A, B] = A -> B
 

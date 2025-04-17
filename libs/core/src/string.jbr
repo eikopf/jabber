@@ -1,0 +1,18 @@
+//! Utilities for the `string` primitive type.
+
+pub type alias String = string
+
+// UTILITY FUNCTIONS
+
+pub fn length(str: string) -> int = __prim_string_length(str)
+pub fn append(lhs: string, rhs: string) -> string = __prim_string_append(lhs, rhs)
+pub fn substring(str: string, start: int, end: int) -> string = __prim_substring(str, start, end)
+
+// EXTERNALS
+
+@external.scheme("string-length")
+extern fn __prim_string_length(str: string) -> int
+@external.scheme("string-append")
+extern fn __prim_string_append(lhs: string, rhs: string) -> string
+@external.scheme("substring*")
+extern fn __prim_substring(str: string, start: int, end: int) -> string
