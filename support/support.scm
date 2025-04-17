@@ -18,7 +18,7 @@
 (define unreachable! (print-and-quit "encountered unreachable code"))
 (define todo! (print-and-quit "not yet implemented"))
 
-;; STRING UTILITIES
+;; STRINGS
 
 ; a version of substring that returns the empty string if the indices are bad
 (define substring*
@@ -27,7 +27,7 @@
       (err ((string)))
       (substring str start end))))
 
-;; INTEGER UTILITIES
+;; INTEGERS
 
 ; a version of div that returns 0 if the rhs argument is 0
 (define div*
