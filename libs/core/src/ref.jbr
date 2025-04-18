@@ -2,8 +2,10 @@
 
 pub type Ref[T] = Ref { mutable contents: T }
 
+@total
 pub fn ref(contents: T) -> Ref[T] = Ref { contents }
 
+@total
 @operator.deref
 pub fn deref(Ref { contents }: Ref[T]) -> T = contents
 

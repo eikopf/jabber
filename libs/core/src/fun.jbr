@@ -3,12 +3,15 @@
 pub type alias Fn[A, B] = A -> B
 
 /// Returns a constant function of `x`.
+@total
 pub fn constant(x: A) -> (B -> A) = (_) -> x
 
 /// The identity function.
+@total
 pub fn id(x: A) -> A = x
 
 /// Ignores the given input and returns `()`.
+@total
 pub fn ignore(_: A) -> () = () 
 
 @operator.pipe_left

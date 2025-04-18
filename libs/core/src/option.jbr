@@ -14,11 +14,13 @@ pub fn unwrap(opt: Option[T]) -> T = match opt {
     Option.None    => panic_with_msg("Tried to unwrap a None value.")
 }
 
+@total
 pub fn is_some(opt: Option[T]) -> bool = match opt {
     Option.Some(_) => true,
     Option.None    => false,
 }
 
+@total
 pub fn is_none(opt: Option[T]) -> bool = match opt {
     Option.Some(_) => false,
     Option.None    => true,

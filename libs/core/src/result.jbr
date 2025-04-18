@@ -24,11 +24,13 @@ pub fn unwrap_err(res: Result[T, E]) -> E = match res {
     Result.Ok(_)  => panic_with_msg("Expected an Err value but got an Ok value."),
 }
 
+@total
 pub fn is_ok(res: Result[T, E]) -> bool = match res {
     Result.Ok(_)  => true,
     Result.Err(_) => false,
 }
 
+@total
 pub fn is_err(res: Result[T, E]) -> bool = match res {
     Result.Ok(_)  => false,
     Result.Err(_) => true,
