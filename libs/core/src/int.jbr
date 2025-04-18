@@ -7,27 +7,38 @@ pub const ONE:  int = 1
 
 // OPERATORS
 
+@total
 @operator.neg_int
 pub fn neg(x: int) -> int = __prim_int_neg(x)
+@total
 @operator.add_int
 pub fn add(lhs: int, rhs: int) -> int = __prim_int_add(lhs, rhs)
+@total
 @operator.sub_int
 pub fn sub(lhs: int, rhs: int) -> int = __prim_int_sub(lhs, rhs)
+@total
 @operator.mul_int
 pub fn mul(lhs: int, rhs: int) -> int = __prim_int_mul(lhs, rhs)
+@total
 @operator.div_int
 pub fn div(lhs: int, rhs: int) -> int = __prim_int_div(lhs, rhs)
+@total
 @operator.pow_int
 pub fn pow(lhs: int, rhs: int) -> int = __prim_int_pow(lhs, rhs)
+@total
 @operator.mod_int
 pub fn mod(lhs: int, rhs: int) -> int = __prim_int_mod(lhs, rhs)
 
+@total
 @operator.lt_int
 pub fn lt(lhs: int, rhs: int) -> bool = __prim_int_lt(lhs, rhs)
+@total
 @operator.gt_int
 pub fn gt(lhs: int, rhs: int) -> bool = __prim_int_gt(lhs, rhs)
+@total
 @operator.leq_int
 pub fn leq(lhs: int, rhs: int) -> bool = __prim_int_leq(lhs, rhs)
+@total
 @operator.geq_int
 pub fn geq(lhs: int, rhs: int) -> bool = __prim_int_geq(lhs, rhs)
 

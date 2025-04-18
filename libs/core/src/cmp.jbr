@@ -4,8 +4,10 @@ pub type Ord = Lt | Eq | Gt
 
 // OPERATORS
 
+@total
 @operator.eq
 pub fn eq(lhs: T, rhs: T) -> bool = __prim_eq(lhs, rhs)
+@total
 @operator.neq
 pub fn neq(lhs: T, rhs: T) -> bool = !__prim_eq(lhs, rhs)
 

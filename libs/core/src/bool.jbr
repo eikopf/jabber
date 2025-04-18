@@ -2,10 +2,14 @@
 
 pub type alias Bool = bool
 
+@total
 @operator.not
 pub fn not(b: bool) -> bool = __prim_bool_not(b)
+@total
 pub fn and(lhs: bool, rhs: bool) -> bool = __prim_bool_and(lhs, rhs)
+@total
 pub fn or(lhs: bool, rhs: bool) -> bool = __prim_bool_or(lhs, rhs)
+@total
 pub fn xor(lhs: bool, rhs: bool) -> bool = __prim_bool_xor(lhs, rhs)
 
 // PRIMITIVES

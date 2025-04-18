@@ -4,16 +4,21 @@ pub type List[T] = Nil | Cons(T, List[T])
 
 // UTILITY FUNCTIONS
 
+@total
 pub fn length(xs: List[T]) -> int = __prim_length(xs)
 pub fn map(f: A -> B, xs: List[A]) -> List[B] = __prim_map(f, xs)
 
+@total
 pub fn head(x :: xs: List[T]) -> T = x
+@total
 pub fn tail(x :: xs: List[T]) -> List[T] = xs
 
 // OPERATORS
 
+@total
 @operator.cons
 pub fn cons(head: T, tail: List[T]) -> List[T] = List.Cons(head, tail)
+@total
 @operator.append
 pub fn append(lhs: List[T], rhs: List[T]) -> List[T] = __prim_append(lhs, rhs)
 

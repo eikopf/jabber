@@ -4,8 +4,11 @@ pub type alias String = string
 
 // UTILITY FUNCTIONS
 
+@total
 pub fn length(str: string) -> int = __prim_string_length(str)
+@total
 pub fn append(lhs: string, rhs: string) -> string = __prim_string_append(lhs, rhs)
+@total
 pub fn substring(str: string, start: int, end: int) -> string = __prim_substring(str, start, end)
 
 // EXTERNALS

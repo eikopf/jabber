@@ -4,25 +4,35 @@ pub type alias Float = float
 
 // OPERATORS
 
+@total
 @operator.neg_float
 pub fn neg(x: float) -> float = __prim_float_neg(x)
+@total
 @operator.add_float
 pub fn add(lhs: float, rhs: float) -> float = __prim_float_add(lhs, rhs)
+@total
 @operator.sub_float
 pub fn sub(lhs: float, rhs: float) -> float = __prim_float_sub(lhs, rhs)
+@total
 @operator.mul_float
 pub fn mul(lhs: float, rhs: float) -> float = __prim_float_mul(lhs, rhs)
+@total
 @operator.div_float
 pub fn div(lhs: float, rhs: float) -> float = __prim_float_div(lhs, rhs)
+@total
 @operator.pow_float
 pub fn pow(lhs: float, rhs: float) -> float = __prim_float_pow(lhs, rhs)
 
+@total
 @operator.lt_float
 pub fn lt(lhs: float, rhs: float) -> bool = __prim_float_lt(lhs, rhs)
+@total
 @operator.gt_float
 pub fn gt(lhs: float, rhs: float) -> bool = __prim_float_gt(lhs, rhs)
+@total
 @operator.leq_float
 pub fn leq(lhs: float, rhs: float) -> bool = __prim_float_leq(lhs, rhs)
+@total
 @operator.geq_float
 pub fn geq(lhs: float, rhs: float) -> bool = __prim_float_geq(lhs, rhs)
 
