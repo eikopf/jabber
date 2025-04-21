@@ -3,6 +3,8 @@
 (library (jabber-support)
   (export 
     ;; BOOL
+    strict-binary-and
+    strict-binary-or
     xor 
     ;; BOXES
     box
@@ -29,7 +31,10 @@
     (only (racket base) box box? unbox set-box!))
 
   ;; BOOL
-  ; not, and, and or are all available automatically
+  
+  ; strict versions of the lazy operators
+  (define (strict-binary-and lhs rhs) (and lhs rhs))
+  (define (strict-binary-or  lhs rhs) (or  lhs rhs))
 
   (define xor boolean=?)
 
