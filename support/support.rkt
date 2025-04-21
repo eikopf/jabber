@@ -2,13 +2,13 @@
 
 (library (jabber-support)
   (export 
-    ;; PRIMITIVES
+    ;; BOOL
+    xor 
+    ;; BOXES
     box
     box?
     unbox
     set-box!
-    ;; BOOL
-    xor 
     ;; INTEGER
     div*
     ;; IO
