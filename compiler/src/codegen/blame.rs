@@ -12,6 +12,12 @@ pub struct Blame {
     pub span: Span,
 }
 
+impl Blame {
+    pub fn with<T>(self, item: T) -> Blamed<T> {
+        Blamed { blame: self, item }
+    }
+}
+
 impl std::fmt::Debug for Blame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} in file {:?}", self.span, self.file.0)

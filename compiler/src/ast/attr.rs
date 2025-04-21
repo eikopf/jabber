@@ -17,6 +17,15 @@ pub enum AttrName {
     Operator { operator: Symbol },
 }
 
+impl AttrName {
+    pub fn as_external_lang(&self) -> Option<Symbol> {
+        match self {
+            Self::External { lang } => Some(*lang),
+            _ => None,
+        }
+    }
+}
+
 /// An argument to an attribute.
 #[derive(Debug, Clone, Copy)]
 pub enum AttrArg<N> {
