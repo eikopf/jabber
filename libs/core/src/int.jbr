@@ -53,7 +53,7 @@ extern fn __prim_int_add(lhs: int, rhs: int) -> int
 extern fn __prim_int_sub(lhs: int, rhs: int) -> int
 @external.scheme("*")
 extern fn __prim_int_mul(lhs: int, rhs: int) -> int
-@external.scheme("div*")
+@external.scheme("jabber-support/div*")
 extern fn __prim_int_div(lhs: int, rhs: int) -> int
 @external.scheme("expt")
 extern fn __prim_int_pow(lhs: int, rhs: int) -> int

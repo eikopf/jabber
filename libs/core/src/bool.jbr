@@ -23,5 +23,5 @@ extern fn __prim_bool_and(lhs: bool, rhs: bool) -> bool
 @external.scheme("or")
 extern fn  __prim_bool_or(lhs: bool, rhs: bool) -> bool
 
-@external.scheme("xor")
+@external.scheme("jabber-support/xor")
 extern fn __prim_bool_xor(lhs: bool, rhs: bool) -> bool
