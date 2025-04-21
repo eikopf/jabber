@@ -39,10 +39,7 @@ impl MonoTyId {
 }
 
 /// A representable monotype.
-///
-/// This enum does not have a variant associated with functions because they do
-/// not need any runtime representation analysis; for the purposes of this code
-/// generator they are just opaque values.
+#[derive(Debug, Clone)]
 pub enum MonoTy {
     /// A tuple monotype with at least two [arguments].
     ///
@@ -50,11 +47,17 @@ pub enum MonoTy {
     Tuple(Box<[MonoArg]>),
     /// A named monotype.
     Named { name: TypeId, args: Box<[MonoArg]> },
+    /// A function monotype.
+    Fn {
+        domain: Box<[MonoArg]>,
+        codomain: MonoArg,
+    },
 }
 
 /// An argument of a [monotype constructor].
 ///
 /// [monotype constructor]: MonoTy
+#[derive(Debug, Clone, Copy)]
 pub enum MonoArg {
     /// A primitive type.
     Prim(PrimTy),

@@ -176,7 +176,7 @@ pub struct Env<
     modules: Vec<Module<I>>,
     terms: Vec<Term<Te>>,
     types: Vec<Type<Ty>>,
-    interner: StringInterner,
+    pub(crate) interner: StringInterner,
 }
 
 /// An entry in the `packages` table of an [`Env`].
@@ -436,6 +436,26 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
 }
 
 impl<Te, Ty, I> Env<Te, Ty, I> {
+    // module tree visitors
+
+    pub fn module_path(&self, module: ModId) -> Box<[ModId]> {
+        fn rec<Te, Ty, I>(
+            env: &Env<Te, Ty, I>,
+            module: ModId,
+            modules: &mut Vec<ModId>,
+        ) {
+            if let Some(parent) = env.get_module(module).parent {
+                rec(env, parent, modules);
+            };
+
+            modules.push(module)
+        }
+
+        let mut modules = Vec::new();
+        rec(self, module, &mut modules);
+        modules.into_boxed_slice()
+    }
+
     // typed index iterators
 
     pub fn term_id_iter(&self) -> impl Iterator<Item = TermId> + 'static {
@@ -528,27 +548,6 @@ impl<Te, Ty, I: Default> Default for Env<Te, Ty, I> {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Returns a reference to a `Module` from a slice based on the given
-/// `ModId`. This is actually just a simple indexing operation, so it
-/// requires that the slice is just a reference to the `modules` table
-/// of an [`Env`].
-///
-/// This function should only be used in narrow contexts where a valid
-/// [`Env`] cannot be constructed, but the `modules` field of a valid
-/// [`Env`] is available; most commonly this occurs in functions which
-/// convert between different [`Env`] types.
-///
-/// # Safety
-/// The `modules` slice must have exactly the same length as the [`Env`]
-/// from which it was derived, and the `id` must correspond to the same
-/// [`Env`].
-unsafe fn blind_module_index<I>(
-    modules: &[Module<I>],
-    ModId(raw_index): ModId,
-) -> &Module<I> {
-    &modules[raw_index]
 }
 
 fn latest_index<T>(slice: &[T]) -> usize {

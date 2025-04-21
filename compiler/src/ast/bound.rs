@@ -240,6 +240,16 @@ pub enum LiteralExpr {
     Malformed(MalformedLiteral),
 }
 
+impl LiteralExpr {
+    pub fn as_string(&self) -> Option<Symbol> {
+        if let Self::String(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+}
+
 /// The set of literal types that can be grammatically well-formed but
 /// semantically ill-formed.
 #[derive(Debug, Clone, Copy)]
