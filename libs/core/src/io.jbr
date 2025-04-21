@@ -1,0 +1,10 @@
+//! standard IO utilities
+
+// UTILITY FUNCTIONS
+
+pub fn println(s: string) -> () = __prim_println(s)
+
+// EXTERNALS
+
+@external.scheme("jabber-support/println")
+extern fn __prim_println(s: string) -> ()
