@@ -705,7 +705,7 @@ impl TyMatrix<Uid> {
 }
 
 /// A primitive type.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PrimTy {
     Never,
     Unit,
