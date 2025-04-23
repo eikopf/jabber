@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 use crate::symbol::{StringInterner, Symbol};
 use pretty::RcDoc;
-use recursion::{Collapsible, Expandable, MappableFrame, PartiallyApplied};
+use recursion::{
+    Collapsible, CollapsibleExt, Expandable, MappableFrame, PartiallyApplied,
+};
 
 use super::blame::{BlameSeq, Blamed};
 
@@ -33,12 +35,54 @@ pub enum Expr {
         args: Box<[Symbol]>,
         body: Box<Self>,
     },
+    /// The racket `(match val-expr clause ...)` form (Racket Reference §9).
+    Match {
+        scrutinee: Box<Self>,
+        arms: Box<[MatchArm]>,
+    },
+    /// The racket `(match-lambda** [(<patterns>) <body>])` form (Racket Reference §9).
+    MatchLambdaVariadic {
+        patterns: Box<[Pattern]>,
+        body: Box<Self>,
+    },
     /// A [`Literal`] expression.
     Literal(Literal),
     /// A [`Builtin`] expression.
     Builtin(Builtin),
     /// A plain identifier.
     Symbol(Symbol),
+}
+
+#[derive(Debug, Clone)]
+pub struct MatchArm<A = Expr> {
+    pub pattern: Pattern,
+    pub body: A,
+}
+
+/// A subset of the racket pattern grammar.
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    Wildcard,
+    Literal(Literal),
+    Ident(Symbol),
+    Cons { head: Box<Self>, tail: Box<Self> },
+    Box(Box<Self>),
+    List(Box<[Self]>),
+    Vector(Box<[Self]>),
+}
+
+impl Pattern {
+    pub fn nil() -> Self {
+        Pattern::List(Default::default())
+    }
+
+    pub fn to_doc(
+        self,
+        interner: &mut StringInterner,
+    ) -> Option<RcDoc<'static, ()>> {
+        self.try_collapse_frames(|frame| frame.to_doc(interner).ok_or(()))
+            .ok()
+    }
 }
 
 impl Expandable for Expr {
@@ -60,6 +104,16 @@ impl Expandable for Expr {
                 args,
                 body: Box::new(body),
             },
+            ExprFrame::Match { scrutinee, arms } => Expr::Match {
+                scrutinee: Box::new(scrutinee),
+                arms,
+            },
+            ExprFrame::MatchLambdaVariadic { patterns, body } => {
+                Expr::MatchLambdaVariadic {
+                    patterns,
+                    body: Box::new(body),
+                }
+            }
             ExprFrame::Literal(literal) => Expr::Literal(literal),
             ExprFrame::Builtin(builtin) => Expr::Builtin(builtin),
             ExprFrame::Variable(var) => Expr::Symbol(var),
@@ -83,6 +137,16 @@ impl Collapsible for Expr {
             Expr::Lambda { args, body } => {
                 ExprFrame::Lambda { args, body: *body }
             }
+            Expr::Match { scrutinee, arms } => ExprFrame::Match {
+                scrutinee: *scrutinee,
+                arms,
+            },
+            Expr::MatchLambdaVariadic { patterns, body } => {
+                ExprFrame::MatchLambdaVariadic {
+                    patterns,
+                    body: *body,
+                }
+            }
             Expr::Literal(literal) => ExprFrame::Literal(literal),
             Expr::Builtin(builtin) => ExprFrame::Builtin(builtin),
             Expr::Symbol(var) => ExprFrame::Variable(var),
@@ -102,6 +166,14 @@ pub enum ExprFrame<A> {
     },
     Lambda {
         args: Box<[Symbol]>,
+        body: A,
+    },
+    Match {
+        scrutinee: A,
+        arms: Box<[MatchArm<A>]>,
+    },
+    MatchLambdaVariadic {
+        patterns: Box<[Pattern]>,
         body: A,
     },
     Literal(Literal),
@@ -132,9 +204,102 @@ impl MappableFrame for ExprFrame<PartiallyApplied> {
                 args,
                 body: f(body),
             },
+            ExprFrame::Match { scrutinee, arms } => ExprFrame::Match {
+                scrutinee: f(scrutinee),
+                arms: arms
+                    .into_iter()
+                    .map(|MatchArm { pattern, body }| MatchArm {
+                        pattern,
+                        body: f(body),
+                    })
+                    .collect(),
+            },
+            ExprFrame::MatchLambdaVariadic { patterns, body } => {
+                ExprFrame::MatchLambdaVariadic {
+                    patterns,
+                    body: f(body),
+                }
+            }
             ExprFrame::Literal(literal) => ExprFrame::Literal(literal),
             ExprFrame::Builtin(builtin) => ExprFrame::Builtin(builtin),
             ExprFrame::Variable(var) => ExprFrame::Variable(var),
+        }
+    }
+}
+
+impl Expandable for Pattern {
+    type FrameToken = PatternFrame<PartiallyApplied>;
+
+    fn from_frame(
+        val: <Self::FrameToken as MappableFrame>::Frame<Self>,
+    ) -> Self {
+        match val {
+            PatternFrame::Wildcard => Pattern::Wildcard,
+            PatternFrame::Literal(literal) => Pattern::Literal(literal),
+            PatternFrame::Ident(symbol) => Pattern::Ident(symbol),
+            PatternFrame::Cons { head, tail } => Pattern::Cons {
+                head: Box::new(head),
+                tail: Box::new(tail),
+            },
+            PatternFrame::Box(inner) => Pattern::Box(Box::new(inner)),
+            PatternFrame::List(elems) => Pattern::List(elems),
+            PatternFrame::Vector(elems) => Pattern::Vector(elems),
+        }
+    }
+}
+
+impl Collapsible for Pattern {
+    type FrameToken = PatternFrame<PartiallyApplied>;
+
+    fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
+        match self {
+            Pattern::Wildcard => PatternFrame::Wildcard,
+            Pattern::Literal(literal) => PatternFrame::Literal(literal),
+            Pattern::Ident(symbol) => PatternFrame::Ident(symbol),
+            Pattern::Cons { head, tail } => PatternFrame::Cons {
+                head: *head,
+                tail: *tail,
+            },
+            Pattern::Box(inner) => PatternFrame::Box(*inner),
+            Pattern::List(elems) => PatternFrame::List(elems),
+            Pattern::Vector(elems) => PatternFrame::Vector(elems),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PatternFrame<A> {
+    Wildcard,
+    Literal(Literal),
+    Ident(Symbol),
+    Cons { head: A, tail: A },
+    Box(A),
+    List(Box<[A]>),
+    Vector(Box<[A]>),
+}
+
+impl MappableFrame for PatternFrame<PartiallyApplied> {
+    type Frame<X> = PatternFrame<X>;
+
+    fn map_frame<A, B>(
+        input: Self::Frame<A>,
+        mut f: impl FnMut(A) -> B,
+    ) -> Self::Frame<B> {
+        match input {
+            PatternFrame::Wildcard => PatternFrame::Wildcard,
+            PatternFrame::Literal(literal) => PatternFrame::Literal(literal),
+            PatternFrame::Ident(symbol) => PatternFrame::Ident(symbol),
+            PatternFrame::Cons { head, tail } => PatternFrame::Cons {
+                head: f(head),
+                tail: f(tail),
+            },
+            PatternFrame::Box(inner) => PatternFrame::Box(f(inner)),
+            PatternFrame::List(elems) => {
+                PatternFrame::List(elems.into_iter().map(f).collect())
+            }
+            PatternFrame::Vector(elems) => {
+                PatternFrame::Vector(elems.into_iter().map(f).collect())
+            }
         }
     }
 }
@@ -171,7 +336,7 @@ impl ExprFrame<RcDoc<'static, ()>> {
                         .append(RcDoc::text("["))
                         .append(RcDoc::intersperse(bindings, RcDoc::line()))
                         .append(RcDoc::text("]"))
-                        .append(RcDoc::hardline().append(body).nest(1))
+                        .append(RcDoc::hardline().append(body).nest(2))
                         .append(RcDoc::text(")")),
                 )
             }
@@ -207,7 +372,29 @@ impl ExprFrame<RcDoc<'static, ()>> {
                                 ))
                                 .append(RcDoc::text("]")),
                         ))
-                        .append(RcDoc::line().append(body).nest(1))
+                        .append(RcDoc::line().append(body).nest(2))
+                        .append(RcDoc::text(")")),
+                )
+            }
+            ExprFrame::Match { scrutinee, arms } => todo!(),
+            ExprFrame::MatchLambdaVariadic { patterns, body } => {
+                let patterns = RcDoc::text("(")
+                    .append(RcDoc::intersperse(
+                        patterns.into_iter().map(|pat| pat.to_doc(interner)),
+                        RcDoc::space(),
+                    ))
+                    .append(RcDoc::text(")"));
+
+                Some(
+                    RcDoc::text("(")
+                        .append(RcDoc::text("match-lambda**"))
+                        .append(RcDoc::space())
+                        .append(RcDoc::group(
+                            RcDoc::text("[")
+                                .append(RcDoc::group(patterns))
+                                .append(RcDoc::text("]")),
+                        ))
+                        .append(RcDoc::line().append(body).nest(2))
                         .append(RcDoc::text(")")),
                 )
             }
@@ -218,6 +405,38 @@ impl ExprFrame<RcDoc<'static, ()>> {
             ExprFrame::Variable(symbol) => {
                 Some(RcDoc::as_string(interner.resolve(symbol)?))
             }
+        }
+    }
+}
+
+impl PatternFrame<RcDoc<'static, ()>> {
+    pub fn to_doc(
+        self,
+        interner: &mut StringInterner,
+    ) -> Option<RcDoc<'static, ()>> {
+        match self {
+            PatternFrame::Wildcard => Some(RcDoc::text("_")),
+            PatternFrame::Literal(literal) => literal.to_doc(interner),
+            PatternFrame::Ident(symbol) => {
+                let symbol = interner.resolve(symbol)?;
+                Some(
+                    RcDoc::text("(var ")
+                        .append(RcDoc::as_string(symbol))
+                        .append(RcDoc::text(")")),
+                )
+            }
+            PatternFrame::Cons { head, tail } => Some(
+                RcDoc::text("(cons ")
+                    .append(head)
+                    .append(RcDoc::space())
+                    .append(tail)
+                    .append(RcDoc::text(")")),
+            ),
+            PatternFrame::Box(inner) => Some(
+                RcDoc::text("(box ").append(inner).append(RcDoc::text(")")),
+            ),
+            PatternFrame::List(_) => todo!(),
+            PatternFrame::Vector(_) => todo!(),
         }
     }
 }
@@ -271,6 +490,12 @@ impl Literal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Builtin {
     Void,
+
+    // BOXED VALUES
+    Box,
+    IsBox,
+    Unbox,
+    SetBox,
 
     // EQUIVALENCE (R6RS §11.5)
     /// Structural equality in the sense of OCaml's `=`.
@@ -362,6 +587,12 @@ impl Builtin {
     pub const fn identifier(&self) -> &'static str {
         match self {
             Self::Void => "void",
+
+            // BOXES
+            Self::Box => "box",
+            Self::IsBox => "box?",
+            Self::Unbox => "unbox",
+            Self::SetBox => "set-box!",
 
             // EQUIVALENCE
             Self::StructuralEq => "equal?",
@@ -474,6 +705,39 @@ mod tests {
 
     use super::*;
 
+    macro_rules! symbol {
+        ($sym:expr) => {
+            super::Expr::Symbol($sym)
+        };
+    }
+
+    macro_rules! call {
+        ($callee:expr, $($arg:expr),*) => {
+            super::Expr::Call {
+                callee: std::boxed::Box::new($callee),
+                args: vec![$($arg,)*].into_boxed_slice(),
+            }
+        };
+    }
+
+    macro_rules! r#let {
+        ([$([$lhs:expr, $rhs:expr]),*] $body:expr) => {
+            super::Expr::Let {
+                bindings: vec![$(($lhs, $rhs)),*].into_boxed_slice(),
+                body: std::boxed::Box::new($body),
+            }
+        };
+    }
+
+    macro_rules! lambda {
+        ([$($param:expr),*] $body:expr) => {
+            super::Expr::Lambda {
+                args: vec![$($param,)*].into_boxed_slice(),
+                body: std::boxed::Box::new($body),
+            }
+        };
+    }
+
     #[test]
     fn simple_doc_printing() {
         let mut interner = crate::symbol::StringInterner::new();
@@ -481,23 +745,36 @@ mod tests {
         let y = interner.intern_static("y");
         let add = interner.intern_static("add");
 
-        let expr = Expr::Let {
-            bindings: vec![(add, Expr::Builtin(Builtin::Plus))].into(),
-            body: Box::new(Expr::Lambda {
-                args: vec![x, y].into_boxed_slice(),
-                body: Box::new(Expr::Call {
-                    callee: Box::new(Expr::Symbol(add)),
-                    args: vec![Expr::Symbol(x), Expr::Symbol(y)]
-                        .into_boxed_slice(),
-                }),
-            }),
-        };
+        let expr = r#let!([[add, Expr::Builtin(Builtin::Plus)]]
+                        lambda!([x, y]
+                            call!(symbol!(add), symbol!(x), symbol!(y))));
 
         let doc =
             expr.collapse_frames(|frame| frame.to_doc(&mut interner).unwrap());
 
         let repr = format!("{}", doc.pretty(80));
         eprintln!("{repr}");
-        assert_eq!(repr, "(let [[add +]]\n (lambda [x y]\n  (add x y)))");
+        assert_eq!(repr, "(let [[add +]]\n  (lambda [x y]\n    (add x y)))");
+    }
+
+    #[test]
+    fn match_lambda_var_printing() {
+        let mut interner = crate::symbol::StringInterner::new();
+        let contents = interner.intern_static("contents");
+
+        let expr = Expr::MatchLambdaVariadic {
+            patterns: vec![Pattern::Box(Box::new(Pattern::Ident(contents)))]
+                .into_boxed_slice(),
+            body: Box::new(symbol!(contents)),
+        };
+
+        let doc =
+            expr.collapse_frames(|frame| frame.to_doc(&mut interner).unwrap());
+        let repr = format!("{}", doc.pretty(80));
+        eprintln!("{repr}");
+        assert_eq!(
+            repr,
+            "(match-lambda** [((box (var contents)))]\n  contents)"
+        );
     }
 }

@@ -70,24 +70,53 @@ pub enum MonoArg {
 /// The runtime shape of a type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Shape {
-    /// Isomorphic to `!`.
-    Uninhabited,
-    /// Isomorphic to `()`.
-    Singleton,
+    /// A primitive shape.
+    Prim(PrimTy),
     /// Isomorphic to `core.ref.Ref[T]`.
     MutBox,
     /// Isomorphic to `core.list.List[T]`.
     List,
     /// Isomorphic to `core.option.Option`.
     Option,
+    /// An external type whose contents are opaque.
+    Extern { name: TypeId },
+    /// A function reference of a fixed `arity`.
+    Fn { arity: usize },
+    /// A type with a single variant of a fixed `arity`.
+    Struct { arity: usize },
     /// A type with several variants.
     Variants(Box<[Variant]>),
 }
 
 /// The runtime shape of a particular type variant.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Most variants will be [`Plain`]; this encompasses the vast majority of type constructors.
+/// However, we distinguish some special variant shapes for particular analysis.
+///
+/// - The [`Cons`] variant denotes a tuple constructor with two fields and where the second field
+///     is recursive; this is used to identify types which might be isomorphic to `core.list.List`.
+/// - The [`Ref`] variant denotes a record constructor with a single mutable field, which is used
+///     to identify types which might be isomorphic to `core.ref.Ref`.
+///
+/// [`Plain`]: Variant::Plain
+/// [`Cons`]: Variant::Cons
+/// [`Ref`]: Variant::Ref
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Variant {
-    Unit,
-    Tuple { arity: NonZeroUsize },
-    Record { fields: Box<[Symbol]> },
+    /// A tuple variant with two fields, the second of which is recursive.
+    Cons,
+    /// A record variant with a single mutable field.
+    Ref,
+    /// A variant with a fixed number of fields and no notable properties.
+    Plain { arity: usize },
+}
+
+impl Variant {
+    pub fn arity(&self) -> usize {
+        match self {
+            Variant::Cons => 2,
+            Variant::Ref => 1,
+            Variant::Plain { arity } => *arity,
+        }
+    }
 }
