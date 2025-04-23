@@ -5,6 +5,7 @@ pub mod cmp
 pub mod float
 pub mod fun
 pub mod int
+pub mod io
 pub mod list
 pub mod option
 pub mod panic
@@ -12,6 +13,3 @@ pub mod prelude
 pub mod ref
 pub mod result
 pub mod string
-
-// ad-hoc testing module
-mod __test
