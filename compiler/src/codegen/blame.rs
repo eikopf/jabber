@@ -28,8 +28,8 @@ pub type BlameSeq<T> = Box<[Blamed<T>]>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Blamed<T> {
-    item: T,
-    blame: Blame,
+    pub item: T,
+    pub blame: Blame,
 }
 
 impl<T> Blamed<T> {
