@@ -1,7 +1,10 @@
 #!r6rs
 
 (library (jabber-support)
-  (export 
+  (export
+    ;; PATTERN MATCHING
+    match
+    match-lambda**
     ;; BOOL
     strict-binary-and
     strict-binary-or
@@ -28,7 +31,8 @@
     (rnrs programs (6))
     (rnrs exceptions (6))
     (rnrs io simple (6))
-    (only (racket base) box box? unbox set-box!))
+    (only (racket base) box box? unbox set-box!)
+    (only (racket match) match match-lambda**))
 
   ;; BOOL
   
@@ -36,7 +40,9 @@
   (define (strict-binary-and lhs rhs) (and lhs rhs))
   (define (strict-binary-or  lhs rhs) (or  lhs rhs))
 
-  (define xor boolean=?)
+  ; binary XOR is the complement of boolean equality
+  (define (xor lhs rhs) 
+    (not (boolean=? lhs rhs)))
 
   ;; INTEGERS
 
