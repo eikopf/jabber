@@ -9,7 +9,7 @@ use string_interner::{self, backend, symbol};
 /// the typical word size is 5 characters.
 const INTERNER_CAPACITY: usize = 1024;
 
-#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Symbol(symbol::SymbolU32);
 
 #[derive(Debug)]
