@@ -80,7 +80,7 @@ impl Pattern {
         self,
         interner: &mut StringInterner,
     ) -> Option<RcDoc<'static, ()>> {
-        self.try_collapse_frames(|frame| frame.to_doc(interner).ok_or(()))
+        self.try_collapse_frames(|frame| frame.to_opt_doc(interner).ok_or(()))
             .ok()
     }
 }
@@ -305,7 +305,7 @@ impl MappableFrame for PatternFrame<PartiallyApplied> {
 }
 
 impl ExprFrame<RcDoc<'static, ()>> {
-    pub fn to_doc(
+    pub fn to_opt_doc(
         self,
         interner: &mut StringInterner,
     ) -> Option<RcDoc<'static, ()>> {
@@ -376,7 +376,26 @@ impl ExprFrame<RcDoc<'static, ()>> {
                         .append(RcDoc::text(")")),
                 )
             }
-            ExprFrame::Match { scrutinee, arms } => todo!(),
+            ExprFrame::Match { scrutinee, arms } => {
+                let arms =
+                    arms.into_iter().map(|MatchArm { pattern, body }| {
+                        RcDoc::text("[")
+                            .append(pattern.to_doc(interner))
+                            .append(RcDoc::space())
+                            .append(body)
+                            .append(RcDoc::text("]"))
+                    });
+
+                Some(
+                    RcDoc::text("(")
+                        .append(RcDoc::text("match"))
+                        .append(RcDoc::space())
+                        .append(scrutinee)
+                        .append(RcDoc::line().nest(2))
+                        .append(RcDoc::intersperse(arms, RcDoc::line()))
+                        .append(RcDoc::text(")")),
+                )
+            }
             ExprFrame::MatchLambdaVariadic { patterns, body } => {
                 let patterns = RcDoc::text("(")
                     .append(RcDoc::intersperse(
@@ -398,7 +417,7 @@ impl ExprFrame<RcDoc<'static, ()>> {
                         .append(RcDoc::text(")")),
                 )
             }
-            ExprFrame::Literal(literal) => literal.to_doc(interner),
+            ExprFrame::Literal(literal) => literal.to_opt_doc(interner),
             ExprFrame::Builtin(builtin) => {
                 Some(RcDoc::as_string(builtin.identifier()))
             }
@@ -410,13 +429,13 @@ impl ExprFrame<RcDoc<'static, ()>> {
 }
 
 impl PatternFrame<RcDoc<'static, ()>> {
-    pub fn to_doc(
+    pub fn to_opt_doc(
         self,
         interner: &mut StringInterner,
     ) -> Option<RcDoc<'static, ()>> {
         match self {
             PatternFrame::Wildcard => Some(RcDoc::text("_")),
-            PatternFrame::Literal(literal) => literal.to_doc(interner),
+            PatternFrame::Literal(literal) => literal.to_opt_doc(interner),
             PatternFrame::Ident(symbol) => {
                 let symbol = interner.resolve(symbol)?;
                 Some(
@@ -435,8 +454,20 @@ impl PatternFrame<RcDoc<'static, ()>> {
             PatternFrame::Box(inner) => Some(
                 RcDoc::text("(box ").append(inner).append(RcDoc::text(")")),
             ),
-            PatternFrame::List(_) => todo!(),
-            PatternFrame::Vector(_) => todo!(),
+            PatternFrame::List(elems) => Some(
+                RcDoc::text("(")
+                    .append(RcDoc::text("list"))
+                    .append(RcDoc::space())
+                    .append(RcDoc::intersperse(elems, RcDoc::space()))
+                    .append(")"),
+            ),
+            PatternFrame::Vector(elems) => Some(
+                RcDoc::text("(")
+                    .append(RcDoc::text("vector"))
+                    .append(RcDoc::space())
+                    .append(RcDoc::intersperse(elems, RcDoc::space()))
+                    .append(")"),
+            ),
         }
     }
 }
@@ -461,7 +492,7 @@ pub enum Literal {
 }
 
 impl Literal {
-    pub fn to_doc(
+    pub fn to_opt_doc(
         &self,
         interner: &mut StringInterner,
     ) -> Option<RcDoc<'static, ()>> {
@@ -751,8 +782,8 @@ mod tests {
                         lambda!([x, y]
                             call!(symbol!(add), symbol!(x), symbol!(y))));
 
-        let doc =
-            expr.collapse_frames(|frame| frame.to_doc(&mut interner).unwrap());
+        let doc = expr
+            .collapse_frames(|frame| frame.to_opt_doc(&mut interner).unwrap());
 
         let repr = format!("{}", doc.pretty(80));
         eprintln!("{repr}");
@@ -770,8 +801,8 @@ mod tests {
             body: Box::new(symbol!(contents)),
         };
 
-        let doc =
-            expr.collapse_frames(|frame| frame.to_doc(&mut interner).unwrap());
+        let doc = expr
+            .collapse_frames(|frame| frame.to_opt_doc(&mut interner).unwrap());
         let repr = format!("{}", doc.pretty(80));
         eprintln!("{repr}");
         assert_eq!(
