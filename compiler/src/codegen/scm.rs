@@ -577,6 +577,7 @@ pub enum Builtin {
     // VECTOR BULTINS (R6RS §11.13)
     Vector,
     VectorLength,
+    VectorSet,
     VectorRef,
     VectorToList,
     ListToVector,
@@ -672,6 +673,7 @@ impl Builtin {
             // VECTOR
             Self::Vector => "vector",
             Self::VectorLength => "vector-length",
+            Self::VectorSet => "vector-set!",
             Self::VectorRef => "vector-ref",
             Self::VectorToList => "vector->list",
             Self::ListToVector => "list->vector",
