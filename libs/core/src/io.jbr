@@ -6,5 +6,5 @@ pub fn println(s: string) -> () = __prim_println(s)
 
 // EXTERNALS
 
-@external.scheme("jabber-support/println")
+@external.scheme("println")
 extern fn __prim_println(s: string) -> ()
