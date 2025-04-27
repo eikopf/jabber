@@ -356,13 +356,13 @@ impl<Te, Ty, I: Default> Env<Te, Ty, I> {
 
     pub fn register_package(
         &mut self,
-        name: &str,
+        raw_name: &str,
         version: semver::Version,
         root_file: FileId,
         dependencies: Box<[Symbol]>,
     ) -> Symbol {
-        let name = self.interner.intern(name);
-        let root_module = self.register_module("", None, root_file, name);
+        let name = self.interner.intern(raw_name);
+        let root_module = self.register_module(raw_name, None, root_file, name);
 
         let package = Package {
             version,

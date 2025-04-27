@@ -59,3 +59,53 @@ impl<T: ToDoc> ToDoc for lower::Def<T> {
             .append(RcDoc::text(")"))
     }
 }
+
+impl ToDoc for lower::LoweredPackage {
+    fn to_doc(self, interner: &mut StringInterner) -> RcDoc<'static, ()> {
+        let externals = self
+            .externals
+            .into_iter()
+            .map(|ext| ext.to_doc(interner))
+            .collect::<Vec<_>>();
+
+        let constrs = self
+            .constrs
+            .into_iter()
+            .map(|ext| ext.to_doc(interner))
+            .collect::<Vec<_>>();
+
+        let functions = self
+            .functions
+            .into_iter()
+            .map(|ext| ext.to_doc(interner))
+            .collect::<Vec<_>>();
+
+        let constants = self
+            .constants
+            .into_iter()
+            .map(|ext| ext.to_doc(interner))
+            .collect::<Vec<_>>();
+
+        RcDoc::text("(")
+            .append(RcDoc::text("library"))
+            .append(RcDoc::space())
+            .append(RcDoc::text("("))
+            .append(RcDoc::as_string(interner.resolve(self.name).unwrap()))
+            .append(RcDoc::text(")"))
+            .append(RcDoc::line())
+            .append(RcDoc::text("(import (jabber-support))"))
+            .append(RcDoc::line())
+            .append(RcDoc::line())
+            .append(RcDoc::intersperse(externals, RcDoc::line()))
+            .append(RcDoc::line())
+            .append(RcDoc::line())
+            .append(RcDoc::intersperse(constrs, RcDoc::line()))
+            .append(RcDoc::line())
+            .append(RcDoc::line())
+            .append(RcDoc::intersperse(functions, RcDoc::line()))
+            .append(RcDoc::line())
+            .append(RcDoc::line())
+            .append(RcDoc::intersperse(constants, RcDoc::line()))
+            .append(")")
+    }
+}
