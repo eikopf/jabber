@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use pretty::RcDoc;
+
 use crate::{
     ast::{
         attr::{Attr, AttrArg, AttrName},
@@ -14,13 +16,13 @@ use crate::{
         typed::{TyVar, TypedEnv},
     },
     span::Spanned,
-    symbol::Symbol,
+    symbol::{StringInterner, Symbol},
     unique::Uid,
 };
 
 use super::{
     blame::Blamed,
-    repr::{MonoTyId, Shape, Variant},
+    repr::{Shape, Variant},
     scm::{Builtin, Expr, Literal, Pattern},
 };
 
@@ -68,10 +70,6 @@ pub struct Lowerer<'a> {
     type_constr_definitions: HashMap<TyConstrIndex, Def<Blamed<Expr>>>,
     /// The canonical orderings of the fields of record constructors.
     field_orders: HashMap<TyConstrIndex, Box<[Symbol]>>,
-    /// Lowered monotype representations.
-    type_reprs: HashMap<MonoTyId, Shape>,
-    /// The next unused monotype ID.
-    next_mono_ty_id: MonoTyId,
     /// The symbol for the string `scheme`.
     scheme_symbol: Symbol,
 }
@@ -110,8 +108,6 @@ impl<'a> Lowerer<'a> {
             named_type_shapes: Default::default(),
             type_constr_definitions: Default::default(),
             field_orders: Default::default(),
-            type_reprs: Default::default(),
-            next_mono_ty_id: MonoTyId::MIN,
             scheme_symbol,
         }
     }
@@ -962,13 +958,6 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    /// Returns an unused monotype ID.
-    fn fresh_mono_ty_id(&mut self) -> MonoTyId {
-        let id = self.next_mono_ty_id;
-        self.next_mono_ty_id.increment();
-        id
-    }
-
     fn get_constr(
         &self,
         TyConstrIndex { ty, name }: TyConstrIndex,
@@ -1004,6 +993,7 @@ fn collect_terms(env: &TypedEnv, module: ModId, terms: &mut Vec<TermId>) {
 #[cfg(test)]
 mod tests {
     use crate::{
+        codegen::ToDoc,
         codegen::lower::Lowerer,
         cst::Parser,
         env::{
@@ -1057,7 +1047,18 @@ mod tests {
         let mut lowerer = Lowerer::new(&mut env);
         let core_package = lowerer.lower_package(core_symbol);
 
-        dbg![&core_package];
+        for ext in core_package.externals {
+            eprintln!("{}", ext.to_doc(&mut env.interner).pretty(80));
+        }
+
+        for constr in core_package.constrs {
+            eprintln!("{}", constr.to_doc(&mut env.interner).pretty(80));
+        }
+
+        for func in core_package.functions {
+            eprintln!("{}", func.to_doc(&mut env.interner).pretty(80));
+        }
+
         panic!()
     }
 }
