@@ -17,11 +17,11 @@ pub fn xor(lhs: bool, rhs: bool) -> bool = __prim_bool_xor(lhs, rhs)
 @external.scheme("not")
 extern fn __prim_bool_not(b: bool) -> bool
 
-@external.scheme("jabber-support/strict-binary-and")
+@external.scheme("strict-binary-and")
 extern fn __prim_bool_and(lhs: bool, rhs: bool) -> bool
 
-@external.scheme("jabber-support/strict-binary-or")
+@external.scheme("strict-binary-or")
 extern fn  __prim_bool_or(lhs: bool, rhs: bool) -> bool
 
-@external.scheme("jabber-support/xor")
+@external.scheme("xor")
 extern fn __prim_bool_xor(lhs: bool, rhs: bool) -> bool

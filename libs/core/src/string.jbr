@@ -17,5 +17,5 @@ pub fn substring(str: string, start: int, end: int) -> string = __prim_substring
 extern fn __prim_string_length(str: string) -> int
 @external.scheme("string-append")
 extern fn __prim_string_append(lhs: string, rhs: string) -> string
-@external.scheme("jabber-support/substring*")
+@external.scheme("substring*")
 extern fn __prim_substring(str: string, start: int, end: int) -> string
