@@ -407,13 +407,14 @@ impl ExprFrame<RcDoc<'static, ()>> {
                 Some(
                     RcDoc::text("(")
                         .append(RcDoc::text("match-lambda**"))
-                        .append(RcDoc::space())
+                        .append(RcDoc::softline().nest(2))
                         .append(RcDoc::group(
                             RcDoc::text("[")
-                                .append(RcDoc::group(patterns))
+                                .append(patterns)
+                                .append(RcDoc::softline())
+                                .append(body)
                                 .append(RcDoc::text("]")),
                         ))
-                        .append(RcDoc::line().append(body).nest(2))
                         .append(RcDoc::text(")")),
                 )
             }
@@ -805,9 +806,6 @@ mod tests {
             .collapse_frames(|frame| frame.to_opt_doc(&mut interner).unwrap());
         let repr = format!("{}", doc.pretty(80));
         eprintln!("{repr}");
-        assert_eq!(
-            repr,
-            "(match-lambda** [((box (var contents)))]\n  contents)"
-        );
+        assert_eq!(repr, "(match-lambda** [((box (var contents))) contents])");
     }
 }

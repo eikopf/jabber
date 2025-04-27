@@ -2,8 +2,6 @@
 
 use std::collections::HashMap;
 
-use pretty::RcDoc;
-
 use crate::{
     ast::{
         attr::{Attr, AttrArg, AttrName},
@@ -16,7 +14,7 @@ use crate::{
         typed::{TyVar, TypedEnv},
     },
     span::Spanned,
-    symbol::{StringInterner, Symbol},
+    symbol::Symbol,
     unique::Uid,
 };
 
@@ -144,7 +142,13 @@ impl<'a> Lowerer<'a> {
 
             // HACK: evil unnecessary clone!!!
             let term = ast.item().clone();
-            self.lower_term(&mut lowered_package, blame, *module, &term);
+            self.lower_term(
+                term_id,
+                &mut lowered_package,
+                blame,
+                *module,
+                &term,
+            );
         }
 
         // finally, dump the type constructor defs generated during lowering into the package
@@ -157,6 +161,7 @@ impl<'a> Lowerer<'a> {
 
     pub fn lower_term(
         &mut self,
+        id: TermId,
         package: &mut LoweredPackage,
         blame: Blame,
         module: ModId,
@@ -171,8 +176,9 @@ impl<'a> Lowerer<'a> {
             let file = self.env.get_module(module).file;
             let span = name.content.span();
             let blame = Blame { file, span };
+            let content = self.get_canonical_name(id);
 
-            blame.with(name.content.item)
+            blame.with(content)
         };
 
         match kind {
@@ -746,14 +752,13 @@ impl<'a> Lowerer<'a> {
                 // get module prefix
                 let module = self.env.get_term(term).module;
                 let module_path = self.env.module_path(module);
-                let (_root, module_prefix) = module_path.split_first().unwrap();
 
                 // get the term's base name
                 let base_symbol = self.env.get_term(term).name;
                 let base_name = self.env.interner.resolve(base_symbol).unwrap();
 
                 // resolve module names
-                let prefix_components = module_prefix.iter().map(|&module| {
+                let prefix_components = module_path.iter().map(|&module| {
                     let mod_name = self.env.get_module(module).name;
                     self.env.interner.resolve(mod_name).unwrap()
                 });
@@ -1047,18 +1052,7 @@ mod tests {
         let mut lowerer = Lowerer::new(&mut env);
         let core_package = lowerer.lower_package(core_symbol);
 
-        for ext in core_package.externals {
-            eprintln!("{}", ext.to_doc(&mut env.interner).pretty(80));
-        }
-
-        for constr in core_package.constrs {
-            eprintln!("{}", constr.to_doc(&mut env.interner).pretty(80));
-        }
-
-        for func in core_package.functions {
-            eprintln!("{}", func.to_doc(&mut env.interner).pretty(80));
-        }
-
+        eprintln!("{}", core_package.to_doc(&mut env.interner).pretty(80));
         panic!()
     }
 }
