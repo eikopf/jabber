@@ -67,7 +67,7 @@ pub struct Lowerer<'a> {
     /// The type constructor definitions generated while lowering.
     type_constr_definitions: HashMap<TyConstrIndex, Def<Blamed<Expr>>>,
     /// The canonical orderings of the fields of record constructors.
-    field_indices: HashMap<(TyConstrIndex, Symbol), usize>,
+    field_orders: HashMap<TyConstrIndex, Box<[Symbol]>>,
     /// Lowered monotype representations.
     type_reprs: HashMap<MonoTyId, Shape>,
     /// The next unused monotype ID.
@@ -109,7 +109,7 @@ impl<'a> Lowerer<'a> {
             canonical_constr_names: Default::default(),
             named_type_shapes: Default::default(),
             type_constr_definitions: Default::default(),
-            field_indices: Default::default(),
+            field_orders: Default::default(),
             type_reprs: Default::default(),
             next_mono_ty_id: MonoTyId::MIN,
             scheme_symbol,
@@ -263,11 +263,7 @@ impl<'a> Lowerer<'a> {
                 return_expr,
             } => todo!(),
             ast::Expr::RecordConstr { name, fields, base } => {
-                // TODO: we need to do the following:
-                // 1. if base is present, use it to fill in missing fields
-                // 2. otherwise just iterate over the fields directly
-                // 3. each field is assigned its index in the vector by the order among Symbols
-
+                // get constr ID
                 let constr = match name.id() {
                     ast::BindingId::Global(Res::TyConstr { ty, name }) => {
                         TyConstrIndex { ty, name }
@@ -279,16 +275,60 @@ impl<'a> Lowerer<'a> {
                     _ => panic!("bad record constructor name"),
                 };
 
+                // collect some metadata
+                let base_name = self.env.interner.intern_static("BASE*");
                 let discriminant = self.discriminant(constr);
+                let index_start = if discriminant.is_some() { 1 } else { 0 };
+                let field_order = Box::from_iter(
+                    self.get_field_ordering(constr).iter().copied(),
+                );
 
-                // TODO: we have two options depending on whether base is Some or not
-                // 1. if base is Some, we need to evaluate it in a `let` binding and then use
-                //    (vector-ref) to access its fields; otherwise
-                // 2. if base is None then we just assign fields sequentially
+                // convert field list into a symbol -> expr map
+                let fields = fields
+                    .iter()
+                    .map(|field| {
+                        let name = field.field.item;
+                        let value = field.value.item();
+                        (name, value)
+                    })
+                    .collect::<HashMap<_, _>>();
 
-                match base {
-                    None => todo!(),
-                    Some(_) => todo!(),
+                // lower each field, using `(vector-ref BASE* <index>)` if the
+                // field does not occur in the field initializer list
+                let field_exprs =
+                    field_order.iter().copied().zip(index_start..).map(
+                        |(name, index)| match fields.get(&name) {
+                            Some(expr) => self.lower_expr(expr.as_ref()),
+                            None => call!(
+                                Expr::Builtin(Builtin::VectorRef),
+                                Expr::Symbol(base_name),
+                                Expr::Literal(Literal::UInt(index))
+                            ),
+                        },
+                    );
+
+                // prepend the discriminant (if any) to the list of expressions
+                let exprs = discriminant
+                    .map(Expr::Literal)
+                    .into_iter()
+                    .chain(field_exprs);
+
+                // create the constructor expression
+                let constr = call!(
+                    Expr::Builtin(Builtin::Vector);
+                    Vec::from_iter(exprs)
+                );
+
+                // if there is a base expr, wrap the constructor in a let form
+                match base.as_ref() {
+                    Some(base) => {
+                        let base_expr = self.lower_expr(base.item().as_ref());
+                        Expr::Let {
+                            bindings: vec![(base_name, base_expr)].into(),
+                            body: Box::new(constr),
+                        }
+                    }
+                    None => constr,
                 }
             }
             ast::Expr::RecordField { item, field } => todo!(),
@@ -325,7 +365,47 @@ impl<'a> Lowerer<'a> {
             }
             ast::Expr::Mutate {
                 item, field, rhs, ..
-            } => todo!(),
+            } => {
+                // we need to get the Shape of `item`, where
+                // - if the shape is MutBox then we use `set-box!`;
+                // - otherwise we use `vector-set!`.
+
+                let ty = &item.ty;
+                let shape = self.shape_of(&ty.matrix);
+                let item = self.lower_expr(item.item().as_ref());
+
+                match shape {
+                    Shape::Prim(_)
+                    | Shape::List
+                    | Shape::Option
+                    | Shape::Extern { .. }
+                    | Shape::Fn { .. } => unreachable!(),
+                    Shape::MutBox => {
+                        let rhs = self.lower_expr(rhs.item().as_ref());
+                        call!(Expr::Builtin(Builtin::SetBox), item, rhs)
+                    }
+                    Shape::Struct { .. } | Shape::Variants(..) => {
+                        let ty_name = match ty.matrix.as_ref() {
+                            ast::TyMatrix::Named { name, args: _ } => *name,
+                            _ => unreachable!(),
+                        };
+
+                        let constr = TyConstrIndex {
+                            ty: ty_name,
+                            name: field.item,
+                        };
+
+                        let field_order = self.get_field_ordering(constr);
+                        let index = field_order
+                            .iter()
+                            .position(|name| name == field.item())
+                            .map(|i| Expr::Literal(Literal::UInt(i as u64)))
+                            .unwrap();
+
+                        call!(Expr::Builtin(Builtin::VectorSet), item, index)
+                    }
+                }
+            }
             ast::Expr::Match { scrutinee, arms } => {
                 let scrutinee =
                     Box::new(self.lower_expr(scrutinee.item.as_ref()));
@@ -456,18 +536,8 @@ impl<'a> Lowerer<'a> {
                     ),
                 }
             }
-            ast::Pattern::RecordConstr { name, fields, rest } => {
+            ast::Pattern::RecordConstr { name, fields, .. } => {
                 let shape = self.shape_of_named_type(name.id.ty);
-                let prefix = self.discriminant(name.id).map(Pattern::Literal);
-                let fields = fields
-                    .iter()
-                    .map(|field| {
-                        let name = field.name;
-                        let pattern = self.lower_pattern(field.pattern.item());
-
-                        (name, pattern)
-                    })
-                    .collect::<HashMap<_, _>>();
 
                 match shape {
                     Shape::Prim(_)
@@ -475,20 +545,65 @@ impl<'a> Lowerer<'a> {
                     | Shape::Option
                     | Shape::Extern { .. }
                     | Shape::Fn { .. } => unreachable!(),
-                    Shape::MutBox => todo!(),
-                    Shape::Struct { arity } => todo!(),
-                    Shape::Variants(_) => todo!(),
+                    Shape::MutBox => match fields.len() {
+                        0 => Pattern::Box(Box::new(Pattern::Wildcard)),
+                        1 => {
+                            let field = fields[0].item();
+                            let pattern = self.lower_pattern(&field.pattern);
+                            Pattern::Box(Box::new(pattern))
+                        }
+                        _ => unreachable!(),
+                    },
+                    Shape::Struct { .. } | Shape::Variants(..) => {
+                        let fields = fields
+                            .iter()
+                            .map(|field| {
+                                let name = field.name;
+                                let pattern =
+                                    self.lower_pattern(field.pattern.item());
+
+                                (name, pattern)
+                            })
+                            .collect::<HashMap<_, _>>();
+
+                        let prefix =
+                            self.discriminant(name.id).map(Pattern::Literal);
+                        let field_order = self.get_field_ordering(name.id);
+
+                        let field_pats = field_order.iter().copied().map(
+                            |field| match fields.get(&field) {
+                                // HACK: this clone should be avoided!!!
+                                Some(pattern) => pattern.clone(),
+                                None => Pattern::Wildcard,
+                            },
+                        );
+
+                        let subpats = prefix.into_iter().chain(field_pats);
+                        Pattern::Vector(subpats.collect())
+                    }
                 }
             }
         }
     }
 
-    fn get_field_index(
-        &mut self,
-        constr: TyConstrIndex,
-        field: Symbol,
-    ) -> usize {
-        todo!()
+    /// Returns the canonical ordering among the fields of the given `constr`.
+    fn get_field_ordering(&mut self, constr: TyConstrIndex) -> &[Symbol] {
+        #[allow(clippy::map_entry)]
+        if !self.field_orders.contains_key(&constr) {
+            match &self.get_constr(constr).kind {
+                ast::TyConstrKind::Unit(_)
+                | ast::TyConstrKind::Tuple { .. } => panic!(
+                    "tried to compute the field ordering of a non-record constructor"
+                ),
+                ast::TyConstrKind::Record(fields) => {
+                    let mut names: Vec<_> = fields.keys().copied().collect();
+                    names.sort_unstable();
+                    self.field_orders.insert(constr, names.into_boxed_slice());
+                }
+            }
+        }
+
+        self.field_orders.get(&constr).unwrap()
     }
 
     /// Returns the symbol corresponding to the given type constructor function definition,
