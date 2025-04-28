@@ -62,6 +62,37 @@ impl<T: ToDoc> ToDoc for lower::Def<T> {
 
 impl ToDoc for lower::LoweredPackage {
     fn to_doc(self, interner: &mut StringInterner) -> RcDoc<'static, ()> {
+        let exports = RcDoc::text("(")
+            .append(RcDoc::text("export"))
+            .append(RcDoc::line())
+            .append(
+                RcDoc::intersperse(
+                    self.exports.into_iter().map(|e| e.to_doc(interner)),
+                    RcDoc::line(),
+                )
+                .nest(2),
+            )
+            .append(")");
+
+        let imports = RcDoc::text("(")
+            .append("import")
+            .append(RcDoc::softline())
+            .append(RcDoc::text("(support support)").nest(2))
+            .append(RcDoc::softline_())
+            .append(
+                RcDoc::intersperse(
+                    self.imports.into_iter().map(|i| {
+                        RcDoc::text("(target")
+                            .append(RcDoc::softline())
+                            .append(i.to_doc(interner))
+                            .append(")")
+                    }),
+                    RcDoc::softline_(),
+                )
+                .nest(2),
+            )
+            .append(")");
+
         let externals = self
             .externals
             .into_iter()
@@ -92,20 +123,19 @@ impl ToDoc for lower::LoweredPackage {
             .append(RcDoc::text("("))
             .append(RcDoc::as_string(interner.resolve(self.name).unwrap()))
             .append(RcDoc::text(")"))
-            .append(RcDoc::line())
-            .append(RcDoc::text("(import (jabber-support))"))
-            .append(RcDoc::line())
-            .append(RcDoc::line())
-            .append(RcDoc::intersperse(externals, RcDoc::line()))
-            .append(RcDoc::line())
-            .append(RcDoc::line())
-            .append(RcDoc::intersperse(constrs, RcDoc::line()))
-            .append(RcDoc::line())
-            .append(RcDoc::line())
-            .append(RcDoc::intersperse(functions, RcDoc::line()))
-            .append(RcDoc::line())
-            .append(RcDoc::line())
-            .append(RcDoc::intersperse(constants, RcDoc::line()))
-            .append(")")
+            .append(RcDoc::line().nest(2))
+            .append(exports)
+            .append(RcDoc::line_())
+            .append(imports)
+            .append(RcDoc::line_())
+            .append(RcDoc::intersperse(externals, RcDoc::line()).nest(2))
+            .append(RcDoc::line_())
+            .append(RcDoc::intersperse(constrs, RcDoc::line()).nest(2))
+            .append(RcDoc::line_())
+            .append(RcDoc::intersperse(functions, RcDoc::line()).nest(2))
+            .append(RcDoc::line_())
+            .append(RcDoc::intersperse(constants, RcDoc::line()).nest(2))
+            .append(RcDoc::line_())
+            .append(RcDoc::text(")").nest(2))
     }
 }

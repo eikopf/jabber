@@ -40,6 +40,11 @@ pub enum Expr {
         scrutinee: Box<Self>,
         arms: Box<[MatchArm]>,
     },
+    /// The racket `(match-let* ...)` form (Racket Reference §9).
+    MatchLetSeq {
+        bindings: Box<[(Pattern, Self)]>,
+        body: Box<Self>,
+    },
     /// The racket `(match-lambda** [(<patterns>) <body>])` form (Racket Reference §9).
     MatchLambdaVariadic {
         patterns: Box<[Pattern]>,
@@ -108,6 +113,10 @@ impl Expandable for Expr {
                 scrutinee: Box::new(scrutinee),
                 arms,
             },
+            ExprFrame::MatchLetSeq { bindings, body } => Expr::MatchLetSeq {
+                bindings,
+                body: Box::new(body),
+            },
             ExprFrame::MatchLambdaVariadic { patterns, body } => {
                 Expr::MatchLambdaVariadic {
                     patterns,
@@ -141,6 +150,10 @@ impl Collapsible for Expr {
                 scrutinee: *scrutinee,
                 arms,
             },
+            Expr::MatchLetSeq { bindings, body } => ExprFrame::MatchLetSeq {
+                bindings,
+                body: *body,
+            },
             Expr::MatchLambdaVariadic { patterns, body } => {
                 ExprFrame::MatchLambdaVariadic {
                     patterns,
@@ -171,6 +184,10 @@ pub enum ExprFrame<A> {
     Match {
         scrutinee: A,
         arms: Box<[MatchArm<A>]>,
+    },
+    MatchLetSeq {
+        bindings: Box<[(Pattern, A)]>,
+        body: A,
     },
     MatchLambdaVariadic {
         patterns: Box<[Pattern]>,
@@ -214,6 +231,15 @@ impl MappableFrame for ExprFrame<PartiallyApplied> {
                     })
                     .collect(),
             },
+            ExprFrame::MatchLetSeq { bindings, body } => {
+                ExprFrame::MatchLetSeq {
+                    bindings: bindings
+                        .into_iter()
+                        .map(|(pat, rhs)| (pat, f(rhs)))
+                        .collect(),
+                    body: f(body),
+                }
+            }
             ExprFrame::MatchLambdaVariadic { patterns, body } => {
                 ExprFrame::MatchLambdaVariadic {
                     patterns,
@@ -396,6 +422,32 @@ impl ExprFrame<RcDoc<'static, ()>> {
                         .append(RcDoc::text(")")),
                 )
             }
+            ExprFrame::MatchLetSeq { bindings, body } => {
+                let bindings = bindings.into_iter().map(|(pat, rhs)| {
+                    RcDoc::text("[")
+                        .append(pat.to_doc(interner))
+                        .append(RcDoc::softline())
+                        .append(rhs)
+                        .append("]")
+                });
+
+                Some(
+                    RcDoc::text("(")
+                        .append("match-let*")
+                        .append(RcDoc::softline())
+                        .append(RcDoc::group(
+                            RcDoc::text("[")
+                                .append(RcDoc::intersperse(
+                                    bindings,
+                                    RcDoc::softline(),
+                                ))
+                                .append("]"),
+                        ))
+                        .append(RcDoc::line())
+                        .append(body)
+                        .append(")"),
+                )
+            }
             ExprFrame::MatchLambdaVariadic { patterns, body } => {
                 let patterns = RcDoc::text("(")
                     .append(RcDoc::intersperse(
@@ -511,7 +563,7 @@ impl Literal {
             Literal::Symbol(symbol) => {
                 let symbol = interner.resolve(*symbol)?;
                 // TODO: verify `symbol` is a valid R6RS symbol
-                RcDoc::text("'").append(RcDoc::as_string(symbol)).group()
+                RcDoc::text("`").append(RcDoc::as_string(symbol))
             }
             Literal::UInt(value) => RcDoc::as_string(format!("#e{value}")),
             Literal::Float(value) => RcDoc::as_string(format!("#i{value}")),
