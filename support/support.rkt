@@ -1,9 +1,22 @@
 #!r6rs
 
-(library (jabber-support)
+(library (support)
   (export
+    ;; BUILTINS
+    define lambda quote quasiquote
+    + - * / expt mod
+    < <= > >=
+    fl+ fl- fl* fl/ flexpt
+    fl<? fl<=? fl>? fl>=?
+    not and or
+    equal?
+    void
+    length append map cons
+    vector
+    string-length string-append
     ;; PATTERN MATCHING
     match
+    match-let*
     match-lambda**
     ;; BOOL
     strict-binary-and
@@ -30,9 +43,10 @@
     (rnrs base (6)) 
     (rnrs programs (6))
     (rnrs exceptions (6))
+    (rnrs arithmetic flonums (6))
     (rnrs io simple (6))
-    (only (racket base) box box? unbox set-box!)
-    (only (racket match) match match-lambda**))
+    (only (racket base) void box box? unbox set-box!)
+    (only (racket match) match match-let* match-lambda**))
 
   ;; BOOL
   
