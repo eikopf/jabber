@@ -1,15 +1,16 @@
 //! Primary lowering implementation.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{
         attr::{Attr, AttrArg, AttrName},
+        common::Vis,
         typed::{self as ast, TyConstrIndex},
     },
     codegen::{blame::Blame, scm::MatchArm},
     env::{
-        FileId, ModId, Package, Res, Term, TermId, TypeId,
+        ModId, Package, Res, Term, TermId, TypeId,
         resolve::BoundResult,
         typed::{TyVar, TypedEnv},
     },
@@ -34,7 +35,8 @@ pub struct Def<T> {
 #[derive(Debug, Clone)]
 pub struct LoweredPackage {
     pub name: Symbol,
-    pub root_file: FileId,
+    pub imports: Vec<Symbol>,
+    pub exports: Vec<Symbol>,
     pub externals: Vec<Def<Symbol>>,
     pub constrs: Vec<Def<Blamed<Expr>>>,
     pub functions: Vec<Def<Blamed<Expr>>>,
@@ -42,10 +44,11 @@ pub struct LoweredPackage {
 }
 
 impl LoweredPackage {
-    pub fn new(name: Symbol, root_file: FileId) -> Self {
+    pub fn new(name: Symbol) -> Self {
         Self {
             name,
-            root_file,
+            imports: Default::default(),
+            exports: Default::default(),
             externals: Default::default(),
             constrs: Default::default(),
             functions: Default::default(),
@@ -114,49 +117,112 @@ impl<'a> Lowerer<'a> {
         let Package {
             root_module,
             version: _,
-            dependencies: _,
+            dependencies,
         } = self.env.get_package(package);
 
         // create an empty lowered package
-        let mut lowered_package = LoweredPackage::new(
-            package,
-            self.env.get_module(*root_module).file,
-        );
+        let mut lowered_package = LoweredPackage::new(package);
+
+        // add dependencies
+        lowered_package.imports.extend_from_slice(dependencies);
 
         // accumulate the IDs for the terms in the package
         let terms = {
-            let mut terms = Vec::new();
+            let mut terms = HashSet::new();
             collect_terms(self.env, *root_module, &mut terms);
-            terms.into_boxed_slice()
+            terms
         };
 
-        // lower the terms in arbitrary order, writing the results to lowered_package
+        // lower the terms in any order, writing the results to lowered_package
         for term_id in terms {
-            let Term { module, ast, .. } = self.env.get_term(term_id);
-            let file = self.env.get_module(*module).file;
+            // HACK: evil unnecessary clone!!!
+            let Term { module, ast, .. } = self.env.get_term(term_id).clone();
+            let file = self.env.get_module(module).file;
 
             let blame = Blame {
                 file,
                 span: ast.span(),
             };
 
-            // HACK: evil unnecessary clone!!!
-            let term = ast.item().clone();
-            self.lower_term(
-                term_id,
-                &mut lowered_package,
-                blame,
-                *module,
-                &term,
-            );
+            // if the term is public in the package, export it
+            if self.res_is_exported(Res::Term(term_id)) {
+                let name = self.get_canonical_name(term_id);
+                lowered_package.exports.push(name);
+            }
+
+            let term = ast.item();
+            self.lower_term(term_id, &mut lowered_package, blame, module, term);
         }
 
-        // finally, dump the type constructor defs generated during lowering into the package
+        let constr_ids = self
+            .type_constr_definitions
+            .keys()
+            .copied()
+            .collect::<Vec<_>>();
+
+        // run over the type constructors to find public exports
+        for constr in constr_ids {
+            if self.res_is_exported(Res::TyConstr {
+                ty: constr.ty,
+                name: constr.name,
+            }) {
+                let name = self.get_type_constr_name(constr);
+                lowered_package.exports.push(name);
+            }
+        }
+
+        // dump type constructor definitions into the package
         let constrs = self.type_constr_definitions.drain();
         lowered_package.constrs.extend(constrs.map(|(_, def)| def));
 
         // return the package
         lowered_package
+    }
+
+    fn res_is_exported(&self, res: Res) -> bool {
+        match res {
+            Res::Term(term_id) => {
+                let term = self.env.get_term(term_id);
+                let module = self.env.get_module(term.module);
+
+                module.items.get(&term.name).is_some_and(Vis::is_visible)
+                    && self.res_is_exported(Res::Module(term.module))
+            }
+            Res::Type(type_id) | Res::StructType(type_id) => {
+                let type_ = self.env.get_type(type_id);
+                let module = self.env.get_module(type_.module);
+
+                module.items.get(&type_.name).is_some_and(Vis::is_visible)
+                    && self.res_is_exported(Res::Module(type_.module))
+            }
+            Res::TyConstr { ty, name: _ } => {
+                let type_ = self.env.get_type(ty);
+
+                match &type_.ast.kind {
+                    ast::TypeKind::Adt { opacity, .. } => {
+                        opacity.is_none() && self.res_is_exported(Res::Type(ty))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Res::Module(mod_id) => {
+                let mod_ = self.env.get_module(mod_id);
+
+                // a module is exported if it is the root module, or if it is
+                // public in its parent and its parent is exported
+                match mod_.parent {
+                    None => true,
+                    Some(parent) => {
+                        self.env
+                            .get_module(parent)
+                            .items
+                            .get(&mod_.name)
+                            .is_some_and(Vis::is_visible)
+                            && self.res_is_exported(Res::Module(parent))
+                    }
+                }
+            }
+        }
     }
 
     pub fn lower_term(
@@ -208,7 +274,15 @@ impl<'a> Lowerer<'a> {
                 package.functions.push(def);
             }
             ast::TermKind::Const { value, .. } => {
-                dbg![value];
+                let value = self.lower_expr(value.item().as_ref());
+
+                let def = Def {
+                    module,
+                    name,
+                    value: blame.with(value),
+                };
+
+                package.constants.push(def);
             }
         }
     }
@@ -263,7 +337,30 @@ impl<'a> Lowerer<'a> {
             ast::Expr::Block {
                 statements,
                 return_expr,
-            } => todo!(),
+            } => {
+                let body = Box::new(match return_expr.as_ref() {
+                    Some(expr) => self.lower_expr(expr.item().as_ref()),
+                    None => call!(Expr::Builtin(Builtin::Void)),
+                });
+
+                let bindings = statements
+                    .iter()
+                    .map(Spanned::item)
+                    .map(|stmt| match stmt {
+                        ast::Stmt::Expr(expr) => {
+                            let rhs = self.lower_expr(expr.as_ref());
+                            (Pattern::Wildcard, rhs)
+                        }
+                        ast::Stmt::Let { pattern, value } => {
+                            let pattern = self.lower_pattern(pattern.item());
+                            let rhs = self.lower_expr(value.item().as_ref());
+                            (pattern, rhs)
+                        }
+                    })
+                    .collect();
+
+                Expr::MatchLetSeq { bindings, body }
+            }
             ast::Expr::RecordConstr { name, fields, base } => {
                 // get constr ID
                 let constr = match name.id() {
@@ -284,6 +381,20 @@ impl<'a> Lowerer<'a> {
                 let field_order = Box::from_iter(
                     self.get_field_ordering(constr).iter().copied(),
                 );
+
+                // determine the builtin constructor function for this type
+                let builtin_constr =
+                    Expr::Builtin(match self.shape_of_named_type(constr.ty) {
+                        Shape::Prim(..)
+                        | Shape::List
+                        | Shape::Option
+                        | Shape::Extern { .. }
+                        | Shape::Fn { .. } => unreachable!(),
+                        Shape::MutBox => Builtin::Box,
+                        Shape::Struct { .. } | Shape::Variants(..) => {
+                            Builtin::Vector
+                        }
+                    });
 
                 // convert field list into a symbol -> expr map
                 let fields = fields
@@ -316,10 +427,7 @@ impl<'a> Lowerer<'a> {
                     .chain(field_exprs);
 
                 // create the constructor expression
-                let constr = call!(
-                    Expr::Builtin(Builtin::Vector);
-                    Vec::from_iter(exprs)
-                );
+                let constr = call!(builtin_constr; Vec::from_iter(exprs));
 
                 // if there is a base expr, wrap the constructor in a let form
                 match base.as_ref() {
@@ -333,7 +441,47 @@ impl<'a> Lowerer<'a> {
                     None => constr,
                 }
             }
-            ast::Expr::RecordField { item, field } => todo!(),
+            ast::Expr::RecordField { item, field } => {
+                // NOTE: record field expressions can only occur when the
+                // item is a struct record type
+
+                let constr = match item.ty.matrix.as_ref() {
+                    ast::TyMatrix::Named { name, .. } => {
+                        let constr_name = self.env.get_type(*name).name;
+                        TyConstrIndex {
+                            ty: *name,
+                            name: constr_name,
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+
+                let item = self.lower_expr(item.item().as_ref());
+
+                match self.shape_of_named_type(constr.ty) {
+                    Shape::MutBox => {
+                        call!(Expr::Builtin(Builtin::Unbox), item)
+                    }
+                    Shape::Struct { .. } | Shape::Variants(..) => {
+                        let index_start = match self.discriminant(constr) {
+                            Some(_) => 1,
+                            None => 0,
+                        };
+
+                        let raw_index = index_start
+                            + self
+                                .get_field_ordering(constr)
+                                .iter()
+                                .position(|f| f == field.item())
+                                .unwrap();
+
+                        let index =
+                            Expr::Literal(Literal::UInt(raw_index as u64));
+                        call!(Expr::Builtin(Builtin::VectorRef), item, index)
+                    }
+                    _ => unreachable!(),
+                }
+            }
             ast::Expr::TupleField { item, field } => {
                 let vector_ref = Expr::Builtin(Builtin::VectorRef);
                 let item = self.lower_expr(item.item().as_ref());
@@ -608,17 +756,13 @@ impl<'a> Lowerer<'a> {
         self.field_orders.get(&constr).unwrap()
     }
 
-    /// Returns the symbol corresponding to the given type constructor function definition,
-    /// generating and memoizing its declaration if it has not already been generated.
+    /// Returns the symbol corresponding to the given type constructor
+    /// function definition, generating and memoizing its declaration if it has
+    /// not already been generated.
     fn get_type_constr_name(&mut self, constr: TyConstrIndex) -> Symbol {
         match self.canonical_constr_names.get(&constr) {
             Some(name) => *name,
             None => {
-                // TODO: we have to do several things here
-                // 1. render the constructor into an expression
-                // 2. bind it to a name and push it into self.type_constructor_definitions
-                // 3. return the name as a symbol
-
                 // render constructor into an expression
                 let value = self.generate_constr_expr(constr);
 
@@ -967,6 +1111,8 @@ impl<'a> Lowerer<'a> {
         &self,
         TyConstrIndex { ty, name }: TyConstrIndex,
     ) -> Spanned<&ast::TyConstr<Uid>> {
+        dbg![(ty, name)];
+
         self.env
             .get_type(ty)
             .ast
@@ -981,14 +1127,16 @@ type AttrSeq = [Spanned<
     Attr<Result<Spanned<AttrName>, Spanned<ast::NameContent>>, BoundResult>,
 >];
 
-fn collect_terms(env: &TypedEnv, module: ModId, terms: &mut Vec<TermId>) {
+fn collect_terms(env: &TypedEnv, module: ModId, terms: &mut HashSet<TermId>) {
     let items = &env.get_module(module).items;
 
     for visp_item in items.values() {
         let (_, _, item) = visp_item.spread();
 
         match item {
-            Res::Term(id) => terms.push(id),
+            Res::Term(id) => {
+                terms.insert(id);
+            }
             Res::Module(submodule) => collect_terms(env, submodule, terms),
             _ => continue,
         }
