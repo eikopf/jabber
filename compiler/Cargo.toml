@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap = { version = "4.5.37", features = ["derive"] }
 ena = "0.14.3"
 pretty = "0.12.4"
 recursion = "0.5.2"
@@ -14,6 +15,7 @@ thiserror = "1.0.64"
 toml = "0.8.19"
 tree-sitter-jabber = { path = "../tree-sitter-jabber"}
 type-sitter = { version = "0.5.0", default-features = false }
+which = "7.0.3"
 winnow = "0.6.20"
 
 [build-dependencies]
