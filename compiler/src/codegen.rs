@@ -3,7 +3,10 @@
 use pretty::RcDoc;
 use recursion::CollapsibleExt;
 
-use crate::symbol::{StringInterner, Symbol};
+use crate::{
+    package::metadata::PackageKind,
+    symbol::{StringInterner, Symbol},
+};
 
 pub mod blame;
 pub mod lower;
@@ -62,16 +65,23 @@ impl<T: ToDoc> ToDoc for lower::Def<T> {
 
 impl ToDoc for lower::LoweredPackage {
     fn to_doc(self, interner: &mut StringInterner) -> RcDoc<'static, ()> {
+        // if this is a binary package, replace any possible exports with the
+        // singular export `<name>/main`.
+        let exports = match self.kind {
+            PackageKind::Binary => {
+                let root = interner.resolve(self.name).unwrap();
+                let main = interner.intern(&format!("{root}/main"));
+                vec![main]
+            }
+            PackageKind::Library => self.exports,
+        }
+        .into_iter()
+        .map(|e| e.to_doc(interner));
+
         let exports = RcDoc::text("(")
             .append(RcDoc::text("export"))
             .append(RcDoc::line())
-            .append(
-                RcDoc::intersperse(
-                    self.exports.into_iter().map(|e| e.to_doc(interner)),
-                    RcDoc::line(),
-                )
-                .nest(2),
-            )
+            .append(RcDoc::intersperse(exports, RcDoc::line()).nest(2))
             .append(")");
 
         let imports = RcDoc::text("(")

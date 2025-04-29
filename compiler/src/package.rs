@@ -9,9 +9,9 @@ pub mod interface;
 pub mod loader;
 pub mod metadata;
 
-const JABBER_FILE_EXTENSION: &str = "jbr";
-const PACKAGE_METADATA_FILE: &str = "jabber.toml";
-const PACKAGE_SOURCE_DIR: &str = "src";
+pub const JABBER_FILE_EXTENSION: &str = "jbr";
+pub const PACKAGE_METADATA_FILE: &str = "jabber.toml";
+pub const PACKAGE_SOURCE_DIR: &str = "src";
 
 #[derive(Debug, Clone)]
 pub struct Package<T, S = Box<str>> {

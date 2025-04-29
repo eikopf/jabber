@@ -1,23 +1,23 @@
-use std::path::PathBuf;
+//! The Jabber compiler.
 
 use clap::Parser;
 use cli::{Cli, Command};
 
 // executable-specific modules
-mod cli;
-mod driver;
+pub mod cli;
+pub mod driver;
 
 // library modules
-mod ast;
-mod codegen;
-mod cst;
-mod env;
-mod literal;
-mod package;
-mod source_file;
-mod span;
-mod symbol;
-mod unique;
+pub mod ast;
+pub mod codegen;
+pub mod cst;
+pub mod env;
+pub mod literal;
+pub mod package;
+pub mod source_file;
+pub mod span;
+pub mod symbol;
+pub mod unique;
 
 pub fn interface() -> driver::Result {
     let Cli {
@@ -27,28 +27,49 @@ pub fn interface() -> driver::Result {
     } = Cli::parse();
 
     let racket_bin = match racket_bin {
-        Some(path) => path,
+        Some(path) => driver::canonicalize(&path)?,
         None => driver::find_racket_binary()?,
     };
 
-    let context = driver::DriverContext {
+    let libs_root = driver::canonicalize(&libs_path)?;
+
+    let context = driver::Context {
         racket_bin,
-        libs_root: libs_path,
+        libs_root,
     };
 
     match command {
         Command::Compile { input, output_dir } => {
             let input = match input {
-                Some(input) => input,
+                Some(input) => driver::canonicalize(&input)?,
                 None => driver::default_input_path()?,
             };
 
             let output_dir = match output_dir {
-                Some(path) => path,
+                Some(path) => driver::canonicalize(&path)?,
                 None => driver::default_output_dir(&input),
             };
 
-            driver::compile_package(input, output_dir, &context)
+            context.compile_package(&input, &output_dir)
+        }
+        Command::Run {
+            support_path,
+            input,
+            output_dir,
+        } => {
+            let support_path = driver::canonicalize(&support_path)?;
+
+            let input = match input {
+                Some(input) => driver::canonicalize(&input)?,
+                None => driver::default_input_path()?,
+            };
+
+            let output_dir = match output_dir {
+                Some(path) => driver::canonicalize(&path)?,
+                None => driver::default_output_dir(&input),
+            };
+
+            context.execute_binary_package(&input, &output_dir, &support_path)
         }
     }
 }

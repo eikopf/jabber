@@ -1,6 +1,9 @@
 //! Primary lowering implementation.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+};
 
 use crate::{
     ast::{
@@ -8,14 +11,15 @@ use crate::{
         common::Vis,
         typed::{self as ast, TyConstrIndex},
     },
-    codegen::{blame::Blame, scm::MatchArm},
+    codegen::{ToDoc, blame::Blame, scm::MatchArm},
     env::{
         ModId, Package, Res, Term, TermId, TypeId,
         resolve::BoundResult,
         typed::{TyVar, TypedEnv},
     },
+    package::metadata::PackageKind,
     span::Spanned,
-    symbol::Symbol,
+    symbol::{StringInterner, Symbol},
     unique::Uid,
 };
 
@@ -35,6 +39,7 @@ pub struct Def<T> {
 #[derive(Debug, Clone)]
 pub struct LoweredPackage {
     pub name: Symbol,
+    pub kind: PackageKind,
     pub imports: Vec<Symbol>,
     pub exports: Vec<Symbol>,
     pub externals: Vec<Def<Symbol>>,
@@ -44,9 +49,10 @@ pub struct LoweredPackage {
 }
 
 impl LoweredPackage {
-    pub fn new(name: Symbol) -> Self {
+    pub fn new(name: Symbol, kind: PackageKind) -> Self {
         Self {
             name,
+            kind,
             imports: Default::default(),
             exports: Default::default(),
             externals: Default::default(),
@@ -55,12 +61,24 @@ impl LoweredPackage {
             constants: Default::default(),
         }
     }
+
+    pub fn write<W>(
+        self,
+        w: &mut W,
+        interner: &mut StringInterner,
+    ) -> std::io::Result<()>
+    where
+        W: Write,
+    {
+        writeln!(w, "#!r6rs")?;
+        write!(w, "{}", self.to_doc(interner).pretty(80))
+    }
 }
 
 #[derive(Debug)]
 pub struct Lowerer<'a> {
     /// The typechecked environment.
-    env: &'a mut TypedEnv,
+    pub(crate) env: &'a mut TypedEnv,
     /// The canonical names for each term.
     canonical_term_names: HashMap<TermId, Symbol>,
     /// The canonical names for each type constructor.
@@ -113,7 +131,11 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    pub fn lower_package(&mut self, package: Symbol) -> LoweredPackage {
+    pub fn lower_package(
+        &mut self,
+        package: Symbol,
+        kind: PackageKind,
+    ) -> LoweredPackage {
         let Package {
             root_module,
             version: _,
@@ -121,7 +143,7 @@ impl<'a> Lowerer<'a> {
         } = self.env.get_package(package);
 
         // create an empty lowered package
-        let mut lowered_package = LoweredPackage::new(package);
+        let mut lowered_package = LoweredPackage::new(package, kind);
 
         // add dependencies
         lowered_package.imports.extend_from_slice(dependencies);
@@ -130,6 +152,14 @@ impl<'a> Lowerer<'a> {
         let terms = {
             let mut terms = HashSet::new();
             collect_terms(self.env, *root_module, &mut terms);
+
+            // remove imported terms
+            terms.retain(|&term| {
+                let module = self.env.get_term(term).module;
+                let owning_package = self.env.get_module(module).package;
+                owning_package == package
+            });
+
             terms
         };
 
@@ -295,7 +325,12 @@ impl<'a> Lowerer<'a> {
         let patterns = params
             .iter()
             .map(|param| self.lower_pattern(param.pattern.item()))
-            .collect();
+            .collect::<Box<_>>();
+
+        let patterns = match patterns.len() {
+            0 => vec![Pattern::Wildcard].into_boxed_slice(),
+            _ => patterns,
+        };
 
         let body = Box::new(body);
 
@@ -1111,8 +1146,6 @@ impl<'a> Lowerer<'a> {
         &self,
         TyConstrIndex { ty, name }: TyConstrIndex,
     ) -> Spanned<&ast::TyConstr<Uid>> {
-        dbg![(ty, name)];
-
         self.env
             .get_type(ty)
             .ast
@@ -1146,14 +1179,13 @@ fn collect_terms(env: &TypedEnv, module: ModId, terms: &mut HashSet<TermId>) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        codegen::ToDoc,
-        codegen::lower::Lowerer,
+        codegen::{ToDoc, lower::Lowerer},
         cst::Parser,
         env::{
             import_res::ImportResEnv, resolve::resolve, typed::typecheck,
             unbound::UnboundEnv,
         },
-        package as pkg,
+        package::{self as pkg, metadata::PackageKind},
     };
     use std::{path::PathBuf, str::FromStr};
 
@@ -1198,7 +1230,8 @@ mod tests {
         // lower core package
         let core_symbol = env.interner.intern_static("core");
         let mut lowerer = Lowerer::new(&mut env);
-        let core_package = lowerer.lower_package(core_symbol);
+        let core_package =
+            lowerer.lower_package(core_symbol, PackageKind::Library);
 
         eprintln!("{}", core_package.to_doc(&mut env.interner).pretty(80));
         panic!()

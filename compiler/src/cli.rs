@@ -24,4 +24,13 @@ pub enum Command {
         #[arg(short = 'o', long = "output")]
         output_dir: Option<Box<Path>>,
     },
+    /// Execute a Jabber package
+    Run {
+        #[arg(short = 's', long)]
+        support_path: Box<Path>,
+        #[arg(short = 'i', long)]
+        input: Option<Box<Path>>,
+        #[arg(short = 'o', long = "output")]
+        output_dir: Option<Box<Path>>,
+    },
 }
