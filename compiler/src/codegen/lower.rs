@@ -1234,6 +1234,5 @@ mod tests {
             lowerer.lower_package(core_symbol, PackageKind::Library);
 
         eprintln!("{}", core_package.to_doc(&mut env.interner).pretty(80));
-        panic!()
     }
 }
