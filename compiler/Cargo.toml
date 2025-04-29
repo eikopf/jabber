@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5.37", features = ["derive"] }
 ena = "0.14.3"
+petgraph = "0.8.1"
 pretty = "0.12.4"
 recursion = "0.5.2"
 semver = { version = "1.0.23", features = ["serde"] }
