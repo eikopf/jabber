@@ -68,7 +68,9 @@
 
   ;; IO
 
-  (define (println msg) (display msg))
+  (define (println msg) 
+    (display msg)
+    (newline))
 
   ;; PANICKING
 
