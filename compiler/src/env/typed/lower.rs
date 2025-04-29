@@ -1,27 +1,5 @@
-//! The lowering and desugaring portion of the typechecking implementation.
-//!
-//! # Lowering
-//! The entrypoint for lowering is the [`lower`] function, which takes a
-//! [`ResEnv`] and returns a [`TypedEnv`]. More precisely, the resulting
-//! [`TypedEnv`] is incomplete: every expression, constant, and function has
-//! been assigned a type, but the overall program is not necessarily well-typed
-//! or even completely well-formed.
-//!
-//! Aside from this main task—assigning types to expressions—the lowering phase
-//! is also responsible for further desugaring of the syntax tree. Most of this
-//! can be seen in the definition of [`ast::Expr`], in which block expressions
-//! are desugared as [`ast::Expr::LetIn`] sequences and if-else expressions are
-//! converted into match statements of a boolean-typed scrutinee.
-//!
-//! When type annotations occur, they are reified into [`ast::Ty`] values by an
-//! appropriate method of [`TyReifier`]. This information is used to infer the
-//! types of function and constant declarations, as well as of let-bindings and
-//! lambda parameters.
-//!
-//! Finally, errors are produced for terms with the `pub` visibility modifier
-//! and whose reified type is not concrete (i.e. contains unquantified type
-//! variables).
-//!
+//! The partial lowering and preprocessing portion of the typechecking
+//! implementation.
 
 use std::{
     collections::{HashMap, HashSet},
