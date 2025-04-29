@@ -810,9 +810,26 @@ impl ImportResEnv {
     ) -> Result<PrefixId, PrefixResError> {
         match (id, prefix) {
             (_, []) => Ok(id),
-            (PrefixId::Mod(local_module), [head, tail @ ..]) => {
-                let res =
-                    self.resolve_symbol_in_module(head.item.item, local_module);
+            (PrefixId::Mod(module), [head, tail @ ..]) => {
+                // NOTE: `head` might not occur as a symbol in `module` if it
+                // is a package! we can check if this is the case by looking
+                // through the dependencies of the package of the module we're
+                // currently in
+
+                let res = self.resolve_symbol_in_module(head.item.item, module);
+
+                let current_module = head.module;
+                let current_package = self.get_module(current_module).package;
+                let deps = &self.get_package(current_package).dependencies;
+
+                let res = res.or_else(|| {
+                    deps.iter().find(|dep| **dep == head.item.item).map(|pkg| {
+                        Vis::public(Span::ZERO.with(Res::Module(
+                            self.get_package(*pkg).root_module,
+                        )))
+                    })
+                });
+
                 match res {
                     Some(res) if !res.is_visible() => {
                         Err(PrefixResError::Private(*head))
