@@ -5,7 +5,6 @@ use std::path::Path;
 use metadata::PackageKind;
 use semver::Version;
 
-pub mod interface;
 pub mod loader;
 pub mod metadata;
 
