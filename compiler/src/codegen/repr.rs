@@ -7,23 +7,23 @@
 //!
 //! Let's consider some examples:
 //! - `Option[!]` is _uninhabited_, and so it has no runtime representation. We consider this to be
-//!     a kind of representation so we can erase matches.
+//!   a kind of representation so we can erase matches.
 //! - `Result[T, !]` is a _wrapper_ around a `T` value, so it inherits the representation of `T`.
-//!     Note that this is *not true* for `Ref[T]`: because it has a mutable field it has reference
-//!     semantics.
+//!   Note that this is *not true* for `Ref[T]`: because it has a mutable field it has reference
+//!   semantics.
 //! - `(A, B, C)` is a _struct_: it has only a single variant, so we can omit the discriminant
-//!     field entirely.
+//!   field entirely.
 //! - `Result[T, E]` doesn't fit into these categories, so we still have to insert discriminants to
-//!     distinguish between variants.
+//!   distinguish between variants.
 //!
 //! The reason that `Ref[T]` can't just be a wrapper type is the `mutable` annotation on its single
 //! field. This gives the entire type reference semantics, and makes destructuring nontrivial. Note
 //! that this applies only (up to isomorphism) to `Ref`, since the usual vector representation
 //! already has reference semantics.
 
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num::NonZeroU32;
 
-use crate::{ast::typed::PrimTy, env::TypeId, symbol::Symbol};
+use crate::{ast::typed::PrimTy, env::TypeId};
 
 /// A newtype ID referring to a [`MonoTy`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -94,9 +94,9 @@ pub enum Shape {
 /// However, we distinguish some special variant shapes for particular analysis.
 ///
 /// - The [`Cons`] variant denotes a tuple constructor with two fields and where the second field
-///     is recursive; this is used to identify types which might be isomorphic to `core.list.List`.
+///   is recursive; this is used to identify types which might be isomorphic to `core.list.List`.
 /// - The [`Ref`] variant denotes a record constructor with a single mutable field, which is used
-///     to identify types which might be isomorphic to `core.ref.Ref`.
+///   to identify types which might be isomorphic to `core.ref.Ref`.
 ///
 /// [`Plain`]: Variant::Plain
 /// [`Cons`]: Variant::Cons

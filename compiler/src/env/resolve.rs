@@ -2106,6 +2106,7 @@ impl<'a> Resolver<'a> {
             None => None,
         };
 
+        #[allow(unused)]
         #[derive(Debug, Clone, Copy)]
         enum QS {
             Q(Qualifier),
