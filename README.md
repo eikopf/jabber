@@ -8,7 +8,7 @@
 ## Requirements
 
 To use this project, you will need:
-1. A recent Rust toolchain, at least 1.83.
+1. A recent Rust toolchain, at least 1.85.1.
 2. A local C compiler.
 3. A Racket installation with the R6RS language package.
 
