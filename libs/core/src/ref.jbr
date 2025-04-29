@@ -12,11 +12,13 @@ pub fn deref(Ref { contents }: Ref[T]) -> T = contents
 @operator.update
 pub fn update(ref: Ref[T], value: T) -> () = ref.contents <- value
 
-pub fn increment(ref: Ref[int]) -> () = ref := *ref + 1
-pub fn decrement(ref: Ref[int]) -> () = ref := *ref - 1
+// BUG: these three functions cause unification failures
 
-pub fn swap(a: Ref[T], b: Ref[T]) -> () = {
-  let tmp = *a;
-  a := *b;
-  b := tmp;
-}
+//pub fn increment(ref: Ref[int]) -> () = ref := *ref + 1
+//pub fn decrement(ref: Ref[int]) -> () = ref := *ref - 1
+
+//pub fn swap(a: Ref[T], b: Ref[T]) -> () = {
+  //let tmp = *a;
+  //a := *b;
+  //b := tmp;
+//}
