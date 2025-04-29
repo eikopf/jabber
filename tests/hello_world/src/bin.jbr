@@ -1,0 +1,7 @@
+use core.io.println
+
+const HELLO: string = "hello, world!"
+
+fn main() -> () = {
+  println(HELLO); 
+}

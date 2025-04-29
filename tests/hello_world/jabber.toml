@@ -1,0 +1,4 @@
+[package]
+name = "hello_world"
+type = "bin"
+version = "1.0.0"
