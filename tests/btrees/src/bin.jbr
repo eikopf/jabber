@@ -1,0 +1,27 @@
+use core.io.println
+use core.string.append
+use core.int.to_string as int_to_string
+
+type BTree[T] = 
+  | Leaf(T) 
+  | Node { lhs: BTree[T], datum: T, rhs: BTree[T] }
+
+fn size(tree) = match tree {
+  BTree.Leaf(_) => 1,
+  BTree.Node { lhs, rhs, .. } => size(lhs) + 1 + size(rhs),
+}
+
+fn main() -> () = {
+  let tree = BTree.Node {
+    lhs: BTree.Leaf(0),
+    datum: 1,
+    rhs: BTree.Node {
+      lhs: BTree.Leaf(2),
+      datum: 3,
+      rhs: BTree.Leaf(4),
+    },
+  };
+
+  let n_nodes = size(tree) |> int_to_string;
+  println(append("node count: ", n_nodes))
+}
