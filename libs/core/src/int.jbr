@@ -5,6 +5,8 @@ pub type alias Int = int
 pub const ZERO: int = 0
 pub const ONE:  int = 1
 
+pub fn to_string(i: int) -> string = __prim_int_to_string(i)
+
 // OPERATORS
 
 @total
@@ -68,3 +70,6 @@ extern fn __prim_int_gt(lhs: int, rhs: int) -> bool
 extern fn __prim_int_leq(lhs: int, rhs: int) -> bool
 @external.scheme(">=")
 extern fn __prim_int_geq(lhs: int, rhs: int) -> bool
+
+@external.scheme("number->string")
+extern fn __prim_int_to_string(i: int) -> string

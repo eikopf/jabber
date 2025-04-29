@@ -30,13 +30,14 @@
     ;; INTEGER
     div*
     ;; IO
-    println 
+    println
     ;; PANIC
     panic! 
     panic-with-msg! 
     unreachable! 
     todo! 
     ;; STRING
+    number->string
     substring*)
 
   (import 
