@@ -1,0 +1,27 @@
+use core.io.println
+use core.int
+use core.string
+
+type AExp =
+  | Int(int)
+  | Add(AExp, AExp)
+  | Sub(AExp, AExp)
+  | Mul(AExp, AExp)
+
+fn eval_aexp(expr: AExp) -> int = match expr {
+  AExp.Int(i) => i,
+  AExp.Add(lhs, rhs) => eval_aexp(lhs) + eval_aexp(rhs),
+  AExp.Mul(lhs, rhs) => eval_aexp(lhs) * eval_aexp(rhs),
+  AExp.Sub(lhs, rhs) => {
+    let lhs = eval_aexp(lhs);
+    let rhs = eval_aexp(rhs);
+    if lhs < rhs { 0 } else { lhs - rhs }
+  }
+}
+
+fn main() = {
+  let expr = AExp.Sub(AExp.Int(5), AExp.Int(6));
+  let res = eval_aexp(expr);
+  let msg = string.append("5 - 6 = ", int.to_string(res));
+  println(msg);
+}
