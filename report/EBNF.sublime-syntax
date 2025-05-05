@@ -1,0 +1,115 @@
+%YAML 1.2
+---
+# http://www.sublimetext.com/docs/syntax.html
+name: EBNF
+file_extensions:
+  - ebnf
+scope: source.ebnf
+contexts:
+  main:
+    - include: comment
+    - match: '\s*(\b(?:\w|\s|[\-_0-9])+\b)\s*(=)'
+      captures:
+        1: entity.name.function.ebnf
+        2: keyword.operator.definition.ebnf
+      push:
+        - meta_scope: meta.syntax-rule.ebnf
+        - match: ;
+          captures:
+            0: punctuation.terminator.syntax-rule.ebnf
+          pop: true
+        - include: comment
+        - include: subrules
+  comment:
+    - match: \(\*(?!\))
+      push:
+        - meta_scope: comment.block.ebnf
+        - match: \*\)
+          pop: true
+  double-quote-string:
+    - match: '"'
+      push:
+        - meta_scope: string.quoted.double.ebnf
+        - match: '"'
+          pop: true
+  group:
+    - match: \(
+      captures:
+        0: keyword.other.group.begin.ebnf
+      push:
+        - match: \)
+          captures:
+            0: keyword.other.group.end.ebnf
+          pop: true
+        - include: subrules
+  invalid:
+    - match: '\(\s*[*:/]\s*\)'
+      scope: invalid.illegal.ebnf
+  non-terminal:
+    - match: '\w[\w\-_0-9]*\w'
+      scope: variable.other.non-terminal.ebnf
+  operator:
+    - include: operator-alternative
+    - include: operator-concatenation
+    - include: operator-exception
+  operator-alternative:
+    - match: \|
+      scope: keyword.operator.alternative.ebnf
+  operator-concatenation:
+    - match: ','
+      scope: keyword.operator.concatenation.ebnf
+  operator-exception:
+    - match: '-'
+      scope: keyword.operator.exception.ebnf
+  optional:
+    - match: '\['
+      captures:
+        0: keyword.other.optional.begin.ebnf
+      push:
+        - match: '\]'
+          captures:
+            0: keyword.other.optional.end.ebnf
+          pop: true
+        - include: subrules
+  repetition:
+    - match: '{'
+      captures:
+        0: keyword.other.repetition.begin.ebnf
+      push:
+        - match: '}'
+          captures:
+            0: keyword.other.repetition.end.ebnf
+          pop: true
+        - include: subrules
+  repetition-numbered:
+    - match: (\d+)\s*(\*)
+      captures:
+        1: constant.numeric.integer.ebnf
+        2: keyword.operator.repetition.ebnf
+  single-quote-string:
+    - match: "'"
+      push:
+        - meta_scope: string.quoted.single.ebnf
+        - match: "'"
+          pop: true
+  special-sequence:
+    - match: \?
+      captures:
+        0: keyword.other.special-sequence.begin.ebnf
+      push:
+        - meta_scope: entity.other.attribute-name.ebnf
+        - match: \?
+          captures:
+            0: keyword.other.special-sequence.end.ebnf
+          pop: true
+  subrules:
+    - include: invalid
+    - include: optional
+    - include: repetition
+    - include: group
+    - include: repetition-numbered
+    - include: non-terminal
+    - include: operator
+    - include: single-quote-string
+    - include: double-quote-string
+    - include: special-sequence
