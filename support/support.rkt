@@ -12,7 +12,7 @@
     equal?
     void
     length append map cons
-    vector
+    vector vector-ref vector-set!
     string-length string-append
     ;; PATTERN MATCHING
     match
