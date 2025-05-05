@@ -59,6 +59,15 @@ fn complex_add(num: Num[T], z1: Complex[T], z2: Complex[T]) -> Complex[T] = {
   Complex { real, imag }
 }
 
+fn complex_mul(num: Num[T], z1: Complex[T], z2: Complex[T]) -> Complex[T] = {
+  // ac - bd
+  let real = num.add(num.mul(z1.real, z2.real), num.neg(num.mul(z1.imag, z2.imag)));
+  // ad + bc
+  let imag = num.add(num.mul(z1.real, z2.imag), num.mul(z1.imag, z2.real));
+  // implicit multiply imag by i and return
+  Complex { real, imag }
+}
+
 fn main() = {
   let newline = () -> println("");
   let show = (name, val, renderer) -> {
@@ -67,18 +76,24 @@ fn main() = {
     println(string.append(prefix, val_repr));
   };
 
+  println("Complex[int]\n----------------------------------------");
   let z1 = Complex { real: -3, imag: 1 };
   show("z1", z1, int.to_string);
   show("z1 + z1", complex_add(NumInt, z1, z1), int.to_string);
+  show("z1 * z1", complex_mul(NumInt, z1, z1), int.to_string);
   newline();
 
+  println("Complex[float]\n----------------------------------------");
   let z2 = Complex { real: 0.5, imag: 0.62 };
   show("z2", z2, float.to_string);
   show("z2 + z2", complex_add(NumFloat, z2, z2), float.to_string);
+  show("z2 * z2", complex_mul(NumFloat, z2, z2), float.to_string);
   newline();
 
+  println("Complex[()]\n----------------------------------------");
   let unit = Complex { real: (), imag: () };
   let unit_renderer = () -> "()";
   show("unit", unit, unit_renderer);
   show("unit + unit", complex_add(NumUnit, unit, unit), unit_renderer);
+  show("unit * unit", complex_mul(NumUnit, unit, unit), unit_renderer);
 }
