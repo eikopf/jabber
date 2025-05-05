@@ -19,9 +19,44 @@ fn eval_aexp(expr: AExp) -> int = match expr {
   }
 }
 
+fn aexp_to_string(expr: AExp) -> string = match expr {
+  AExp.Int(i) => int.to_string(i),
+  AExp.Add(lhs, rhs) => {
+    let lhs = aexp_to_string(lhs);
+    let rhs = aexp_to_string(rhs);
+    let prefix = string.append(lhs, " + ");
+    string.append(prefix, rhs)
+  },
+  AExp.Mul(lhs, rhs) => {
+    let lhs = aexp_to_string(lhs);
+    let rhs = aexp_to_string(rhs);
+    let prefix = string.append(lhs, " * ");
+    string.append(prefix, rhs)
+  },
+  AExp.Sub(lhs, rhs) => {
+    let lhs = aexp_to_string(lhs);
+    let rhs = aexp_to_string(rhs);
+    let prefix = string.append(lhs, " - ");
+    let inner = string.append(prefix, rhs);
+    string.append("⌊", string.append(inner, "⌋"))
+  }
+}
+
 fn main() = {
-  let expr = AExp.Sub(AExp.Int(5), AExp.Int(6));
-  let res = eval_aexp(expr);
-  let msg = string.append("5 - 6 = ", int.to_string(res));
-  println(msg);
+  let process = expr -> {
+    let res = eval_aexp(expr);
+    let expr_string = aexp_to_string(expr);
+    let msg = string.append(expr_string, string.append(" = ", int.to_string(res)));
+    println(msg);
+  };
+
+  let lhs  = AExp.Mul(AExp.Int(3), AExp.Int(2));
+  let rhs  = AExp.Sub(AExp.Int(5), AExp.Int(6));
+  let sum  = AExp.Add(lhs, rhs);
+  let prod = AExp.Mul(lhs, rhs);
+
+  process(lhs);
+  process(rhs);
+  process(sum);
+  process(prod);
 }
