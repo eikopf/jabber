@@ -2,6 +2,10 @@
 
 pub type alias Float = float
 
+// UTILITY FUNCTIONS
+
+pub fn to_string(f: float) -> string = __prim_float_to_string(f)
+
 // OPERATORS
 
 @total
@@ -38,6 +42,9 @@ pub fn geq(lhs: float, rhs: float) -> bool = __prim_float_geq(lhs, rhs)
 
 
 // EXTERNALS
+
+@external.scheme("number->string")
+extern fn __prim_float_to_string(f: float) -> string
 
 @external.scheme("fl-")
 extern fn __prim_float_neg(x: float) -> float
