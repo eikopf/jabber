@@ -1,0 +1,84 @@
+use core.io.println
+use core.string
+use core.int
+use core.float
+
+// a complex number is just a pair of values over a ring T
+type Complex[T] = Complex { real: T, imag: T }
+
+// if we know how to render T, we can render Complex[T]
+fn complex_to_string(z: Complex[T], renderer: T -> string) -> string = {
+  let real = renderer(z.real);
+  let imag = string.append(renderer(z.imag), "𝑖");
+  let prefix = string.append(real, " + ");
+  string.append(prefix, imag)
+}
+
+// in a language with typeclasses this could be a typeclass, but since Jabber
+// doesn't have them we instead pass instances explicitly
+type Num[T] = Num {
+  zero: T,
+  one: T,
+  neg: T -> T,
+  add: (T, T) -> T,
+  mul: (T, T) -> T,
+}
+
+// there are a couple of obvious examples for int and float
+
+const NumInt: Num[int] = Num {
+  zero: 0,
+  one: 1,
+  neg: x -> -x,
+  add: (x, y) -> x + y,
+  mul: (x, y) -> x * y,
+}
+
+const NumFloat: Num[float] = Num {
+  zero: 0.0,
+  one: 1.0,
+  neg: x -> -.x,
+  add: (x, y) -> x +. y,
+  mul: (x, y) -> x *. y,
+}
+
+// but the trivial ring is also an example, with T = ()!
+
+const NumUnit: Num[()] = Num {
+  zero: (),
+  one: (),
+  neg: () -> (),
+  add: ((), ()) -> (),
+  mul: ((), ()) -> (),
+}
+
+// we can use these Num instances to define the usual operations on complex numbers
+fn complex_add(num: Num[T], z1: Complex[T], z2: Complex[T]) -> Complex[T] = {
+  let real = num.add(z1.real, z2.real);
+  let imag = num.add(z1.imag, z2.imag);
+  Complex { real, imag }
+}
+
+fn main() = {
+  let newline = () -> println("");
+  let show = (name, val, renderer) -> {
+    let val_repr = complex_to_string(val, renderer);
+    let prefix = string.append(name, ": ");
+    println(string.append(prefix, val_repr));
+  };
+
+  let z1 = Complex { real: -3, imag: 1 };
+  show("z1", z1, int.to_string);
+  show("z1 + z1", complex_add(NumInt, z1, z1), int.to_string);
+  newline();
+
+  let z2 = Complex { real: 0.5, imag: 0.62 };
+  show("z2", z2, float.to_string);
+  show("z2 + z2", complex_add(NumFloat, z2, z2), float.to_string);
+  newline();
+
+  let unit = Complex { real: (), imag: () };
+  let unit_renderer = () -> "()";
+  show("unit", unit, unit_renderer);
+  show("unit + unit", complex_add(NumUnit, unit, unit), unit_renderer);
+}
