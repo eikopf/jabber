@@ -5,12 +5,17 @@
 > All mimsy were the borogoves,  
 > And the mome raths outgrabe.
 
+## Context
+
+This repository contains the sources for my Bachelor's thesis project, titled _Designing and Implementing a Functional Programming Language_. This project will not be actively maintained.
+
 ## Requirements
 
 To use this project, you will need:
 1. A recent Rust toolchain, at least 1.85.1.
-2. A local C compiler.
-3. A Racket installation with the R6RS language package.
+1. The `tree-sitter-cli` tool (available via `cargo`).
+1. A local C compiler.
+1. A Racket installation with the R6RS language package.
 
 ## Usage
 For any of the following commands, `jabber` can be exchanged with `cargo run --` if you're in the project directory.
@@ -22,10 +27,11 @@ For any of the following commands, `jabber` can be exchanged with `cargo run --`
 ## Index
 - [`compiler`](compiler/) is the root of the Rust crate that implements the Jabber compiler.
 - [`libs`](libs/) contains Jabber's standard libraries, of which the most important is [`core`](libs/core/).
+- [`report`](report/) contains the source files for the report itself, and can be compiled with Typst.
 - [`spec`](spec/) contains normative (binding) documents describing Jabber, and is intended to be the source of truth for the language;
 - [`support`](support/) contains the runtime support library used by the compiled Racket artifacts.
 - [`tests`](tests/) contains several Jabber packages to test the compiler against.
-- [`tree-sitter-jabber`](tree-sitter-jabber/) is a [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser for Jabber, defined in [`grammar.js`](tree-sitter-jabber/grammar.js) --- it also serves as the front-end CST parser for the Jabber compiler.
+- [`tree-sitter-jabber`](tree-sitter-jabber/) is a [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser for Jabber, defined in [`grammar.js`](tree-sitter-jabber/grammar.js)—it also serves as the front-end CST parser for the Jabber compiler.
 
 ## Notes
  - The artifacts in [`tree-sitter-jabber/src`](tree-sitter-jabber/src) will change slightly based on the system that runs `tree-sitter generate`. Systems can run `git update-index --assume-unchanged <FILENAME>` to locally ignore changes to these files.
